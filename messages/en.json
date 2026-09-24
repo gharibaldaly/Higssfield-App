@@ -1,0 +1,1100 @@
+{
+  "app": {
+    "name": "Dr. Secret Studio",
+    "tagline": "Private AI production studio for Dr. Secret — catalogue images and cinematic ads with total garment fidelity.",
+    "brand": "Dr. Secret",
+    "studio": "AI Studio"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "studio": "Studio",
+    "products": "Products",
+    "ghost": "Ghost Studio",
+    "ads": "Ads Director",
+    "library": "Library",
+    "settings": "Settings",
+    "soonHeading": "Coming soon",
+    "soonBadge": "Soon",
+    "soon": {
+      "ugc": "UGC talking ads",
+      "fragrance": "Fragrance shots",
+      "social": "Social posts",
+      "brandKit": "Brand kit",
+      "costs": "Cost tracking"
+    }
+  },
+  "preferences": {
+    "switchLanguage": "Switch language",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
+  },
+  "topBar": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "mockMode": "Mock mode",
+    "mockImages": "Higgsfield is not configured: images and videos are local placeholders (no credits used).",
+    "mockBrain": "No LLM key: the director brain returns placeholder analysis.",
+    "account": "Account",
+    "owner": "Owner",
+    "signOut": "Sign out"
+  },
+  "login": {
+    "title": "Sign in",
+    "heading": "Welcome back",
+    "subheading": "Sign in to your private production studio.",
+    "privateNote": "Private studio — one owner account.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "errors": {
+      "invalid": "Email or password is not correct.",
+      "not_owner": "This studio is private to its owner.",
+      "config": "Supabase is not configured yet — see the setup page."
+    }
+  },
+  "setup": {
+    "title": "Setup",
+    "heading": "Finish setting up the studio",
+    "body": "Add these environment variables in Vercel (Project → Settings → Environment Variables), then redeploy.",
+    "configured": "Configured",
+    "missingRequired": "Missing — required",
+    "missingOptional": "Missing — optional",
+    "readme": "The README walks through creating the Supabase project, running the migrations and deploying."
+  },
+  "generation": {
+    "status": {
+      "queued": "Queued",
+      "in_progress": "Generating",
+      "completed": "Ready",
+      "failed": "Failed",
+      "nsfw": "Blocked by the provider filter",
+      "canceled": "Canceled"
+    },
+    "queuePosition": "#{position} in queue",
+    "progress": "Generation progress",
+    "mock": "Mock",
+    "mockVideo": "Mock still"
+  },
+  "compare": {
+    "original": "Original",
+    "result": "Result",
+    "slider": "Drag to compare original and result"
+  },
+  "products": {
+    "eyebrow": "Product intake",
+    "title": "Products",
+    "description": "Every product starts here: phone photos per piece, then a Garment DNA that locks every detail before anything is generated.",
+    "new": "New product",
+    "empty": {
+      "title": "No products yet",
+      "description": "Add your first garment to start the catalogue and ad pipeline.",
+      "step1": "Create the product and name its pieces (1–3).",
+      "step2": "Upload front, back and detail photos for every piece.",
+      "step3": "Let the director brain write the Garment DNA, then review and approve it."
+    },
+    "lines": {
+      "SECRET": "Lace & satin",
+      "HOURS": "Homewear & pyjamas",
+      "VOWS": "Bridal"
+    },
+    "filters": {
+      "all": "All",
+      "favorites": "Favourites"
+    },
+    "pieces": "{count, plural, one {# piece} other {# pieces}}",
+    "photoCount": "{count, plural, =0 {No photos} one {# photo} other {# photos}}",
+    "colorwayCount": "{count, plural, =0 {No colourways} one {# colourway} other {# colourways}}",
+    "favorite": "Add to favourites",
+    "unfavorite": "Remove from favourites",
+    "stage": {
+      "photos": "Photos",
+      "dna": "DNA in review",
+      "dna_approved": "DNA approved",
+      "sheet_approved": "Sheet approved"
+    },
+    "form": {
+      "eyebrow": "Product intake",
+      "title": "New product",
+      "description": "Name the product, choose its line and name each piece. Photos come next.",
+      "name": "Product name",
+      "namePlaceholder": "e.g. Rose Lace Robe Set",
+      "line": "Product line",
+      "pieceCount": "Number of pieces",
+      "piecesOption": "{count, plural, one {# piece} other {# pieces}}",
+      "pieceName": "Piece {number} name",
+      "piecePlaceholders": {
+        "0": "e.g. Robe",
+        "1": "e.g. Slip dress",
+        "2": "e.g. Short"
+      },
+      "sku": "SKU (optional)",
+      "notes": "Notes for the director brain (optional)",
+      "notesPlaceholder": "Anything the photos cannot show: fabric composition, exact trims, known issues…",
+      "submit": "Create and add photos",
+      "created": "Product created — now add photos."
+    },
+    "subnav": {
+      "label": "Product sections",
+      "intake": "Photos",
+      "dna": "Garment DNA",
+      "colorways": "Colourways",
+      "sheet": "Product sheet"
+    },
+    "photos": {
+      "rejected": "Some files were skipped — use JPEG, PNG or WebP up to 25 MB.",
+      "uploadFailed": "Upload failed: {name}",
+      "uploaded": "{count, plural, one {# photo uploaded} other {# photos uploaded}}",
+      "uploading": "Uploading {count}…",
+      "add": "Drop photos or click to choose",
+      "addShort": "Add",
+      "actions": "Photo actions",
+      "moveTo": "Move to",
+      "kinds": {
+        "front": "Front",
+        "back": "Back",
+        "detail": "Details"
+      },
+      "editLabel": "Edit label",
+      "label": "Label",
+      "labelPlaceholder": "e.g. Lace hem, pearl buttons, back strap cross",
+      "saveLabel": "Save label",
+      "confirmDelete": "Delete this photo?",
+      "deleted": "Photo deleted",
+      "delete": "Delete"
+    },
+    "intake": {
+      "piece": "Piece {number}",
+      "pieceHint": "Straight-on, even light, the whole piece in frame. Add close details of lace, trims and closures.",
+      "kinds": {
+        "front": "Front",
+        "back": "Back",
+        "detail": "Details"
+      },
+      "kindHints": {
+        "front": "One clear, flat front photo.",
+        "back": "One clear, flat back photo.",
+        "detail": "Close-ups: lace motif, trims, buttons, seams. Label them."
+      },
+      "nextSteps": "Pipeline",
+      "steps": {
+        "photos": {
+          "title": "Photos",
+          "hint": "Front photo for every piece"
+        },
+        "dna": {
+          "title": "Garment DNA",
+          "hint": "Analyse, edit and approve",
+          "status": "Version {version} · {status}"
+        },
+        "colorways": {
+          "title": "Colourways",
+          "hint": "Optional — swatch or eyedropper"
+        },
+        "sheet": {
+          "title": "Product sheet",
+          "hint": "Generate after DNA approval",
+          "status": "Latest sheet · {status}"
+        }
+      },
+      "dnaStatus": {
+        "draft": "draft",
+        "approved": "approved",
+        "superseded": "superseded"
+      },
+      "sheetStatus": {
+        "draft": "draft",
+        "generating": "generating",
+        "review": "ready for review",
+        "approved": "approved",
+        "failed": "failed"
+      },
+      "details": "Product details",
+      "noNotes": "No notes yet.",
+      "edit": "Edit product",
+      "delete": "Delete product",
+      "confirmDelete": "Delete this product, its photos and every generation? This cannot be undone.",
+      "deleted": "Product deleted",
+      "name": "Product name",
+      "line": "Product line",
+      "sku": "SKU",
+      "notes": "Notes",
+      "save": "Save",
+      "saved": "Saved"
+    }
+  },
+  "dna": {
+    "discardChanges": "Discard unsaved changes?",
+    "analyzed": "Garment DNA ready — review every field against the photos.",
+    "savedAsNew": "Saved as new draft v{version} (the approved version stays unchanged until you approve this one).",
+    "saved": "Draft saved",
+    "approved": "Garment DNA approved — it now locks every prompt.",
+    "mockBrain": "Mock director brain",
+    "empty": {
+      "title": "No Garment DNA yet",
+      "description": "The DNA is the construction spec every image and video prompt is locked to.",
+      "step1": "Analyse the photos with the director brain (or start from a blank form).",
+      "step2": "Check every field against the photos — counts, lace, seams, colours.",
+      "step3": "Approve it. Generation is locked until then."
+    },
+    "analyze": "Analyse photos",
+    "analyzing": "Analysing photos…",
+    "reanalyze": "New analysis",
+    "manual": "Start from a blank form",
+    "needPhotos": "Upload photos first.",
+    "versions": "DNA versions",
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "superseded": "Superseded"
+    },
+    "byBrain": "Written by {model}",
+    "byHand": "Edited by hand",
+    "gapsTitle": "Please confirm",
+    "gapsHint": "The photos did not show these clearly. Add photos or correct the fields below.",
+    "summary": "Product summary",
+    "editingApproved": "Saving changes creates a new draft; the approved version keeps locking prompts until you approve the new one.",
+    "productSummary": "Summary",
+    "setComposition": "How the pieces go together",
+    "globalDoNotAlter": "Never alter (whole product)",
+    "unsaved": "Unsaved changes",
+    "isApproved": "This version is approved and locks every prompt.",
+    "reviewHint": "Review every field, then approve.",
+    "save": "Save draft",
+    "approve": "Approve DNA",
+    "invalidData": "This version's data could not be read. Start a new analysis or a blank form.",
+    "rail": {
+      "title": "Original photos",
+      "hint": "Check every field against these.",
+      "noPhotos": "No photos for this piece."
+    },
+    "editor": {
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "remove": "Remove",
+      "pickColor": "Pick colour",
+      "hex": "Hex colour",
+      "addShade": "+ shade",
+      "identity": "Category & silhouette",
+      "category": "Category",
+      "categoryPlaceholder": "robe, slip dress, pyjama shirt…",
+      "silhouette": "Silhouette",
+      "lengthAndFit": "Length & fit",
+      "frontConstruction": "Front construction",
+      "backConstruction": "Back construction",
+      "topToBottom": "Top to bottom, one zone per row.",
+      "addStep": "Add zone",
+      "zone": "Zone",
+      "constructionDetail": "Exact construction: seams, trims, closures, counts",
+      "fabrics": "Fabrics",
+      "addFabric": "Add fabric",
+      "fabricName": "Fabric",
+      "finish": "Finish",
+      "opacity": "Opacity",
+      "opacityOptions": {
+        "opaque": "Opaque",
+        "semi-sheer": "Semi-sheer",
+        "sheer": "Sheer"
+      },
+      "location": "Where",
+      "motif": "Lace / print motif",
+      "motifType": "Type",
+      "motifTypes": {
+        "lace": "Lace",
+        "print": "Print",
+        "embroidery": "Embroidery",
+        "jacquard": "Jacquard",
+        "none": "None",
+        "other": "Other"
+      },
+      "motifScale": "Scale",
+      "motifDescription": "Motif description (precise enough to redraw)",
+      "motifPlacement": "Placement & orientation",
+      "hardware": "Hardware",
+      "hardwareHint": "Exact counts matter — leave empty only when unsure.",
+      "addHardware": "Add hardware",
+      "item": "Item",
+      "count": "Count",
+      "colors": "Colours",
+      "addColor": "Add colour",
+      "colorName": "Name",
+      "hexRange": "Hex range (daylight)",
+      "chestPanel": "Chest panel",
+      "chestPanelHint": "Default: unstructured, flat, unlined, unpadded, zero projection.",
+      "hasChestPanel": "This piece has a chest panel",
+      "structure": "Structure",
+      "structureOptions": {
+        "unstructured": "Unstructured",
+        "soft-shaped": "Soft-shaped",
+        "structured": "Structured"
+      },
+      "projection": "Projection",
+      "projectionOptions": {
+        "zero": "Zero (flat)",
+        "soft": "Soft",
+        "moulded": "Moulded"
+      },
+      "lined": "Lined",
+      "padded": "Padded",
+      "notes": "Notes",
+      "keyDetails": "Key details",
+      "keyDetailsHint": "Selling details become the macro close-ups and product-sheet cards.",
+      "addDetail": "Add detail",
+      "detailLabel": "Label",
+      "importance": "Importance",
+      "importanceOptions": {
+        "critical": "Critical",
+        "high": "High",
+        "medium": "Medium"
+      },
+      "sellingPoint": "Selling point",
+      "detailDescription": "Description",
+      "doNotAlter": "Never alter",
+      "doNotAlterHint": "Short imperative rules, e.g. “Keep exactly 5 pearl buttons at centre front”.",
+      "addRule": "Add rule",
+      "rulePlaceholder": "Keep exactly…"
+    }
+  },
+  "colorways": {
+    "intro": "Each colourway re-renders the approved front image with only the colour changed. Define it from a fabric swatch photo, an eyedropper sample on a product photo, or a hex value.",
+    "add": "Add colourway",
+    "addHint": "Name it, then capture the exact colour.",
+    "empty": {
+      "title": "No colourways yet",
+      "description": "Add the colours this product comes in. The Ghost Studio renders them from the approved front image."
+    },
+    "name": "Colourway name",
+    "namePlaceholder": "e.g. Midnight Wine",
+    "hex": "Hex colour",
+    "save": "Save",
+    "saved": "Colourway saved",
+    "added": "Colourway added",
+    "delete": "Delete",
+    "confirmDelete": "Delete this colourway?",
+    "sources": {
+      "swatch": "Fabric swatch",
+      "eyedropper": "Eyedropper",
+      "manual": "Hex"
+    },
+    "uploadSwatch": "Upload a fabric swatch photo",
+    "swatchPreview": "Swatch preview",
+    "swatchHint": "Photograph the fabric flat in daylight. The average colour of the centre is suggested — adjust it if needed.",
+    "badFile": "Use a JPEG, PNG or WebP photo up to 25 MB.",
+    "uploadFailed": "Upload failed",
+    "noPhotos": "Upload product photos first to sample colours from them.",
+    "manualHint": "Type the hex value or pick it with the colour picker.",
+    "eyedropper": {
+      "instruction": "Click on the fabric to sample its colour.",
+      "failed": "Could not read the colour from this photo."
+    }
+  },
+  "models": {
+    "choose": "Choose a model",
+    "incompatible": "not for this job",
+    "references": "{count, plural, =0 {No reference images} one {# reference image} other {# reference images}}",
+    "maxDuration": "up to {seconds}s",
+    "aspectRatios": "Aspect ratios",
+    "unverified": "Some options are defaults not yet confirmed against Higgsfield's docs.",
+    "modes": {
+      "text-to-image": "Text → image",
+      "image-to-image": "Image → image",
+      "image-to-video": "Image → video",
+      "text-to-video": "Text → video",
+      "speech-to-video": "Speech → video"
+    },
+    "sources": {
+      "sdk": "Official SDK",
+      "catalog": "Higgsfield catalogue",
+      "custom": "Custom",
+      "mock": "Mock"
+    }
+  },
+  "sheet": {
+    "needDna": {
+      "title": "Approve the Garment DNA first",
+      "description": "The product sheet is generated from the approved DNA and the isolated reference photos.",
+      "action": "Open Garment DNA"
+    },
+    "started": "Sheet generation started.",
+    "approved": "Sheet approved — {count} isolated reference crops saved.",
+    "sheetTitle": "Sheet v{version}",
+    "sheetAlt": "Product sheet",
+    "status": {
+      "draft": "Draft",
+      "generating": "Generating…",
+      "review": "Ready for review",
+      "approved": "Approved — used by the Ads Director",
+      "failed": "Generation failed"
+    },
+    "showBoxes": "Show crop boxes",
+    "approve": "Approve & crop",
+    "isApproved": "Approved",
+    "regenerate": "Regenerate",
+    "regenerateWithNote": "Regenerate with note",
+    "notePlaceholder": "What should change? e.g. “Hem lace is too dense — match the photo”",
+    "empty": {
+      "title": "No product sheet yet",
+      "description": "A landscape 16:9 board: hero front, back view, six macro details and matching pieces. Once approved it is cut into isolated references for the video ads.",
+      "step1": "Pick an image model on the right.",
+      "step2": "Generate — the director brain writes the layout and the DNA lock is appended.",
+      "step3": "Compare with the originals, then approve to auto-crop the references."
+    },
+    "comparison": "Original photos",
+    "comparisonHint": "Compare every card with these before approving.",
+    "crops": {
+      "title": "Isolated reference crops",
+      "hint": "These crops — never the whole sheet — are passed to the video model, one shot at a time.",
+      "adjust": "Adjust crops",
+      "adjustHint": "Drag a box to move it; drag the round handle to resize. Crops are re-cut from the full-resolution sheet.",
+      "recrop": "Save & re-crop",
+      "saved": "{count} crops saved",
+      "kinds": {
+        "front": "Front",
+        "back": "Back",
+        "detail": "Detail",
+        "pieces": "All pieces",
+        "swatch": "Fabric swatch",
+        "matching": "Matching"
+      }
+    },
+    "generate": {
+      "title": "Generate sheet",
+      "hint": "Landscape 16:9 at the model's highest resolution.",
+      "model": "Image model",
+      "first": "Generate sheet",
+      "again": "Generate new version",
+      "working": "Planning the sheet…",
+      "referencesNote": "Isolated references are sent (approved catalogue front/back first, then detail photos), up to the model's limit."
+    },
+    "plan": {
+      "title": "Sheet plan",
+      "details": "Macro cards"
+    }
+  },
+  "review": {
+    "hint": "Compare the result with the original before approving. Drag the slider or use the arrow keys.",
+    "approved": "Approved",
+    "approve": "Approve",
+    "regenerate": "Regenerate",
+    "regenerateWithNote": "Regenerate with note",
+    "notePlaceholder": "What exactly should change? Everything else stays locked.",
+    "send": "Regenerate with this note",
+    "fidelityCheck": "AI fidelity check",
+    "previousNote": "Note on this attempt",
+    "verdict": {
+      "pass": "Pass",
+      "minor_issues": "Minor issues",
+      "fail": "Fail"
+    }
+  },
+  "ghost": {
+    "eyebrow": "Catalogue images",
+    "title": "Ghost Mannequin Studio",
+    "description": "Catalogue images on an invisible display form, locked to the approved Garment DNA, in one consistent catalogue style.",
+    "empty": {
+      "title": "Add a product first",
+      "description": "Ghost images are generated from a product's photos and its approved Garment DNA.",
+      "action": "New product"
+    },
+    "setup": {
+      "title": "New job",
+      "hint": "Choose the job type, the products and the model."
+    },
+    "types": {
+      "front_back": {
+        "short": "Front & back",
+        "title": "Front & Back — exactly 2 images",
+        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos."
+      },
+      "macro": {
+        "short": "Macro",
+        "title": "Close-up macro — exactly 2 images",
+        "description": "Advertising-grade close-ups of the two details that sell the product. The director brain picks them from the DNA; you can override."
+      },
+      "colorways": {
+        "short": "Colourways",
+        "title": "Colourways — one image per colour",
+        "description": "The approved front image re-rendered in each colourway. Only the colour changes; every construction detail stays identical."
+      }
+    },
+    "modes": {
+      "single": "Single product",
+      "batch": "Batch"
+    },
+    "products": {
+      "product": "Product",
+      "choose": "Choose a product",
+      "batch": "Products",
+      "clear": "Clear",
+      "selectReady": "Select all ready",
+      "ready": "Ready",
+      "colorwayCount": "{count, plural, one {# colourway} other {# colourways}}",
+      "macroDetails": "Details to feature",
+      "macroHint": "Pick up to two. Default: the two highest-ranked selling details.",
+      "colorways": "Colourways to render",
+      "issues": {
+        "needDna": "Approve the Garment DNA first",
+        "needFront": "Approve a front image first",
+        "needColorways": "Add colourways first"
+      }
+    },
+    "model": "Image model",
+    "style": "Catalogue style · {aspect} · {padding}% margin",
+    "editStyle": "Edit",
+    "queueSingle": "Generate",
+    "queueBatch": "{count, plural, =0 {Queue batch} one {Queue # product} other {Queue # products}}",
+    "queued": "{count, plural, one {# job queued} other {# jobs queued}}",
+    "queueTitle": "Jobs",
+    "runner": {
+      "running": "Preparing {type} · {product}",
+      "starting": "Starting the queue…",
+      "waiting": "{count} waiting",
+      "progress": "Queue progress"
+    },
+    "noJobs": {
+      "title": "No jobs yet",
+      "description": "Queue a job on the left. Every output opens in the compare view before approval."
+    },
+    "jobStatus": {
+      "queued": "Queued",
+      "preparing": "Preparing",
+      "generating": "Generating",
+      "review": "Ready for review",
+      "approved": "Approved",
+      "failed": "Failed",
+      "canceled": "Canceled"
+    },
+    "queuePosition": "#{position} in queue",
+    "preparing": "Writing prompts…",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "slots": {
+      "front": "Front",
+      "back": "Back",
+      "macro": "Macro",
+      "macroNamed": "Macro · {label}",
+      "colorway": "Colourway",
+      "colorwayNamed": "Colourway · {label}"
+    },
+    "approvedOutput": "Approved",
+    "clickToReview": "Open to compare & approve",
+    "attempts": "{count} attempts",
+    "approvedToast": "Approved",
+    "regenerating": "Regenerating — only this image."
+  },
+  "ads": {
+    "eyebrow": "Video ads",
+    "title": "Ads Director",
+    "description": "Cinematic product ads planned by the director brain and generated shot by shot from isolated reference crops.",
+    "projects": "Ads",
+    "new": "New ad",
+    "needSheet": "Approve a product sheet first — ads are built from its isolated reference crops.",
+    "empty": {
+      "title": "No ads yet",
+      "description": "Every ad is a director board: controls, a shot list and video settings.",
+      "step1": "Approve a product sheet (it produces the isolated references).",
+      "step2": "Create an ad, pick a preset and write a short brief.",
+      "step3": "Plan the shots, edit them, then generate each shot."
+    },
+    "status": {
+      "draft": "Draft",
+      "planned": "Planned",
+      "generating": "Generating",
+      "review": "Ready for review",
+      "done": "Done"
+    },
+    "shotsReady": "{ready}/{total} shots ready",
+    "presets": {
+      "title": "Director presets",
+      "hint": "Presets store every director control, the video settings and the rules. Edit them from any board with “Save as preset”.",
+      "builtin": "Built-in",
+      "confirmReset": "Restore this preset to its original values?",
+      "reset": "Preset restored",
+      "resetAction": "Reset",
+      "confirmDelete": "Delete this preset?",
+      "delete": "Delete"
+    },
+    "newHint": "Pick a product with an approved sheet and a preset.",
+    "product": "Product",
+    "chooseProduct": "Choose a product",
+    "name": "Ad name",
+    "namePlaceholder": "e.g. Rose robe — launch 15s",
+    "preset": "Preset",
+    "brief": "Brief (optional)",
+    "briefPlaceholder": "Audience, offer, the feeling you want…",
+    "create": "Create director board"
+  },
+  "director": {
+    "eyebrow": "Ads Director",
+    "title": "Director Board",
+    "description": "Controls on the left, storyboard in the centre, video settings on the right.",
+    "name": "Ad name",
+    "status": {
+      "draft": "Draft",
+      "planned": "Planned",
+      "generating": "Generating",
+      "review": "Ready for review",
+      "done": "Done"
+    },
+    "applyPreset": "Apply a preset",
+    "presetApplied": "Preset applied",
+    "savePreset": "Save as preset",
+    "brief": "Brief",
+    "briefPlaceholder": "What should this ad achieve? Audience, offer, mood…",
+    "plan": "Plan shots",
+    "replan": "Re-plan shots",
+    "planning": "Planning the shot list…",
+    "planned": "{count, plural, one {# shot planned} other {# shots planned}}",
+    "save": "Save",
+    "saved": "Saved",
+    "unsaved": "Unsaved changes",
+    "planConcept": "Concept",
+    "planHook": "Hook",
+    "planEnvironment": "Environment",
+    "planMusic": "Music",
+    "controlsTitle": "Director controls",
+    "controlsHint": "Tap presets, add your own words. Saved with the ad.",
+    "rules": "Preset rules",
+    "addRule": "Add rule",
+    "storyboard": "Storyboard",
+    "generateAll": "Generate all shots",
+    "generatingAll": "Generating · {count} left",
+    "addShot": "Add shot",
+    "noShots": {
+      "title": "No shots yet",
+      "description": "Write a brief and press “Plan shots”. Every shot must show a garment detail.",
+      "noCrops": "The approved product sheet has no reference crops yet."
+    },
+    "confirmDeleteShot": "Delete this shot?",
+    "videoTitle": "Video settings",
+    "montage": {
+      "title": "Montage",
+      "phase": "Phase 2",
+      "description": "Order and trim clips, add a music track and render the final video on the render worker."
+    },
+    "customPlaceholder": "Or describe it in your own words…",
+    "customFor": "Custom text for {control}",
+    "fewerShots": "Fewer shots",
+    "moreShots": "More shots",
+    "groups": {
+      "camera": "Camera",
+      "light": "Light & colour",
+      "set": "Set",
+      "story": "Story & sound",
+      "rhythm": "Rhythm"
+    },
+    "controls": {
+      "cameraLens": "Camera & lens",
+      "visualStyle": "Visual style",
+      "lighting": "Lighting",
+      "timeOfDay": "Time of day",
+      "location": "Room / location",
+      "decorProps": "Décor & props",
+      "colorGrading": "Colour grading",
+      "cameraAngles": "Camera angles",
+      "cameraMovements": "Camera movements",
+      "productPlacements": "Where the product appears",
+      "hookType": "Hook",
+      "adStructure": "Ad structure",
+      "moodMusic": "Mood & music",
+      "shotCount": "Number of shots",
+      "shotDurationS": "Seconds per shot",
+      "humanModel": "Human model in frame"
+    },
+    "options": {
+      "cameraLens": {
+        "sony-a7-cinema-50": "Sony A7 cinema 50mm",
+        "macro-100": "100mm macro",
+        "portrait-85": "85mm portrait",
+        "wide-35": "35mm natural",
+        "anamorphic-40": "40mm anamorphic",
+        "wide-24": "24mm wide"
+      },
+      "visualStyle": {
+        "global-tv-commercial": "Global TV commercial",
+        "editorial-luxury": "Luxury editorial",
+        "soft-romantic": "Soft romantic",
+        "minimal-clean": "Minimal & clean",
+        "warm-lifestyle": "Warm lifestyle",
+        "moody-cinematic": "Moody cinematic"
+      },
+      "lighting": {
+        "real-daylight-window": "Real window daylight",
+        "sheer-curtain-daylight": "Sheer-curtain daylight",
+        "golden-hour": "Golden hour",
+        "overcast-diffused": "Overcast diffused",
+        "studio-softbox": "Studio softbox",
+        "warm-practicals": "Warm lamps & candles"
+      },
+      "timeOfDay": {
+        "morning": "Morning",
+        "midday": "Midday",
+        "late-afternoon": "Late afternoon",
+        "blue-hour": "Blue hour",
+        "night": "Night"
+      },
+      "location": {
+        "modern-bedroom": "Modern bedroom",
+        "hotel-suite": "Hotel suite",
+        "parisian-apartment": "Parisian apartment",
+        "bridal-suite": "Bridal suite",
+        "dressing-room": "Dressing room",
+        "minimal-studio": "Minimal studio"
+      },
+      "decorProps": {
+        "linen-bedding": "Linen bedding",
+        "fresh-flowers": "Fresh flowers",
+        "perfume-bottles": "Perfume bottles",
+        "silk-ribbons": "Silk ribbons",
+        "books-candles": "Books & candles",
+        "vanity-mirror": "Vanity mirror",
+        "no-props": "No props"
+      },
+      "colorGrading": {
+        "natural-true-to-fabric": "True-to-fabric",
+        "warm-cream": "Warm cream",
+        "cool-clean": "Cool & clean",
+        "rich-wine": "Rich wine",
+        "film-portra": "Portra film"
+      },
+      "cameraAngles": {
+        "eye-level": "Eye level",
+        "top-down": "Top-down",
+        "low-angle": "Low angle",
+        "high-angle": "High angle",
+        "three-quarter": "Three-quarter",
+        "extreme-close": "Extreme close-up"
+      },
+      "cameraMovements": {
+        "slow-push-in": "Slow push-in",
+        "pull-back-reveal": "Pull-back reveal",
+        "slider-pan": "Slider pan",
+        "slow-orbit": "Slow orbit",
+        "tilt-reveal": "Tilt reveal",
+        "rack-focus": "Rack focus",
+        "static-locked": "Locked-off",
+        "gentle-handheld": "Gentle handheld"
+      },
+      "productPlacements": {
+        "bed": "On the bed",
+        "chair": "On the chair",
+        "wardrobe": "In the wardrobe",
+        "flat-lay": "Flat lay",
+        "hanger": "On a hanger",
+        "window": "By the window",
+        "dresser": "On the dresser"
+      },
+      "hookType": {
+        "fabric-macro-reveal": "Macro reveal",
+        "light-sweep": "Light sweep",
+        "fabric-drop": "Fabric drop",
+        "whip-reveal": "Whip reveal",
+        "texture-asmr": "Texture close-up",
+        "silhouette-reveal": "Silhouette reveal"
+      },
+      "adStructure": {
+        "set-three-part": "Piece 1 → piece 2 → together",
+        "hook-detail-hero": "Hook → details → hero",
+        "detail-montage": "Detail montage",
+        "morning-story": "Morning story"
+      },
+      "moodMusic": {
+        "elegant-modern": "Elegant modern",
+        "soft-piano": "Soft piano",
+        "cinematic-strings": "Cinematic strings",
+        "soft-rnb": "Soft R&B",
+        "modern-arabic": "Modern Arabic",
+        "upbeat-chic": "Upbeat chic"
+      }
+    },
+    "video": {
+      "model": "Video model",
+      "total": "Total (s)",
+      "maxShot": "Max per shot (s)",
+      "planned": "Planned length",
+      "aspect": "Aspect ratio",
+      "aspectFromReference": "This model frames the clip like its reference image. Turn on “preview frame first” on a shot to get an exact 9:16 start frame.",
+      "resolution": "Resolution / quality",
+      "fixedDuration": "This model sets the clip length itself; clips are trimmed in the montage.",
+      "cutsToMusic": "Cuts matched to music"
+    },
+    "shot": {
+      "purpose": "Shot purpose",
+      "status": {
+        "draft": "Draft",
+        "preview_generating": "Frame generating",
+        "preview_ready": "Frame ready",
+        "generating": "Video generating",
+        "ready": "Video ready",
+        "approved": "Approved",
+        "failed": "Failed"
+      },
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "delete": "Delete shot",
+      "detailShown": "Garment detail shown (required)",
+      "framing": "Framing",
+      "angle": "Angle",
+      "movement": "Movement",
+      "placement": "Placement",
+      "prompt": "Scene & motion",
+      "duration": "Seconds",
+      "previewFirst": "Preview frame first",
+      "overrides": "Per-shot overrides",
+      "overrideModel": "Video model for this shot",
+      "useProjectModel": "Use the board's model",
+      "overrideAspect": "Aspect ratio",
+      "overrideResolution": "Resolution",
+      "overrideDuration": "Duration (s)",
+      "references": "Isolated references",
+      "chooseReferences": "Choose",
+      "referencesHint": "Pick the crops that show exactly this shot's detail.",
+      "previewFrame": "Preview frame",
+      "noPreview": "No frame yet",
+      "video": "Video",
+      "noVideo": "Not generated yet",
+      "saved": "Shot saved",
+      "save": "Save shot",
+      "approvePreview": "Approve frame",
+      "regeneratePreview": "Regenerate frame",
+      "generatePreview": "Generate frame",
+      "approveShot": "Approve shot",
+      "regenerateVideo": "Regenerate",
+      "generateVideo": "Generate video",
+      "withNote": "With note",
+      "notePlaceholder": "What should change in this shot?",
+      "regenerateWithNote": "Regenerate with note",
+      "previewStarted": "Generating the preview frame…",
+      "videoStarted": "Generating this shot…",
+      "previewApproved": "Frame approved — generate the video next.",
+      "shotApproved": "Shot approved",
+      "overLimit": "Longer than the preset limit of {seconds}s."
+    },
+    "presetDialog": {
+      "title": "Save as preset",
+      "hint": "Stores the controls, video settings and rules for future ads.",
+      "saveTo": "Save to",
+      "newPreset": "New preset",
+      "overwrite": "Update “{name}”",
+      "name": "Preset name",
+      "description": "Description",
+      "builtinNote": "Built-in presets can always be restored from the Ads page.",
+      "saved": "Preset saved",
+      "save": "Save preset"
+    }
+  },
+  "home": {
+    "title": "Studio",
+    "eyebrow": "Dr. Secret · AI production studio",
+    "heading": "Every stitch, exactly as it is.",
+    "subheading": "Turn phone photos into ghost-mannequin catalogue images and cinematic video ads — with every garment detail locked by its Garment DNA.",
+    "actions": {
+      "newProduct": "New product",
+      "ghost": "Ghost Studio",
+      "ads": "Ads Director"
+    },
+    "setup": {
+      "title": "Finish connecting your providers",
+      "higgsfield": "Higgsfield is not configured — images and videos are local placeholders.",
+      "brain": "No LLM key — the director brain returns placeholder text.",
+      "action": "Open Settings"
+    },
+    "stats": {
+      "products": "Products",
+      "approvedDna": "Approved DNA",
+      "approvedSheets": "Approved sheets",
+      "approvedImages": "Approved outputs",
+      "pending": "Generating now",
+      "ads": "Ads"
+    },
+    "recent": {
+      "title": "Latest generations",
+      "hint": "Every result is copied to your storage as soon as it finishes.",
+      "all": "Open library",
+      "empty": "Nothing generated yet.",
+      "alt": "Generation"
+    }
+  },
+  "library": {
+    "eyebrow": "Everything you made",
+    "title": "Library",
+    "description": "Products, DNA versions, sheets, colourways and every generation — filter, favourite and download.",
+    "tabs": {
+      "generations": "Generations",
+      "products": "Products",
+      "dna": "Garment DNA",
+      "sheets": "Sheets",
+      "colorways": "Colourways"
+    },
+    "filters": {
+      "kind": "Type",
+      "images": "Images",
+      "videos": "Videos",
+      "purpose": "Purpose",
+      "status": "Status",
+      "completed": "Ready",
+      "pending": "In progress",
+      "failed": "Failed",
+      "product": "Product",
+      "favorites": "Favourites",
+      "approved": "Approved",
+      "all": "all"
+    },
+    "purposes": {
+      "ghost_front": "Ghost front",
+      "ghost_back": "Ghost back",
+      "macro": "Macro close-up",
+      "colorway": "Colourway",
+      "product_sheet": "Product sheet",
+      "shot_preview": "Shot frame",
+      "shot_video": "Shot video",
+      "other": "Other"
+    },
+    "columns": {
+      "product": "Product",
+      "version": "Version",
+      "status": "Status",
+      "source": "Source"
+    },
+    "dnaStatus": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "superseded": "Superseded"
+    },
+    "dnaSource": {
+      "llm": "Director brain",
+      "manual": "Manual"
+    },
+    "sheetStatus": {
+      "draft": "Draft",
+      "generating": "Generating",
+      "review": "Review",
+      "approved": "Approved",
+      "failed": "Failed"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "description": "Results appear here as soon as they are generated."
+    },
+    "approvedBadge": "Approved",
+    "favorite": "Add to favourites",
+    "unfavorite": "Remove from favourites",
+    "download": "Download"
+  },
+  "settings": {
+    "eyebrow": "Studio",
+    "title": "Settings",
+    "description": "Director brain, catalogue style, models, integrations and costs. API keys live only in environment variables and are never shown here.",
+    "saved": "Settings saved",
+    "brain": {
+      "title": "Director brain",
+      "hint": "The LLM that analyses garments and writes every prompt and shot list.",
+      "provider": "Provider",
+      "providers": {
+        "claude": "Claude (Anthropic)",
+        "gemini": "Gemini (Google)"
+      },
+      "keyConfigured": "Key configured",
+      "keyMissing": "Key missing",
+      "claudeModel": "Claude model ID",
+      "geminiModel": "Gemini model ID",
+      "save": "Save",
+      "active": "Active: {provider} · {model}"
+    },
+    "style": {
+      "title": "Catalogue style",
+      "hint": "Shared by every ghost-mannequin image so the store grid stays consistent.",
+      "background": "Background colour",
+      "aspect": "Aspect ratio",
+      "shadow": "Shadow",
+      "shadows": {
+        "none": "None",
+        "soft": "Soft contact",
+        "grounded": "Grounded"
+      },
+      "padding": "Margin around the garment",
+      "lighting": "Lighting",
+      "save": "Save style",
+      "preview": "Preview"
+    },
+    "models": {
+      "title": "Image & video models",
+      "hint": "Every model the app can use. Options marked unverified are defaults to confirm against the Higgsfield docs.",
+      "provider": {
+        "higgsfield": "Higgsfield connected",
+        "mock": "Mock provider"
+      },
+      "default": {
+        "image": "Default image model",
+        "video": "Default video model"
+      },
+      "auto": "Automatic",
+      "save": "Save defaults",
+      "kinds": {
+        "image": "Image",
+        "video": "Video"
+      },
+      "custom": {
+        "title": "Custom models (JSON)",
+        "hint": "Add models from docs.higgsfield.ai without a redeploy. Each entry is validated before saving.",
+        "template": "Insert example",
+        "save": "Save custom models",
+        "saved": "{count, plural, =0 {Custom models cleared} one {# custom model saved} other {# custom models saved}}"
+      }
+    },
+    "keys": {
+      "title": "Provider keys",
+      "hint": "Status only — values are never displayed.",
+      "configured": "Configured",
+      "missing": "Missing",
+      "serviceRole": "Supabase service role (webhooks)",
+      "webhook": "Higgsfield webhook (secret + APP_URL)",
+      "ownerEmail": "Owner email lock"
+    },
+    "drive": {
+      "title": "Google Drive",
+      "phase": "Phase 2",
+      "hintConfigured": "OAuth client configured. Connecting and mirroring arrive in Phase 2; the target folder can be set now.",
+      "hintMissing": "Add GOOGLE_DRIVE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_SECRET to enable Drive in Phase 2.",
+      "folderId": "Target folder ID",
+      "folderName": "Folder name",
+      "autoMirror": "Mirror every approved result to Drive (Phase 2)",
+      "save": "Save folder",
+      "connect": "Connect Google Drive"
+    },
+    "costs": {
+      "title": "Cost summary",
+      "hint": "Recorded per generation when the provider returns a cost.",
+      "thisMonth": "This month",
+      "allTime": "All time",
+      "generations": "Generations",
+      "success": "Completed",
+      "creditsValue": "{value} credits",
+      "split": "{images} images · {videos} videos",
+      "failedValue": "{count} failed (refunded)",
+      "unpriced": "{count, plural, one {# completed generation has} other {# completed generations have}} no cost in the provider response."
+    },
+    "password": {
+      "title": "Account password",
+      "hint": "Replace the temporary password with your own — at least 12 characters.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "save": "Change password",
+      "changed": "Password changed",
+      "errors": {
+        "tooShort": "Use at least 12 characters.",
+        "mismatch": "The two passwords do not match.",
+        "same": "Choose a password different from the current one.",
+        "weak": "This password is too weak — try a longer one.",
+        "reauth": "Sign out, sign in again, then retry.",
+        "unknown": "Could not change the password. Try again."
+      }
+    }
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "body": "The page could not load. Your work is saved — try again.",
+    "retry": "Try again",
+    "notFound": "This page does not exist.",
+    "home": "Back to the studio"
+  }
+}

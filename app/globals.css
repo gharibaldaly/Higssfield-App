@@ -1,0 +1,299 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Brand palette and design tokens
+   Deep wine #4D0011 · rose #CFA8A4 · champagne #C9A66B · cream #F7F3EE · ink #111111
+   Dark mode is primary. Text colours are chosen for ≥ 4.5:1 contrast on the
+   glass surfaces (see --glass-bg), never relying on the blurred backdrop.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --color-wine: #4d0011;
+  --color-wine-600: #6b0a1f;
+  --color-rose: #cfa8a4;
+  --color-champagne: #c9a66b;
+  --color-cream: #f7f3ee;
+  --color-ink: #111111;
+
+  --font-sans: var(--font-jost), var(--font-tajawal), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cormorant), var(--font-tajawal), ui-serif, Georgia, serif;
+  --font-arabic: var(--font-tajawal), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-glass: 1.5rem;
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-drift-a: drift-a 42s ease-in-out infinite alternate;
+  --animate-drift-b: drift-b 56s ease-in-out infinite alternate;
+  --animate-drift-c: drift-c 48s ease-in-out infinite alternate;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+
+  @keyframes drift-a {
+    0% {
+      transform: translate3d(-8%, -6%, 0) scale(1);
+    }
+    100% {
+      transform: translate3d(10%, 8%, 0) scale(1.18);
+    }
+  }
+  @keyframes drift-b {
+    0% {
+      transform: translate3d(12%, 4%, 0) scale(1.1);
+    }
+    100% {
+      transform: translate3d(-10%, -8%, 0) scale(0.92);
+    }
+  }
+  @keyframes drift-c {
+    0% {
+      transform: translate3d(0, 10%, 0) scale(0.95);
+    }
+    100% {
+      transform: translate3d(-6%, -12%, 0) scale(1.15);
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+  --background: #f3eee8;
+  --foreground: #141112;
+  --muted: rgba(20, 17, 18, 0.05);
+  --muted-foreground: #5a524e;
+  --card: rgba(255, 255, 255, 0.66);
+  --card-foreground: #141112;
+  --popover: rgba(255, 252, 249, 0.94);
+  --popover-foreground: #141112;
+  --primary: #4d0011;
+  --primary-foreground: #f7f3ee;
+  --secondary: rgba(77, 0, 17, 0.07);
+  --secondary-foreground: #3a0a14;
+  --accent: #cfa8a4;
+  --accent-foreground: #2a0a10;
+  --champagne-ink: #7a5a22;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --success: #1f7a4d;
+  --warning: #8a5a00;
+  --border: rgba(20, 17, 18, 0.1);
+  --input: rgba(20, 17, 18, 0.14);
+  --ring: #9c6b2a;
+
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 253, 250, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-edge: rgba(20, 17, 18, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 1px 1px rgba(40, 10, 15, 0.04), 0 12px 40px -12px rgba(77, 0, 17, 0.18);
+
+  --ambient-base: #f3eee8;
+  --ambient-a: rgba(207, 168, 164, 0.55);
+  --ambient-b: rgba(201, 166, 107, 0.4);
+  --ambient-c: rgba(77, 0, 17, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0d090a;
+  --foreground: #f7f3ee;
+  --muted: rgba(247, 243, 238, 0.06);
+  --muted-foreground: #b9b2ac;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #f7f3ee;
+  --popover: rgba(24, 17, 19, 0.96);
+  --popover-foreground: #f7f3ee;
+  --primary: #c9a66b;
+  --primary-foreground: #140d06;
+  --secondary: rgba(247, 243, 238, 0.08);
+  --secondary-foreground: #f7f3ee;
+  --accent: #cfa8a4;
+  --accent-foreground: #1c0b0e;
+  --champagne-ink: #e2c48e;
+  --destructive: #f2786d;
+  --destructive-foreground: #1a0503;
+  --success: #6fd3a0;
+  --warning: #f0c36a;
+  --border: rgba(247, 243, 238, 0.1);
+  --input: rgba(247, 243, 238, 0.16);
+  --ring: #e2c48e;
+
+  --glass-bg: rgba(255, 255, 255, 0.055);
+  --glass-bg-strong: rgba(28, 20, 22, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-edge: rgba(255, 255, 255, 0.06);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+
+  --ambient-base: #0d090a;
+  --ambient-a: rgba(77, 0, 17, 0.75);
+  --ambient-b: rgba(201, 166, 107, 0.16);
+  --ambient-c: rgba(207, 168, 164, 0.14);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-champagne-ink: var(--champagne-ink);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* Arabic: Tajawal leads for both UI and display text. */
+html[lang="ar"] {
+  --font-sans: var(--font-tajawal), var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-tajawal), var(--font-cormorant), ui-serif, serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    background: var(--ambient-base);
+  }
+  body {
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  input[type="number"]::-webkit-inner-spin-button {
+    opacity: 0.5;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Liquid glass
+   --------------------------------------------------------------------------- */
+
+@utility glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 0 var(--glass-highlight);
+}
+
+@utility glass-strong {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(32px) saturate(170%);
+  backdrop-filter: blur(32px) saturate(170%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 0 var(--glass-highlight);
+}
+
+/* Specular rim: a thin gradient border that catches light on the top edge. */
+@utility specular {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.45),
+      rgba(255, 255, 255, 0.06) 30%,
+      rgba(255, 255, 255, 0) 55%,
+      rgba(201, 166, 107, 0.28)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+@utility shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--foreground) 9%, transparent) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility text-balance-safe {
+  text-wrap: balance;
+}
+
+@utility checkerboard {
+  background-color: #f2eee9;
+  background-image:
+    linear-gradient(45deg, #e6e0d9 25%, transparent 25%),
+    linear-gradient(-45deg, #e6e0d9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e6e0d9 75%),
+    linear-gradient(-45deg, transparent 75%, #e6e0d9 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

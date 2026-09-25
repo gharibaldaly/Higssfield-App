@@ -33,13 +33,14 @@ shadcn-style components on Radix · Motion · next-intl (Arabic RTL / English) �
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard). The Frankfurt
    region (`eu-central-1`) is closest to Egypt. Keep it separate from any other system.
-2. Run the migrations in order, either:
-   - **SQL editor**: paste and run `supabase/migrations/20260924120000_core_schema.sql`, then
-     `supabase/migrations/20260924120100_storage.sql`; or
+2. Run the migrations in `supabase/migrations` in filename order, either:
+   - **SQL editor**: paste and run each file (`…_core_schema.sql`, `…_storage.sql`,
+     `…_fk_indexes.sql`); or
    - **CLI**: `supabase link --project-ref <ref>` then `supabase db push`.
 
-   This creates the 14 tables with row level security (every row belongs to `auth.uid()`) and the
-   private `studio` storage bucket, where each user can only touch their own folder.
+   This creates the 14 tables with row level security (every row belongs to `auth.uid()`), their
+   indexes, and the private `studio` storage bucket, where each user can only touch their own
+   folder.
 
 3. Create the owner account: **Authentication → Users → Add user → Create new user**. Enter the
    email and a password, and tick **Auto Confirm User**.
@@ -137,7 +138,7 @@ The `render_jobs` table is already in the schema.
 
 ## بالعربي — خطوات التشغيل باختصار
 
-1. **Supabase**: اعمل مشروع مستقل (منطقة فرانكفورت)، وشغّل ملفّي الـ migrations بالترتيب من SQL Editor.
+1. **Supabase**: اعمل مشروع مستقل (منطقة فرانكفورت)، وشغّل ملفات الـ migrations بالترتيب من SQL Editor.
    بعد كده من Authentication → Users اعمل حساب المالك (Auto Confirm)، واقفل التسجيل الجديد.
 2. **Vercel**: اعمل Import للريبو، وضيف متغيرات البيئة (رابط Supabase والمفتاح العام وإيميل المالك)،
    وبعدين Deploy.

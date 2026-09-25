@@ -14,15 +14,16 @@ import { cn } from "@/lib/utils";
 
 /** Soft gradient per option so the pickers read visually, not as a form. */
 function swatchFor(index: number): string {
+  // Shot-silk pairs from the studio palette: decorative only, they carry no meaning.
   const hues = [
-    "linear-gradient(135deg,#6b0a1f,#c9a66b)",
-    "linear-gradient(135deg,#cfa8a4,#f7f3ee)",
-    "linear-gradient(135deg,#1c1a1a,#6b0a1f)",
-    "linear-gradient(135deg,#c9a66b,#f7f3ee)",
-    "linear-gradient(135deg,#4d0011,#cfa8a4)",
-    "linear-gradient(135deg,#2b2b2b,#c9a66b)",
-    "linear-gradient(135deg,#f7f3ee,#cfa8a4)",
-    "linear-gradient(135deg,#4d0011,#111111)",
+    "linear-gradient(135deg,#0e5c49,#ffb8cb)",
+    "linear-gradient(135deg,#ffb8cb,#f3efe8)",
+    "linear-gradient(135deg,#031512,#0e5c49)",
+    "linear-gradient(135deg,#86e7c0,#f3efe8)",
+    "linear-gradient(135deg,#7a1a3a,#ffb8cb)",
+    "linear-gradient(135deg,#062a22,#86e7c0)",
+    "linear-gradient(135deg,#f9e1e7,#ff6a9a)",
+    "linear-gradient(135deg,#2a0714,#0e5c49)",
   ];
   return hues[index % hues.length]!;
 }

@@ -4,6 +4,7 @@ import { Clapperboard, Film, Loader2, Plus, RotateCcw, Sparkles, Trash2 } from "
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useNow, useTranslations } from "next-intl";
+import type * as React from "react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -88,33 +89,58 @@ export function AdsOverview({
             steps={[t("empty.step1"), t("empty.step2"), t("empty.step3")]}
           />
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
-              <li key={project.id}>
-                <Link href={`/ads/${project.id}`} className="block rounded-(--radius-glass)">
-                  <Card className="h-full p-5 transition-transform duration-300 hover:-translate-y-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="grid size-11 place-items-center rounded-2xl bg-[linear-gradient(145deg,var(--color-wine-600),var(--color-wine))] text-cream">
-                        <Film className="size-5" aria-hidden />
-                      </div>
-                      <Badge
-                        variant={
-                          project.status === "review" || project.status === "done"
-                            ? "success"
-                            : "muted"
-                        }
-                      >
-                        {t(`status.${project.status}`)}
-                      </Badge>
+          <ul className="fx-stagger grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project, index) => (
+              <li key={project.id} style={{ "--i": index } as React.CSSProperties}>
+                {/* Each ad is a film slate; the clapper lifts on hover. */}
+                <Link href={`/ads/${project.id}`} className="group block rounded-(--radius-panel)">
+                  <article className="h-full overflow-hidden rounded-(--radius-panel) surface">
+                    <div
+                      aria-hidden
+                      className="h-7 origin-bottom-left bg-[repeating-linear-gradient(-55deg,var(--foreground)_0_16px,transparent_16px_32px)] opacity-85 transition-transform duration-500 ease-(--ease-spring) group-hover:-rotate-3 rtl:origin-bottom-right rtl:group-hover:rotate-3"
+                    />
+                    <div className="border-y border-border-strong px-5 py-4">
+                      <h3 className="font-heading text-2xl leading-tight">{project.name}</h3>
                     </div>
-                    <h3 className="mt-4 font-display text-xl font-semibold">{project.name}</h3>
-                    <p className="text-sm text-muted-foreground">{project.productName}</p>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {t("shotsReady", { ready: project.readyCount, total: project.shotCount })}
-                      {project.presetName ? ` · ${project.presetName}` : ""}
-                      {` · ${format.relativeTime(new Date(project.createdAt), now)}`}
-                    </p>
-                  </Card>
+                    <dl className="grid grid-cols-2 text-sm [&>div]:border-border [&>div]:px-5 [&>div]:py-3 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-e">
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("product")}</dt>
+                        <dd className="mt-1 truncate">{project.productName}</dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.status")}</dt>
+                        <dd className="mt-1">
+                          <Badge
+                            variant={
+                              project.status === "review" || project.status === "done"
+                                ? "success"
+                                : "muted"
+                            }
+                          >
+                            {t(`status.${project.status}`)}
+                          </Badge>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.shots")}</dt>
+                        <dd className="mt-1 font-mono" dir="ltr">
+                          {project.readyCount}/{project.shotCount}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.created")}</dt>
+                        <dd className="mt-1 truncate">
+                          {format.relativeTime(new Date(project.createdAt), now)}
+                        </dd>
+                      </div>
+                    </dl>
+                    {project.presetName ? (
+                      <p className="flex items-center gap-2 border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                        <Film className="size-3.5" aria-hidden />
+                        {project.presetName}
+                      </p>
+                    ) : null}
+                  </article>
                 </Link>
               </li>
             ))}
@@ -131,7 +157,7 @@ export function AdsOverview({
               <Card className="h-full">
                 <CardHeader>
                   <CardTitle as="h3" className="flex items-center gap-2 text-lg">
-                    <Sparkles className="size-4 text-champagne-ink" aria-hidden />
+                    <Sparkles className="size-4 text-accent-ink" aria-hidden />
                     {preset.name}
                   </CardTitle>
                   <CardDescription>{preset.description}</CardDescription>
@@ -139,7 +165,7 @@ export function AdsOverview({
                 <CardContent className="flex flex-wrap gap-2">
                   {preset.isBuiltin ? (
                     <>
-                      <Badge variant="champagne">{t("presets.builtin")}</Badge>
+                      <Badge variant="accent">{t("presets.builtin")}</Badge>
                       <Button
                         size="sm"
                         variant="ghost"

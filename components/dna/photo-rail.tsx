@@ -24,9 +24,7 @@ export function PhotoRail({
         const list = photos.filter((photo) => photo.pieceId === piece.id);
         return (
           <div key={piece.id}>
-            <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {piece.name}
-            </p>
+            <p className="mb-2 hud text-muted-foreground">{piece.name}</p>
             {list.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t("noPhotos")}</p>
             ) : (
@@ -36,7 +34,7 @@ export function PhotoRail({
                     key={photo.id}
                     type="button"
                     onClick={() => setOpen(photo)}
-                    className="group relative overflow-hidden rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
+                    className="group relative overflow-hidden rounded-(--radius-control) stage focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={[tk(photo.kind), photo.label].filter(Boolean).join(" · ")}
                   >
                     {/* The button carries the name; the thumbnail and caption only repeat it. */}
@@ -48,7 +46,7 @@ export function PhotoRail({
                     />
                     <span
                       aria-hidden
-                      className="absolute inset-x-1 bottom-1 truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] text-cream"
+                      className="absolute inset-x-1 bottom-1 truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] text-white"
                     >
                       {photo.label || tk(photo.kind)}
                     </span>
@@ -66,7 +64,7 @@ export function PhotoRail({
             <StorageImage
               src={open.url}
               alt={open.label ?? tk(open.kind)}
-              className="max-h-[75dvh] w-full rounded-2xl"
+              className="max-h-[75dvh] w-full rounded-(--radius-control) stage"
             />
           ) : null}
         </DialogContent>

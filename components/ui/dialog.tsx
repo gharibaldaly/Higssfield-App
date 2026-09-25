@@ -28,12 +28,12 @@ function DialogContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
         data-slot="dialog-overlay"
-        className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+        className="fixed inset-0 z-50 bg-[color-mix(in_srgb,var(--background)_72%,transparent)] backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
       />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "specular fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-(--radius-glass) p-6 text-popover-foreground glass-strong duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-(--radius-panel) p-6 text-popover-foreground surface-raised duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-4",
           className,
         )}
         {...props}
@@ -64,7 +64,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-display text-2xl leading-tight font-semibold", className)}
+      className={cn("font-heading text-2xl leading-tight", className)}
       {...props}
     />
   );

@@ -1,29 +1,24 @@
 "use client";
 
-import {
-  ArrowRight,
-  BadgeCheck,
-  Clapperboard,
-  Dna,
-  Ghost,
-  Hourglass,
-  LayoutPanelLeft,
-  Plus,
-  Settings,
-  Shirt,
-  Sparkles,
-} from "lucide-react";
-import { motion } from "motion/react";
+import { ArrowUpRight, Clapperboard, Ghost, Plus, Settings, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import type * as React from "react";
 
-import { GoldRule } from "@/components/common/page-header";
+import { HangTag } from "@/components/common/hang-tag";
+import { GhostForm } from "@/components/fx/ghost-form";
+import { GreaseCircle } from "@/components/fx/grease-circle";
+import { Magnetic } from "@/components/fx/magnetic";
+import { Marquee } from "@/components/fx/marquee";
+import { RevealText } from "@/components/fx/reveal-text";
+import { RollingNumber } from "@/components/fx/rolling-number";
 import { GenerationMedia } from "@/components/generation/generation-media";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
+import { SOON_ITEMS } from "@/components/layout/nav-items";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { GenerationView } from "@/lib/domain/generation";
+import { cn } from "@/lib/utils";
 
 type Stats = {
   products: number;
@@ -33,6 +28,18 @@ type Stats = {
   pending: number;
   approvedImages: number;
 };
+
+/**
+ * Construction lines called out beside the form, at the heights the shader draws them
+ * (top %, measured from the form's projection), alternating sides so the labels never collide.
+ * `reach` is how close to the centre each leader line ends, in % of the panel width.
+ */
+const CALLOUTS = [
+  { key: "neckline", top: 11.3, side: "end", reach: 6 },
+  { key: "shoulder", top: 14.6, side: "start", reach: 19 },
+  { key: "waist", top: 38.9, side: "end", reach: 13 },
+  { key: "hem", top: 65.9, side: "start", reach: 18 },
+] as const;
 
 export function StudioHome({
   stats,
@@ -44,151 +51,258 @@ export function StudioHome({
   setup: { higgsfield: boolean; brain: boolean; webhook: boolean };
 }) {
   const t = useTranslations("home");
+  const tn = useTranslations("nav");
   const router = useRouter();
   const { views } = useGenerationPolling(recent, { onSettled: () => router.refresh() });
-  const tiles = [
-    { key: "products", value: stats.products, icon: Shirt, href: "/products" },
-    { key: "approvedDna", value: stats.approvedDna, icon: Dna, href: "/products" },
-    {
-      key: "approvedSheets",
-      value: stats.approvedSheets,
-      icon: LayoutPanelLeft,
-      href: "/products",
-    },
-    {
-      key: "approvedImages",
-      value: stats.approvedImages,
-      icon: BadgeCheck,
-      href: "/library?approved=1",
-    },
-    { key: "pending", value: stats.pending, icon: Hourglass, href: "/library?status=pending" },
-    { key: "ads", value: stats.ads, icon: Clapperboard, href: "/ads" },
-  ] as const;
-  const actions = [
-    { key: "newProduct", href: "/products/new", icon: Plus },
-    { key: "ghost", href: "/ghost", icon: Ghost },
-    { key: "ads", href: "/ads", icon: Clapperboard },
+
+  const steps = [
+    { key: "products", value: stats.products, href: "/products" },
+    { key: "approvedDna", value: stats.approvedDna, href: "/products" },
+    { key: "approvedSheets", value: stats.approvedSheets, href: "/products" },
+    { key: "approvedImages", value: stats.approvedImages, href: "/library?approved=1" },
+    { key: "ads", value: stats.ads, href: "/ads" },
   ] as const;
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className="specular relative overflow-hidden rounded-[2rem] px-6 py-10 glass-strong sm:px-10">
-        <div className="pointer-events-none absolute -end-24 -top-24 size-80 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-champagne)_40%,transparent),transparent_65%)] blur-2xl" />
-        <p className="text-xs font-semibold tracking-[0.2em] text-champagne-ink uppercase">
-          {t("eyebrow")}
-        </p>
-        <h1 className="mt-3 max-w-3xl font-display text-4xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl">
-          {t("heading")}
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {t("subheading")}
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          {actions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <Button
-                key={action.key}
-                asChild
-                variant={index === 0 ? "default" : "glass"}
-                size="lg"
-              >
-                <Link href={action.href}>
-                  <Icon aria-hidden />
-                  {t(`actions.${action.key}`)}
+    <div className="flex flex-col gap-20 lg:gap-28">
+      {/* Hero: the thesis beside the form it is made for. */}
+      <section className="grid min-h-[calc(100dvh-10rem)] items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="flex flex-col">
+          <div className="mb-6 flex items-center gap-3 text-accent-ink">
+            <span aria-hidden className="h-px w-8 bg-current" />
+            <p className="hud">{t("eyebrow")}</p>
+          </div>
+          <h1 className="font-display text-[clamp(3.1rem,8.2vw,8.25rem)] leading-[1] tracking-tight text-balance">
+            <RevealText text={t("heading")} />
+          </h1>
+          <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
+            {t("subheading")}
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-3">
+            <Magnetic>
+              <Button asChild size="lg">
+                <Link href="/products/new">
+                  <Plus aria-hidden />
+                  {t("actions.newProduct")}
                 </Link>
               </Button>
-            );
-          })}
+            </Magnetic>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/ghost">
+                <Ghost aria-hidden />
+                {t("actions.ghost")}
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="ghost">
+              <Link href="/ads">
+                <Clapperboard aria-hidden />
+                {t("actions.ads")}
+              </Link>
+            </Button>
+          </div>
         </div>
+
+        <figure className="relative h-[min(74vh,720px)] min-h-[420px]">
+          <GhostForm className="absolute inset-0" />
+          <figcaption className="sr-only">{t("form.label")}</figcaption>
+          <div aria-hidden className="absolute inset-0 hidden sm:block">
+            {CALLOUTS.map((callout) => (
+              <div
+                key={callout.key}
+                className="absolute inset-x-0"
+                style={{ top: `${callout.top}%` }}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0 h-px bg-border-strong",
+                    callout.side === "end" ? "end-0" : "start-0",
+                  )}
+                  style={{ width: `${50 - callout.reach}%` }}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary",
+                      callout.side === "end" ? "-start-0.5" : "-end-0.5",
+                    )}
+                  />
+                </span>
+                <span
+                  className={cn(
+                    "absolute bottom-1.5 hud whitespace-nowrap text-muted-foreground",
+                    callout.side === "end" ? "end-0" : "start-0",
+                  )}
+                >
+                  {t(`form.${callout.key}`)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </figure>
       </section>
 
       {!setup.higgsfield || !setup.brain ? (
-        <Card className="glass-warning">
-          <CardContent className="flex flex-wrap items-center gap-4">
-            <Sparkles className="size-6 shrink-0 text-warning" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">{t("setup.title")}</p>
-              <p className="text-sm text-muted-foreground">
-                {[
-                  !setup.higgsfield ? t("setup.higgsfield") : null,
-                  !setup.brain ? t("setup.brain") : null,
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              </p>
-            </div>
-            <Button asChild variant="glass">
+        <HangTag
+          icon={<Sparkles className="size-5" aria-hidden />}
+          title={t("setup.title")}
+          action={
+            <Button asChild variant="surface" size="sm">
               <Link href="/settings">
                 <Settings aria-hidden />
                 {t("setup.action")}
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        >
+          {[
+            !setup.higgsfield ? t("setup.higgsfield") : null,
+            !setup.brain ? t("setup.brain") : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        </HangTag>
       ) : null}
 
-      <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        {tiles.map((tile, index) => {
-          const Icon = tile.icon;
-          return (
-            <motion.li
-              key={tile.key}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)] lg:gap-12">
+        {/* The production line as a work ticket that follows each garment. */}
+        <section
+          aria-labelledby="pipeline-title"
+          className="ticket rounded-(--radius-panel) surface"
+        >
+          <header className="flex flex-col gap-1.5 px-6 pt-6">
+            <h2 id="pipeline-title" className="font-heading text-2xl leading-tight">
+              {t("pipeline.title")}
+            </h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{t("pipeline.hint")}</p>
+          </header>
+          <ol className="fx-stagger px-2 py-4">
+            {steps.map((step, index) => (
+              <li key={step.key} style={{ "--i": index } as React.CSSProperties}>
+                <Link
+                  href={step.href}
+                  className="group flex items-baseline gap-4 rounded-(--radius-control) px-4 py-3 transition-colors hover:bg-muted"
+                >
+                  <span className="w-6 shrink-0 hud text-muted-foreground" dir="ltr">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-[15px]">{t(`stats.${step.key}`)}</span>
+                  <span
+                    aria-hidden
+                    className="min-w-6 flex-1 -translate-y-1 border-b border-dotted border-border-strong transition-colors group-hover:border-primary"
+                  />
+                  <RollingNumber
+                    value={step.value}
+                    className="font-editorial text-3xl leading-none"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ol>
+          <footer className="flex h-15 items-center border-t border-dashed border-border-strong px-6">
+            <Link
+              href="/library?status=pending"
+              className="inline-flex items-center gap-2.5 rounded-full text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Link href={tile.href} className="block rounded-(--radius-glass)">
-                <Card className="p-5 transition-transform duration-300 hover:-translate-y-1">
-                  <Icon className="size-5 text-champagne-ink" aria-hidden />
-                  <p className="mt-4 font-display text-4xl font-semibold" dir="ltr">
-                    {tile.value}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t(`stats.${tile.key}`)}</p>
-                </Card>
-              </Link>
-            </motion.li>
-          );
-        })}
-      </ul>
-
-      <Card>
-        <CardHeader className="flex-row flex-wrap items-end justify-between gap-3">
-          <div>
-            <CardTitle>{t("recent.title")}</CardTitle>
-            <CardDescription>{t("recent.hint")}</CardDescription>
-          </div>
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/library">
-              {t("recent.all")}
-              <ArrowRight className="rtl:-scale-x-100" aria-hidden />
+              <span
+                aria-hidden
+                className={cn(
+                  "size-2 rounded-full",
+                  stats.pending > 0 ? "animate-pulse-soft bg-success" : "bg-border-strong",
+                )}
+              />
+              {t("pipeline.live", { count: stats.pending })}
             </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <GoldRule className="mb-5" />
-          {recent.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("recent.empty")}</p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {recent.map((item) => {
-                const view = views.get(item.id) ?? item;
-                return (
-                  <li key={item.id}>
-                    <GenerationMedia
-                      view={view}
-                      alt={t("recent.alt")}
-                      className={
-                        view.kind === "video" ? "aspect-[9/16] w-full" : "aspect-[4/5] w-full"
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </footer>
+        </section>
+
+        {/* Latest results on a contact sheet; approved frames get a grease-pencil ring. */}
+        <section aria-labelledby="recent-title">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 id="recent-title" className="font-heading text-2xl leading-tight">
+                {t("recent.title")}
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">{t("recent.hint")}</p>
+            </div>
+            <Button asChild variant="link">
+              <Link href="/library">
+                {t("recent.all")}
+                <ArrowUpRight className="rtl:-scale-x-100" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+          <div className="contact-sheet rounded-(--radius-panel) px-4 sm:px-5">
+            {recent.length === 0 ? (
+              <p className="py-16 text-center text-sm">{t("recent.empty")}</p>
+            ) : (
+              <ul className="fx-stagger grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+                {recent.map((item, index) => {
+                  const view = views.get(item.id) ?? item;
+                  const approved = view.reviewStatus === "approved";
+                  return (
+                    <li
+                      key={item.id}
+                      className="relative"
+                      style={{ "--i": index } as React.CSSProperties}
+                    >
+                      <div className="relative">
+                        <GenerationMedia
+                          view={view}
+                          alt={t("recent.alt")}
+                          className="aspect-[4/5] w-full rounded-[4px]"
+                          controls={false}
+                        />
+                        {approved ? (
+                          <GreaseCircle className="absolute -start-2 -top-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)]" />
+                        ) : null}
+                      </div>
+                      <p className="mt-2 flex items-center justify-between gap-2 font-mono text-[11px]">
+                        <span dir="ltr">{String(index + 1).padStart(2, "0")}A</span>
+                        {approved ? (
+                          <span className="text-(--grease)">{t("recent.approved")}</span>
+                        ) : (
+                          <span className="truncate opacity-80" dir="ltr">
+                            {view.modelId}
+                          </span>
+                        )}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* The modules still to come, as a slow ticker. */}
+      <section
+        aria-labelledby="soon-title"
+        className="-mx-4 border-y border-border py-7 sm:-mx-6 lg:-mx-10"
+      >
+        <h2 id="soon-title" className="sr-only">
+          {tn("soonHeading")}
+        </h2>
+        <Marquee
+          label={tn("soonHeading")}
+          items={SOON_ITEMS.map((item) => (
+            <span key={item.key} className="flex items-center gap-4">
+              <span className="font-display text-[clamp(2rem,4vw,3.25rem)] leading-none whitespace-nowrap">
+                {tn(`soon.${item.key}`)}
+              </span>
+              <span className="rounded-full border border-border-strong px-2.5 py-1 hud text-muted-foreground">
+                {tn("soonBadge")}
+              </span>
+            </span>
+          ))}
+          itemClassName="gap-10 pe-10"
+          separator={
+            <span aria-hidden className="relative grid size-4 place-items-center text-accent-ink">
+              <span className="absolute inset-0 rounded-full border border-dashed border-current" />
+              <span className="size-1 rounded-full bg-current" />
+            </span>
+          }
+        />
+      </section>
     </div>
   );
 }

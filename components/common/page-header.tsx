@@ -1,7 +1,12 @@
 import * as React from "react";
 
+import { RevealText } from "@/components/fx/reveal-text";
 import { cn } from "@/lib/utils";
 
+/**
+ * Page opening: a small label, the title in display type (written in on arrival), an optional
+ * description and actions, then a seam drawn across the page.
+ */
 export function PageHeader({
   eyebrow,
   title,
@@ -16,29 +21,30 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
-        className,
-      )}
-    >
-      <div className="min-w-0">
-        {eyebrow ? (
-          <p className="mb-2 text-xs font-semibold tracking-[0.2em] text-champagne-ink uppercase">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h1 className="font-display text-4xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-5xl">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {description}
-          </p>
+    <header className={cn("relative mb-10 lg:mb-14", className)}>
+      {eyebrow ? (
+        <div className="mb-5 flex items-center gap-3 text-accent-ink">
+          <span aria-hidden className="h-px w-8 bg-current" />
+          {typeof eyebrow === "string" ? <p className="hud">{eyebrow}</p> : eyebrow}
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-5xl min-w-0">
+          <h1 className="font-display text-[clamp(2.6rem,6.2vw,5.75rem)] leading-[1.04] tracking-tight text-balance">
+            {typeof title === "string" ? <RevealText text={title} /> : title}
+          </h1>
+          {description ? (
+            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          ) : null}
+        </div>
+        {actions ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
-    </div>
+      <SeamRule className="stitch-draw mt-8 lg:mt-10" />
+    </header>
   );
 }
 
@@ -50,23 +56,13 @@ export function SectionTitle({
   className?: string;
 }) {
   return (
-    <h2
-      className={cn("font-display text-2xl leading-tight font-semibold tracking-tight", className)}
-    >
+    <h2 className={cn("font-heading text-2xl leading-tight tracking-tight", className)}>
       {children}
     </h2>
   );
 }
 
-/** Thin gold accent rule used between sections. */
-export function GoldRule({ className }: { className?: string }) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        "h-px w-full bg-[linear-gradient(90deg,transparent,var(--color-champagne),transparent)] opacity-60",
-        className,
-      )}
-    />
-  );
+/** A running stitch across the width, used between sections. */
+export function SeamRule({ className }: { className?: string }) {
+  return <div aria-hidden className={cn("stitch text-border-strong", className)} />;
 }

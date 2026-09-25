@@ -17,7 +17,7 @@ export default function StudioError({
   return (
     <Card className="mx-auto mt-10 flex max-w-lg flex-col items-center gap-4 p-10 text-center">
       <AlertTriangle className="size-8 text-destructive" aria-hidden />
-      <h1 className="font-display text-3xl font-semibold">{t("title")}</h1>
+      <h1 className="font-display text-4xl leading-tight">{t("title")}</h1>
       <p className="text-sm text-muted-foreground">{t("body")}</p>
       {error.digest ? (
         <code className="text-xs text-muted-foreground" dir="ltr">

@@ -23,7 +23,7 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-input bg-[color-mix(in_srgb,var(--glass-bg)_80%,transparent)] px-3.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:truncate",
+        "flex h-10 w-full items-center justify-between gap-2 rounded-(--radius-control) border border-input bg-[color-mix(in_srgb,var(--surface-solid)_72%,transparent)] px-3.5 text-sm text-foreground transition-[border-color,box-shadow] outline-none hover:border-border-strong focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:truncate",
         className,
       )}
       {...props}
@@ -48,7 +48,7 @@ function SelectContent({
         data-slot="select-content"
         position={position}
         className={cn(
-          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] overflow-hidden rounded-xl text-popover-foreground glass-strong data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] overflow-hidden rounded-(--radius-control) text-popover-foreground surface-raised data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           position === "popper" &&
             "w-full min-w-(--radix-select-trigger-width) data-[side=bottom]:translate-y-1",
           className,
@@ -93,10 +93,7 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn(
-        "px-2 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-        className,
-      )}
+      className={cn("px-2 py-1.5 hud text-muted-foreground", className)}
       {...props}
     />
   );

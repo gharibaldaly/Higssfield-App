@@ -37,6 +37,7 @@ import {
 } from "@/lib/actions/director";
 import type { DirectorBoardData } from "@/lib/director/queries";
 import type { DirectorControls, VideoSettings } from "@/lib/domain/director";
+import { shotStarts } from "@/lib/format/timecode";
 
 export function DirectorBoard({ data }: { data: DirectorBoardData }) {
   const t = useTranslations("director");
@@ -94,6 +95,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
     () => Math.round(data.shots.reduce((sum, shot) => sum + shot.durationS, 0) * 10) / 10,
     [data.shots],
   );
+  const starts = useMemo(() => shotStarts(data.shots.map((shot) => shot.durationS)), [data.shots]);
 
   function mark<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -154,7 +156,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
             <Input
               value={name}
               onChange={(event) => mark(setName)(event.target.value)}
-              className="h-12 font-display text-2xl font-semibold"
+              className="h-14 font-heading text-3xl"
               aria-label={t("name")}
             />
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -188,7 +190,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="glass" size="sm" onClick={() => setPresetOpen(true)}>
+              <Button variant="surface" size="sm" onClick={() => setPresetOpen(true)}>
                 <Save aria-hidden />
                 {t("savePreset")}
               </Button>
@@ -215,7 +217,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                 {busy === "plan" ? t("planning") : data.shots.length > 0 ? t("replan") : t("plan")}
               </Button>
               <Button
-                variant="glass"
+                variant="surface"
                 disabled={!dirty || busy !== null}
                 onClick={() =>
                   run("save", async () => {
@@ -243,27 +245,19 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
         <Card>
           <CardContent className="grid gap-4 text-sm md:grid-cols-4">
             <div>
-              <p className="text-xs font-semibold tracking-wide text-champagne-ink uppercase">
-                {t("planConcept")}
-              </p>
+              <p className="hud text-accent-ink">{t("planConcept")}</p>
               <p className="mt-1">{project.plan.concept}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold tracking-wide text-champagne-ink uppercase">
-                {t("planHook")}
-              </p>
+              <p className="hud text-accent-ink">{t("planHook")}</p>
               <p className="mt-1">{project.plan.hook}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold tracking-wide text-champagne-ink uppercase">
-                {t("planEnvironment")}
-              </p>
+              <p className="hud text-accent-ink">{t("planEnvironment")}</p>
               <p className="mt-1">{project.plan.environmentBible}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold tracking-wide text-champagne-ink uppercase">
-                {t("planMusic")}
-              </p>
+              <p className="hud text-accent-ink">{t("planMusic")}</p>
               <p className="mt-1">{project.plan.musicCue}</p>
             </div>
           </CardContent>
@@ -279,9 +273,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
           <CardContent className="flex flex-col gap-7">
             <DirectorControlsPanel controls={controls} onChange={mark(setControls)} />
             <div className="flex flex-col gap-3">
-              <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
-                {t("rules")}
-              </h3>
+              <h3 className="hud text-accent-ink">{t("rules")}</h3>
               <StringListEditor
                 items={rules}
                 onChange={mark(setRules)}
@@ -294,10 +286,10 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
 
         <section className="flex min-w-0 flex-col gap-4" aria-label={t("storyboard")}>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="me-auto font-display text-2xl font-semibold">{t("storyboard")}</h2>
+            <h2 className="me-auto font-heading text-2xl">{t("storyboard")}</h2>
             {data.shots.length > 0 ? (
               <Button
-                variant="glass"
+                variant="surface"
                 size="sm"
                 disabled={pendingShots.length === 0 || runner.current !== null}
                 onClick={() => setBatch(pendingShots)}
@@ -313,7 +305,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
               </Button>
             ) : null}
             <Button
-              variant="glass"
+              variant="surface"
               size="sm"
               disabled={busy !== null || data.crops.length === 0}
               onClick={() =>
@@ -337,44 +329,49 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
               }
             />
           ) : (
-            data.shots.map((shot, index) => (
-              <ShotCard
-                key={shot.id}
-                projectId={project.id}
-                shot={shot}
-                index={index}
-                count={data.shots.length}
-                crops={data.crops}
-                videoModels={data.videoModels}
-                maxShotDurationS={videoSettings.maxShotDurationS}
-                preview={shot.preview ? (views.get(shot.preview.id) ?? shot.preview) : null}
-                video={shot.video ? (views.get(shot.video.id) ?? shot.video) : null}
-                onChanged={() => router.refresh()}
-                onDelete={async () => {
-                  const confirmed = await confirm({
-                    title: t("confirmDeleteShot"),
-                    confirmLabel: tc("delete"),
-                    destructive: true,
-                  });
-                  if (!confirmed) return;
-                  startTransition(async () => {
-                    const result = await deleteShotAction(project.id, shot.id);
-                    if (!result.ok) toast.error(result.error);
-                    router.refresh();
-                  });
-                }}
-                onMove={(to) => {
-                  const ids = data.shots.map((item) => item.id);
-                  const [moved] = ids.splice(index, 1);
-                  ids.splice(to, 0, moved!);
-                  startTransition(async () => {
-                    const result = await reorderShotsAction(project.id, ids);
-                    if (!result.ok) toast.error(result.error);
-                    router.refresh();
-                  });
-                }}
-              />
-            ))
+            // The storyboard runs down a strip of film, each shot a frame with its timecode.
+            <ol className="film-strip flex flex-col gap-4">
+              {data.shots.map((shot, index) => (
+                <li key={shot.id}>
+                  <ShotCard
+                    projectId={project.id}
+                    shot={shot}
+                    index={index}
+                    count={data.shots.length}
+                    startS={starts[index] ?? 0}
+                    crops={data.crops}
+                    videoModels={data.videoModels}
+                    maxShotDurationS={videoSettings.maxShotDurationS}
+                    preview={shot.preview ? (views.get(shot.preview.id) ?? shot.preview) : null}
+                    video={shot.video ? (views.get(shot.video.id) ?? shot.video) : null}
+                    onChanged={() => router.refresh()}
+                    onDelete={async () => {
+                      const confirmed = await confirm({
+                        title: t("confirmDeleteShot"),
+                        confirmLabel: tc("delete"),
+                        destructive: true,
+                      });
+                      if (!confirmed) return;
+                      startTransition(async () => {
+                        const result = await deleteShotAction(project.id, shot.id);
+                        if (!result.ok) toast.error(result.error);
+                        router.refresh();
+                      });
+                    }}
+                    onMove={(to) => {
+                      const ids = data.shots.map((item) => item.id);
+                      const [moved] = ids.splice(index, 1);
+                      ids.splice(to, 0, moved!);
+                      startTransition(async () => {
+                        const result = await reorderShotsAction(project.id, ids);
+                        if (!result.ok) toast.error(result.error);
+                        router.refresh();
+                      });
+                    }}
+                  />
+                </li>
+              ))}
+            </ol>
           )}
         </section>
 

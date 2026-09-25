@@ -51,7 +51,7 @@ export function CompareSlider({
     <div
       ref={containerRef}
       className={cn(
-        "relative aspect-[4/5] w-full touch-none overflow-hidden rounded-2xl select-none",
+        "crop-marks relative aspect-[4/5] w-full touch-none overflow-hidden rounded-[14px] select-none",
         className,
       )}
       style={{ background }}
@@ -88,7 +88,7 @@ export function CompareSlider({
         />
       ) : null}
       <div
-        className="pointer-events-none absolute inset-y-0 w-px bg-cream/90 shadow-[0_0_12px_rgba(0,0,0,0.4)]"
+        className="pointer-events-none absolute inset-y-0 w-px bg-white/90 shadow-[0_0_12px_rgba(0,0,0,0.4)]"
         style={divider}
       >
         <div
@@ -109,15 +109,19 @@ export function CompareSlider({
             else return;
             event.preventDefault();
           }}
-          className="pointer-events-auto absolute top-1/2 left-1/2 grid size-10 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize place-items-center rounded-full bg-cream text-ink shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="pointer-events-auto absolute top-1/2 left-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize place-items-center rounded-full bg-white text-black shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
+          <span
+            aria-hidden
+            className="absolute inset-1 rounded-full border border-dashed border-black/40"
+          />
           <MoveHorizontal className="size-4" aria-hidden />
         </div>
       </div>
-      <span className="absolute start-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-cream backdrop-blur">
+      <span className="absolute start-5 top-5 z-[2] rounded-full bg-black/60 px-2.5 py-1 hud text-white backdrop-blur">
         {beforeLabel ?? t("original")}
       </span>
-      <span className="absolute end-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-cream backdrop-blur">
+      <span className="absolute end-5 top-5 z-[2] rounded-full bg-black/60 px-2.5 py-1 hud text-white backdrop-blur">
         {afterLabel ?? t("result")}
       </span>
     </div>

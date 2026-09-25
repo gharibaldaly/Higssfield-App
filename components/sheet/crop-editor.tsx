@@ -106,7 +106,7 @@ export function CropEditor({
         <div
           ref={containerRef}
           dir="ltr"
-          className="relative w-full touch-none overflow-hidden rounded-2xl select-none"
+          className="relative w-full touch-none overflow-hidden rounded-(--radius-control) select-none"
           onPointerMove={onPointerMove}
           onPointerUp={() => {
             drag.current = null;
@@ -118,8 +118,8 @@ export function CropEditor({
               key={box.cardId}
               onPointerDown={(event) => start(event, box, "move")}
               className={cn(
-                "absolute cursor-move border-2 bg-[color-mix(in_srgb,var(--color-champagne)_12%,transparent)]",
-                active === box.cardId ? "border-champagne" : "border-cream/80",
+                "absolute cursor-move border-2 bg-[color-mix(in_srgb,var(--veil)_14%,transparent)]",
+                active === box.cardId ? "border-veil" : "border-white/80",
               )}
               style={{
                 left: `${box.rect.x * 100}%`,
@@ -128,12 +128,12 @@ export function CropEditor({
                 height: `${box.rect.h * 100}%`,
               }}
             >
-              <span className="absolute top-0 left-0 max-w-full truncate bg-black/60 px-1.5 py-0.5 text-[11px] text-cream">
+              <span className="absolute top-0 left-0 max-w-full truncate bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
                 {box.label}
               </span>
               <span
                 onPointerDown={(event) => start(event, box, "resize")}
-                className="absolute -right-1.5 -bottom-1.5 size-4 cursor-nwse-resize rounded-full border-2 border-ink bg-cream"
+                className="absolute -right-1.5 -bottom-1.5 size-4 cursor-nwse-resize rounded-full border-2 border-black bg-white"
                 aria-hidden
               />
             </div>

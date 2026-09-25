@@ -109,20 +109,28 @@ function ColorwayCard({ colorway, productId }: { colorway: ColorwayView; product
   return (
     <li>
       <Card className="overflow-hidden">
-        <div className="relative h-28" style={{ background: colorway.hex }}>
+        {/* Swatch book page: the colour cut with pinking shears beside its fabric, on the grey stage. */}
+        <div className="flex h-36 gap-3 stage p-4">
+          <div
+            className="flex-1 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.3)] pinked"
+            style={{ background: colorway.hex }}
+          />
           {colorway.swatchUrl ? (
             <StorageImage
               src={colorway.swatchUrl}
               alt={colorway.name}
               fit="cover"
-              className="absolute inset-y-0 end-0 w-1/2"
+              className="w-2/5 rounded-[3px] pinked"
             />
           ) : null}
-          <Badge variant="muted" className="absolute start-2 bottom-2 bg-black/45 text-cream">
-            {t(`sources.${colorway.source}`)}
-          </Badge>
         </div>
         <CardContent className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <Badge variant="muted">{t(`sources.${colorway.source}`)}</Badge>
+            <span className="font-mono text-xs text-muted-foreground" dir="ltr">
+              {colorway.hex}
+            </span>
+          </div>
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -315,7 +323,7 @@ function AddColorwayDialog({
           <TabsContent value="swatch" className="flex flex-col gap-3">
             <label
               className={cn(
-                "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed border-input text-sm text-muted-foreground",
+                "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-(--radius-control) border border-dashed border-input text-sm text-muted-foreground",
                 busy && "cursor-wait",
               )}
             >
@@ -357,7 +365,7 @@ function AddColorwayDialog({
                         setSample(null);
                       }}
                       className={cn(
-                        "shrink-0 overflow-hidden rounded-xl border-2",
+                        "shrink-0 overflow-hidden rounded-(--radius-control) border-2",
                         samplePhoto?.id === photo.id ? "border-primary" : "border-transparent",
                       )}
                       aria-label={photo.label}
@@ -385,7 +393,7 @@ function AddColorwayDialog({
             <p className="text-sm text-muted-foreground">{t("manualHint")}</p>
           </TabsContent>
         </Tabs>
-        <div className="flex items-center gap-3 rounded-2xl bg-muted p-3">
+        <div className="flex items-center gap-3 rounded-(--radius-control) border border-border p-3">
           <span
             className="size-10 shrink-0 rounded-full border border-border"
             style={{ background: HEX.test(effectiveHex) ? effectiveHex : "transparent" }}

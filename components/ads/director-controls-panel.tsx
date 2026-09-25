@@ -31,9 +31,7 @@ export function DirectorControlsPanel({
     <div className="flex flex-col gap-7">
       {GROUPS.map((group) => (
         <section key={group.key} className="flex flex-col gap-5">
-          <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
-            {t(`groups.${group.key}`)}
-          </h3>
+          <h3 className="hud text-accent-ink">{t(`groups.${group.key}`)}</h3>
           {group.single.map((control) => (
             <SingleControlPicker
               key={control}
@@ -54,12 +52,10 @@ export function DirectorControlsPanel({
       ))}
 
       <section className="flex flex-col gap-5">
-        <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
-          {t("groups.rhythm")}
-        </h3>
+        <h3 className="hud text-accent-ink">{t("groups.rhythm")}</h3>
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-medium">{t("controls.shotCount")}</span>
-          <div className="inline-flex items-center gap-1 rounded-full p-1 glass">
+          <div className="inline-flex items-center gap-1 rounded-full border border-border p-1">
             <Button
               variant="ghost"
               size="icon-sm"

@@ -26,7 +26,7 @@ export function Eyedropper({
     <div className="relative">
       <button
         type="button"
-        className="relative block w-full cursor-crosshair overflow-hidden rounded-2xl"
+        className="relative block w-full cursor-crosshair overflow-hidden rounded-(--radius-control) stage"
         disabled={busy}
         onClick={async (event) => {
           const rect = event.currentTarget.getBoundingClientRect();
@@ -63,7 +63,7 @@ export function Eyedropper({
         />
         {value ? (
           <span
-            className="pointer-events-none absolute size-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cream shadow-lg"
+            className="pointer-events-none absolute size-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-lg"
             style={{
               left: `${value.point.x * 100}%`,
               top: `${value.point.y * 100}%`,

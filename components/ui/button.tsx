@@ -5,25 +5,27 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,transform,opacity] duration-200 ease-(--ease-spring) outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-300 ease-(--ease-spring) outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
+        // The primary action is a sewn-on label: a stitched inner edge and a satin sheen on hover.
         default:
-          "bg-primary text-primary-foreground shadow-[0_8px_24px_-10px_color-mix(in_srgb,var(--primary)_70%,transparent)] hover:brightness-110",
-        glass:
-          "text-foreground glass hover:bg-[color-mix(in_srgb,var(--glass-bg)_60%,var(--foreground)_6%)]",
+          "sheen stitched bg-primary text-primary-foreground shadow-[0_10px_28px_-14px_color-mix(in_srgb,var(--primary)_80%,transparent)] hover:shadow-[0_14px_34px_-12px_color-mix(in_srgb,var(--primary)_90%,transparent)]",
+        surface:
+          "border border-(--surface-edge) bg-(--surface) text-foreground hover:border-border-strong hover:bg-[color-mix(in_srgb,var(--surface-solid)_80%,var(--foreground)_8%)]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--secondary)_70%,var(--foreground)_8%)]",
-        outline: "border border-input bg-transparent text-foreground hover:bg-muted",
+          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--secondary)_70%,var(--foreground)_10%)]",
+        outline:
+          "border border-border-strong bg-transparent text-foreground hover:border-foreground/50 hover:bg-muted",
         ghost: "text-foreground hover:bg-muted",
-        destructive: "bg-destructive text-destructive-foreground hover:brightness-110",
-        link: "rounded-none px-0 text-champagne-ink underline-offset-4 hover:underline",
+        destructive: "sheen bg-destructive text-destructive-foreground",
+        link: "rounded-none px-0 text-accent-ink underline decoration-dashed decoration-1 underline-offset-[6px] hover:decoration-solid",
       },
       size: {
-        sm: "h-8 px-3 text-xs",
-        default: "h-10 px-4",
-        lg: "h-12 px-6 text-base",
+        sm: "h-8 px-3.5 text-xs",
+        default: "h-10 px-5",
+        lg: "h-12 px-7 text-[15px]",
         icon: "size-10",
         "icon-sm": "size-8",
       },

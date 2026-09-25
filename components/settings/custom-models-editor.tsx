@@ -44,7 +44,7 @@ export function CustomModelsEditor({ initialJson }: { initialJson: string }) {
   const [value, setValue] = useState(initialJson === "[]" ? "" : initialJson);
   const [pending, startTransition] = useTransition();
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border p-4">
+    <div className="flex flex-col gap-3 rounded-(--radius-control) border border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="flex items-center gap-2 font-medium">
@@ -72,7 +72,7 @@ export function CustomModelsEditor({ initialJson }: { initialJson: string }) {
       />
       <Button
         className="w-fit"
-        variant="glass"
+        variant="surface"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {

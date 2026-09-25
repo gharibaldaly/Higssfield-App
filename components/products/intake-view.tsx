@@ -2,8 +2,8 @@
 
 import {
   ArrowRight,
+  Check,
   CheckCircle2,
-  Circle,
   Dna,
   LayoutPanelLeft,
   Palette,
@@ -98,15 +98,15 @@ export function IntakeView({
         {pieces.map((piece) => (
           <Card key={piece.id}>
             <CardHeader>
-              <CardTitle id={`${piece.id}-title`}>
-                <span className="text-muted-foreground">
-                  {t("piece", { number: piece.position })} ·
-                </span>{" "}
-                {piece.name}
+              <CardTitle id={`${piece.id}-title`} className="flex items-baseline gap-3">
+                <span className="hud text-accent-ink">
+                  {t("piece", { number: piece.position })}
+                </span>
+                <span className="text-2xl">{piece.name}</span>
               </CardTitle>
               <CardDescription>{t("pieceHint")}</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-6 lg:grid-cols-3">
+            <CardContent className="grid gap-6 lg:grid-cols-3 lg:divide-x lg:divide-dashed lg:divide-border-strong [&>section]:lg:px-5 [&>section:first-child]:lg:ps-0 [&>section:last-child]:lg:pe-0">
               {PHOTO_KINDS.map((kind) => {
                 const list = photos.filter(
                   (photo) => photo.pieceId === piece.id && photo.kind === kind,
@@ -119,10 +119,11 @@ export function IntakeView({
                     className={cn(kind === "detail" && "lg:col-span-1")}
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <h3 id={`${piece.id}-${kind}`} className="text-sm font-semibold">
+                      <h3 id={`${piece.id}-${kind}`} className="hud text-foreground">
                         {t(`kinds.${kind}`)}
                       </h3>
                       <Badge
+                        className="font-mono"
                         variant={
                           list.length > 0 ? "success" : kind === "detail" ? "muted" : "warning"
                         }
@@ -157,15 +158,21 @@ export function IntakeView({
             <CardTitle>{t("nextSteps")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className="flex flex-col gap-2">
+            <ol className="relative flex flex-col gap-1 before:absolute before:inset-y-6 before:start-[1.45rem] before:w-px before:bg-border-strong">
               {steps.map((step) => {
                 const content = (
                   <>
-                    {step.done ? (
-                      <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
-                    ) : (
-                      <Circle className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-                    )}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "relative grid size-5 shrink-0 place-items-center rounded-full border-2",
+                        step.done
+                          ? "border-success bg-success text-background"
+                          : "border-border-strong bg-(--surface-solid)",
+                      )}
+                    >
+                      {step.done ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
                     <span className="flex-1">
                       <span className="block text-sm font-medium">
                         {t(`steps.${step.key}.title`)}
@@ -200,7 +207,7 @@ export function IntakeView({
                     {step.href ? (
                       <Link
                         href={step.href}
-                        className="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-muted"
+                        className="flex items-center gap-3 rounded-(--radius-control) p-3 transition-colors hover:bg-muted"
                       >
                         {content}
                       </Link>
@@ -251,7 +258,7 @@ function ProductSettingsCard({
         <CardDescription>{product.notes || t("noNotes")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
-        <Button variant="glass" onClick={() => setOpen(true)}>
+        <Button variant="surface" onClick={() => setOpen(true)}>
           <Pencil aria-hidden />
           {t("edit")}
         </Button>

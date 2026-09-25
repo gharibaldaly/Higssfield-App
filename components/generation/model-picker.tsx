@@ -77,7 +77,7 @@ export function ModelCapabilitiesSummary({ model }: { model: ModelOption }) {
             {t("sources.mock")}
           </Badge>
         ) : model.source === "custom" ? (
-          <Badge variant="champagne">
+          <Badge variant="accent">
             <UserCog aria-hidden />
             {t("sources.custom")}
           </Badge>

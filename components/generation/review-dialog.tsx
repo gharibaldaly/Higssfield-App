@@ -119,7 +119,7 @@ export function ReviewDialog({
             {onRegenerate ? (
               <>
                 <Button
-                  variant="glass"
+                  variant="surface"
                   disabled={
                     busy !== null ||
                     generation.status === "queued" ||
@@ -135,7 +135,7 @@ export function ReviewDialog({
                   {t("regenerate")}
                 </Button>
                 <Button
-                  variant="glass"
+                  variant="surface"
                   disabled={busy !== null}
                   onClick={() => setNoteOpen((value) => !value)}
                 >
@@ -185,7 +185,7 @@ export function ReviewDialog({
               {t("fidelityCheck")}
             </Button>
             {review ? (
-              <div className="rounded-2xl bg-muted p-3 text-sm">
+              <div className="rounded-(--radius-control) border border-dashed border-border-strong p-3 text-sm">
                 <div className="mb-2 flex items-center justify-between">
                   <Badge
                     variant={

@@ -1,13 +1,14 @@
 "use client";
 
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { ProductLineBadge } from "@/components/products/product-line-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProductAction } from "@/lib/actions/products";
@@ -47,10 +48,10 @@ export function NewProductForm() {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-3xl">
-      <Card>
-        <CardContent className="flex flex-col gap-7">
-          <div className="flex flex-col gap-2">
+    <form onSubmit={submit} className="max-w-4xl">
+      <Card className="divide-y divide-dashed divide-border-strong">
+        <Row number={1}>
+          <div className="flex flex-col gap-2.5">
             <Label htmlFor="name">{t("name")}</Label>
             <Input
               id="name"
@@ -59,40 +60,59 @@ export function NewProductForm() {
               required
               maxLength={200}
               placeholder={t("namePlaceholder")}
+              className="h-12 text-base"
             />
           </div>
+        </Row>
 
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-3 text-sm font-medium">{t("line")}</legend>
+        <Row number={2}>
+          <fieldset>
+            <legend className="mb-3.5 text-sm font-medium">{t("line")}</legend>
             <div className="grid gap-3 sm:grid-cols-3">
-              {PRODUCT_LINES.map((option) => (
-                <label
-                  key={option}
-                  className={cn(
-                    "cursor-pointer rounded-2xl p-4 glass transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                    line === option && "ring-2 ring-primary",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="line"
-                    value={option}
-                    checked={line === option}
-                    onChange={() => setLine(option)}
-                    className="sr-only"
-                  />
-                  <span className="block font-display text-lg font-semibold tracking-wide">
-                    {option}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{tl(option)}</span>
-                </label>
-              ))}
+              {PRODUCT_LINES.map((option) => {
+                const selected = line === option;
+                return (
+                  <label
+                    key={option}
+                    className={cn(
+                      "group relative flex cursor-pointer flex-col items-start gap-3 rounded-(--radius-control) border p-4 transition-[border-color,background-color] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+                      selected
+                        ? "border-primary bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                        : "border-border hover:border-border-strong",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="line"
+                      value={option}
+                      checked={selected}
+                      onChange={() => setLine(option)}
+                      className="sr-only"
+                    />
+                    <ProductLineBadge line={option} />
+                    <span className="text-xs text-muted-foreground">{tl(option)}</span>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute end-3 top-3 grid size-5 place-items-center rounded-full border transition-colors",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border-strong",
+                      )}
+                    >
+                      {selected ? <Check className="size-3" /> : null}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
+        </Row>
 
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-3 text-sm font-medium">{t("pieceCount")}</legend>
-            <div className="inline-flex w-fit rounded-full p-1 glass">
+        <Row number={3}>
+          <fieldset className="flex flex-col gap-4">
+            <legend className="mb-3.5 text-sm font-medium">{t("pieceCount")}</legend>
+            <div className="inline-flex w-fit rounded-full border border-border p-1">
               {[1, 2, 3].map((count) => (
                 <button
                   key={count}
@@ -130,9 +150,11 @@ export function NewProductForm() {
               ))}
             </div>
           </fieldset>
+        </Row>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
+        <Row number={4}>
+          <div className="flex flex-col gap-5">
+            <div className="flex max-w-xs flex-col gap-2">
               <Label htmlFor="sku">{t("sku")}</Label>
               <Input
                 id="sku"
@@ -142,26 +164,39 @@ export function NewProductForm() {
                 dir="ltr"
               />
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="notes">{t("notes")}</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                maxLength={4000}
+                placeholder={t("notesPlaceholder")}
+              />
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="notes">{t("notes")}</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              maxLength={4000}
-              placeholder={t("notesPlaceholder")}
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="justify-end">
+        </Row>
+
+        <div className="flex justify-end px-5 py-5 sm:px-6">
           <Button type="submit" size="lg" disabled={pending || !name.trim()}>
             {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
             {t("submit")}
             <ArrowRight className="rtl:-scale-x-100" aria-hidden />
           </Button>
-        </CardFooter>
+        </div>
       </Card>
     </form>
+  );
+}
+
+/** One line of the order sheet: its step number in the margin, the fields beside it. */
+function Row({ number, children }: { number: number; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-3 px-5 py-6 sm:grid-cols-[4rem_minmax(0,1fr)] sm:px-6">
+      <span aria-hidden className="pt-0.5 hud text-accent-ink" dir="ltr">
+        {String(number).padStart(2, "0")}
+      </span>
+      <div className="min-w-0">{children}</div>
+    </div>
   );
 }

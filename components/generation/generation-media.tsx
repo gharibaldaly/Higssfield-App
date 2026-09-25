@@ -41,14 +41,14 @@ export function StorageImage({
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
     return (
-      <div className={cn("grid place-items-center bg-muted text-muted-foreground", className)}>
+      <div className={cn("grid place-items-center stage text-muted-foreground", className)}>
         <ImageOff className="size-6" aria-hidden />
       </div>
     );
   }
   return (
     <div className={cn("relative overflow-hidden", className)}>
-      {!loaded ? <div className="absolute inset-0 shimmer bg-muted" /> : null}
+      {!loaded ? <div className="absolute inset-0 shimmer stage" /> : null}
       <img
         src={src}
         alt={alt}
@@ -87,7 +87,14 @@ export function GenerationMedia({
   const pending = view.status === "queued" || view.status === "in_progress";
   const failed = view.status === "failed" || view.status === "nsfw" || view.status === "canceled";
   return (
-    <div className={cn("relative overflow-hidden rounded-2xl bg-muted", className)}>
+    // Results sit on the neutral grey stage so the garment's colour reads true.
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[14px] stage",
+        !pending && !failed && "crop-marks",
+        className,
+      )}
+    >
       <AnimatePresence mode="wait" initial={false}>
         {pending ? (
           <motion.div
@@ -98,7 +105,7 @@ export function GenerationMedia({
             className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center"
           >
             <div className="absolute inset-0 shimmer opacity-60" />
-            <Loader2 className="relative size-6 animate-spin text-champagne-ink" aria-hidden />
+            <Loader2 className="relative size-6 animate-spin text-accent-ink" aria-hidden />
             <p className="relative text-sm font-medium">
               {view.status === "queued" ? t("status.queued") : t("status.in_progress")}
             </p>
@@ -151,7 +158,7 @@ export function GenerationMedia({
         )}
       </AnimatePresence>
       {view.provider === "mock" && view.status === "completed" ? (
-        <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-cream backdrop-blur">
+        <span className="absolute start-3 bottom-3 z-[2] inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
           <FlaskConical className="size-3" aria-hidden />
           {view.kind === "video" ? t("mockVideo") : t("mock")}
         </span>

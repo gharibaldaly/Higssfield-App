@@ -1,58 +1,40 @@
 import { getTranslations } from "next-intl/server";
 
-import { AmbientBackground } from "@/components/layout/ambient-background";
-import { AppNav } from "@/components/layout/app-nav";
-import { BrandMark } from "@/components/layout/brand-mark";
-import { TopBar } from "@/components/layout/top-bar";
+import { SatinBackground } from "@/components/fx/satin-background";
+import { Masthead } from "@/components/layout/masthead";
 import { requireOwner } from "@/lib/auth/owner";
 import { keyStatus } from "@/lib/env";
-import { getTheme } from "@/lib/preferences";
+import { getEffects, getTheme } from "@/lib/preferences";
 import { ensureOwnerDefaults } from "@/lib/settings/service";
 
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   const owner = await requireOwner();
   await ensureOwnerDefaults(owner.supabase, owner.user.id);
   const status = keyStatus();
-  const theme = await getTheme();
-  const t = await getTranslations("nav");
+  const [theme, effects, t] = await Promise.all([getTheme(), getEffects(), getTranslations("nav")]);
   return (
     <div className="relative min-h-dvh">
       <a
         href="#main"
-        className="sr-only rounded-full px-5 py-2.5 text-sm font-medium glass-strong focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50"
+        className="sr-only rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50"
       >
         {t("skipToContent")}
       </a>
-      <AmbientBackground />
-      <div className="relative z-10 flex min-h-dvh">
-        {/* Named, so it stays distinct from the <aside> panels that pages add. */}
-        <aside
-          aria-label={t("sidebar")}
-          className="sticky top-0 hidden h-dvh w-72 shrink-0 p-4 lg:block"
-        >
-          <div className="specular flex h-full flex-col gap-8 overflow-y-auto rounded-[1.75rem] p-4 glass">
-            <div className="px-2 pt-2">
-              <BrandMark />
-            </div>
-            <AppNav />
-          </div>
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
-            email={owner.user.email}
-            theme={theme}
-            mockImages={status.higgsfieldMock}
-            mockBrain={!status.anthropic && !status.gemini}
-          />
-          <main
-            id="main"
-            tabIndex={-1}
-            className="mx-auto w-full max-w-[1600px] flex-1 px-4 pt-6 pb-20 outline-none sm:px-6 lg:px-8"
-          >
-            {children}
-          </main>
-        </div>
-      </div>
+      <SatinBackground />
+      <Masthead
+        email={owner.user.email ?? null}
+        theme={theme}
+        effects={effects}
+        mockImages={status.higgsfieldMock}
+        mockBrain={!status.anthropic && !status.gemini}
+      />
+      <main
+        id="main"
+        tabIndex={-1}
+        className="relative mx-auto w-full max-w-[1680px] px-4 pt-8 pb-24 outline-none sm:px-6 lg:px-10 lg:pt-12"
+      >
+        {children}
+      </main>
     </div>
   );
 }

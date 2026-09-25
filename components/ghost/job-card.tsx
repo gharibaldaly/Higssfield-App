@@ -6,6 +6,7 @@ import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { GreaseCircle } from "@/components/fx/grease-circle";
 import { GenerationMedia } from "@/components/generation/generation-media";
 import { ReviewDialog } from "@/components/generation/review-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,8 @@ import type { GenerationView } from "@/lib/domain/generation";
 
 const STATUS_VARIANT = {
   queued: "muted",
-  preparing: "champagne",
-  generating: "champagne",
+  preparing: "accent",
+  generating: "accent",
   review: "warning",
   approved: "success",
   failed: "danger",
@@ -67,13 +68,13 @@ export function JobCard({
   return (
     <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-xl font-semibold">{job.productName}</h2>
+        <h2 className="font-heading text-xl">{job.productName}</h2>
         <Badge variant="outline">{t(`types.${job.jobType}.short`)}</Badge>
         <Badge variant={STATUS_VARIANT[job.status]}>{t(`jobStatus.${job.status}`)}</Badge>
         {job.status === "queued" && queuePosition ? (
           <Badge variant="muted">{t("queuePosition", { position: queuePosition })}</Badge>
         ) : null}
-        {isRunning ? <Badge variant="champagne">{t("preparing")}</Badge> : null}
+        {isRunning ? <Badge variant="accent">{t("preparing")}</Badge> : null}
         <span className="ms-auto text-xs text-muted-foreground">
           {format.relativeTime(new Date(job.createdAt), now)}
         </span>
@@ -97,7 +98,7 @@ export function JobCard({
         {job.status === "failed" || job.status === "canceled" ? (
           <Button
             size="sm"
-            variant="glass"
+            variant="surface"
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
@@ -118,7 +119,7 @@ export function JobCard({
       {job.outputs.length === 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: job.jobType === "colorways" ? 3 : 2 }, (_, index) => (
-            <div key={index} className="aspect-[4/5] shimmer rounded-2xl bg-muted" />
+            <div key={index} className="aspect-[4/5] shimmer rounded-[14px] stage" />
           ))}
         </div>
       ) : (
@@ -140,9 +141,12 @@ export function JobCard({
                       controls={false}
                     />
                     {view.reviewStatus === "approved" ? (
-                      <span className="absolute end-2 bottom-2 grid size-7 place-items-center rounded-full bg-success text-ink">
-                        <BadgeCheck className="size-4" aria-label={t("approvedOutput")} />
-                      </span>
+                      <>
+                        <GreaseCircle className="absolute -start-2 -top-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)]" />
+                        <span className="absolute end-4 bottom-4 z-[2] grid size-7 place-items-center rounded-full bg-success text-black">
+                          <BadgeCheck className="size-4" aria-label={t("approvedOutput")} />
+                        </span>
+                      </>
                     ) : null}
                   </div>
                   <p className="mt-2 truncate text-sm font-medium">{slotTitle(output)}</p>

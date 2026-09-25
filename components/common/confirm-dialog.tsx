@@ -19,7 +19,7 @@ type Confirm = (options: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = React.createContext<Confirm | null>(null);
 
 /**
- * A glass alert dialog in place of window.confirm: it follows the locale, the direction and the
+ * A surface alert dialog in place of window.confirm: it follows the locale, the direction and the
  * theme, and it focuses Cancel first so a stray Enter never deletes anything.
  */
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
@@ -59,10 +59,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           <AlertDialog.Content
             // Without a description Radix expects the attribute to be opted out explicitly.
             {...(options?.description ? {} : { "aria-describedby": undefined })}
-            className="specular fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-(--radius-glass) p-6 text-popover-foreground glass-strong duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+            className="fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-(--radius-panel) p-6 text-popover-foreground surface-raised duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
           >
             <div className="flex flex-col gap-2 text-start">
-              <AlertDialog.Title className="font-display text-xl leading-snug font-semibold">
+              <AlertDialog.Title className="font-heading text-2xl leading-snug">
                 {options?.title}
               </AlertDialog.Title>
               {options?.description ? (

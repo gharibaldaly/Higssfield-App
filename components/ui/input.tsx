@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const fieldBase =
-  "w-full min-w-0 rounded-xl border border-input bg-[color-mix(in_srgb,var(--glass-bg)_80%,transparent)] px-3.5 text-sm text-foreground shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-[border-color,box-shadow] outline-none placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive";
+  "w-full min-w-0 rounded-(--radius-control) border border-input bg-[color-mix(in_srgb,var(--surface-solid)_72%,transparent)] px-3.5 text-sm text-foreground transition-[border-color,box-shadow,background-color] outline-none placeholder:text-muted-foreground/80 hover:border-border-strong focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (

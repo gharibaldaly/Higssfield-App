@@ -8,6 +8,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { GreaseCircle } from "@/components/fx/grease-circle";
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { ProductLineBadge } from "@/components/products/product-line-badge";
@@ -154,7 +155,7 @@ export function LibraryView({
                 allLabel={t("filters.all")}
               />
               <Button
-                variant={filters.favorites ? "default" : "glass"}
+                variant={filters.favorites ? "default" : "surface"}
                 size="sm"
                 className="h-10"
                 onClick={() => setParam("favorites", filters.favorites ? null : "1")}
@@ -163,7 +164,7 @@ export function LibraryView({
                 {t("filters.favorites")}
               </Button>
               <Button
-                variant={filters.approved ? "default" : "glass"}
+                variant={filters.approved ? "default" : "surface"}
                 size="sm"
                 className="h-10"
                 onClick={() => setParam("approved", filters.approved ? null : "1")}
@@ -184,23 +185,26 @@ export function LibraryView({
               description={t("empty.description")}
             />
           ) : (
-            <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <ul className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-3 xl:grid-cols-5">
               {products.map((product) => (
                 <li key={product.id}>
-                  <Link href={`/products/${product.id}`} className="block rounded-(--radius-glass)">
-                    <Card className="overflow-hidden">
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="group block rounded-(--radius-panel)"
+                  >
+                    <div className="crop-marks relative overflow-hidden rounded-(--radius-panel) stage">
                       <StorageImage
                         src={product.coverUrl}
                         alt={product.name}
                         fit="cover"
-                        className="aspect-[4/5] w-full"
+                        className="aspect-[4/5] w-full transition-transform duration-700 ease-(--ease-spring) group-hover:scale-[1.03]"
                       />
-                      <div className="flex flex-col gap-2 p-3">
-                        <p className="truncate font-medium">{product.name}</p>
-                        <ProductLineBadge line={product.productLine} />
-                        <StageSteps stage={product.stage} />
-                      </div>
-                    </Card>
+                    </div>
+                    <div className="flex flex-col items-start gap-2 px-1 pt-3">
+                      <p className="max-w-full truncate font-heading text-lg">{product.name}</p>
+                      <ProductLineBadge line={product.productLine} />
+                      <StageSteps stage={product.stage} />
+                    </div>
                   </Link>
                 </li>
               ))}
@@ -212,7 +216,7 @@ export function LibraryView({
           <Card className="overflow-x-auto p-2">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-start text-xs text-muted-foreground">
+                <tr className="text-start hud text-muted-foreground">
                   <th className="px-3 py-2 text-start font-medium">{t("columns.product")}</th>
                   <th className="px-3 py-2 text-start font-medium">{t("columns.version")}</th>
                   <th className="px-3 py-2 text-start font-medium">{t("columns.status")}</th>
@@ -230,7 +234,7 @@ export function LibraryView({
                         {row.productName}
                       </Link>
                     </td>
-                    <td className="px-3 py-2" dir="ltr">
+                    <td className="px-3 py-2 font-mono text-xs" dir="ltr">
                       v{row.version}
                     </td>
                     <td className="px-3 py-2">
@@ -254,7 +258,7 @@ export function LibraryView({
               <li key={sheet.id}>
                 <Link
                   href={`/products/${sheet.productId}/sheet?s=${sheet.id}`}
-                  className="block rounded-(--radius-glass)"
+                  className="block rounded-(--radius-panel)"
                 >
                   <Card className="overflow-hidden">
                     <StorageImage
@@ -283,16 +287,20 @@ export function LibraryView({
               <li key={colorway.id}>
                 <Link
                   href={`/products/${colorway.productId}/colorways`}
-                  className="block rounded-(--radius-glass)"
+                  className="block rounded-(--radius-panel)"
                 >
                   <Card className="overflow-hidden">
-                    <div className="relative h-24" style={{ background: colorway.hex }}>
+                    <div className="flex h-28 gap-2 stage p-3">
+                      <div
+                        className="flex-1 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.3)] pinked"
+                        style={{ background: colorway.hex }}
+                      />
                       {colorway.swatchUrl ? (
                         <StorageImage
                           src={colorway.swatchUrl}
                           alt={colorway.name}
                           fit="cover"
-                          className="absolute inset-y-0 end-0 w-1/2"
+                          className="w-2/5 rounded-[3px] pinked"
                         />
                       ) : null}
                     </div>
@@ -365,19 +373,21 @@ function GenerationGrid({ items }: { items: LibraryItem[] }) {
       <EmptyState icon={Images} title={t("empty.title")} description={t("empty.description")} />
     );
   }
+  // Everything generated, laid out as a photographer's contact sheet.
   return (
-    <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-      {items.map((item) => {
+    <ul className="contact-sheet fx-stagger grid grid-cols-2 items-start gap-x-4 gap-y-6 rounded-(--radius-panel) px-4 sm:px-5 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      {items.map((item, index) => {
         const view = views.get(item.id) ?? item;
         const favorite = favorites[item.id] ?? item.isFavorite;
+        const approved = item.reviewStatus === "approved";
         return (
-          <li key={item.id}>
-            <Card className="overflow-hidden p-2">
+          <li key={item.id} style={{ "--i": Math.min(index, 12) } as React.CSSProperties}>
+            <div className="relative">
               <GenerationMedia
                 view={view}
                 alt={item.productName ?? t(`purposes.${item.purpose as "ghost_front"}`)}
                 className={cn(
-                  "w-full",
+                  "w-full rounded-[4px]",
                   item.purpose === "product_sheet"
                     ? "aspect-video"
                     : item.kind === "video"
@@ -385,47 +395,56 @@ function GenerationGrid({ items }: { items: LibraryItem[] }) {
                       : "aspect-[4/5]",
                 )}
               />
-              <div className="flex items-start gap-2 px-1 pt-2 pb-1">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{item.productName ?? "—"}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {t(`purposes.${item.purpose as "ghost_front"}`)} ·{" "}
-                    {format.relativeTime(new Date(item.createdAt), now)}
+              {approved ? (
+                <GreaseCircle className="absolute -start-2 -top-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)]" />
+              ) : null}
+            </div>
+            <div className="mt-2.5 flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-white/90">{item.productName ?? "—"}</p>
+                <p className="truncate font-mono text-[11px]">
+                  {t(`purposes.${item.purpose as "ghost_front"}`)} ·{" "}
+                  {format.relativeTime(new Date(item.createdAt), now)}
+                </p>
+                {approved ? (
+                  <p className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-(--grease)">
+                    <BadgeCheck className="size-3" aria-hidden />
+                    {t("approvedBadge")}
                   </p>
-                  {item.reviewStatus === "approved" ? (
-                    <Badge variant="success" className="mt-1">
-                      <BadgeCheck aria-hidden />
-                      {t("approvedBadge")}
-                    </Badge>
-                  ) : null}
-                </div>
+                ) : null}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-white/80 hover:bg-white/10 hover:text-white"
+                aria-pressed={favorite}
+                aria-label={favorite ? t("unfavorite") : t("favorite")}
+                onClick={() =>
+                  startTransition(async () => {
+                    setFavorites((current) => ({ ...current, [item.id]: !favorite }));
+                    const result = await setGenerationFavorite(item.id, !favorite);
+                    if (!result.ok) {
+                      setFavorites((current) => ({ ...current, [item.id]: favorite }));
+                      toast.error(result.error);
+                    }
+                  })
+                }
+              >
+                <Heart className={cn(favorite && "fill-[#ff6a9a] text-[#ff6a9a]")} aria-hidden />
+              </Button>
+              {item.downloadUrl && view.status === "completed" ? (
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-pressed={favorite}
-                  aria-label={favorite ? t("unfavorite") : t("favorite")}
-                  onClick={() =>
-                    startTransition(async () => {
-                      setFavorites((current) => ({ ...current, [item.id]: !favorite }));
-                      const result = await setGenerationFavorite(item.id, !favorite);
-                      if (!result.ok) {
-                        setFavorites((current) => ({ ...current, [item.id]: favorite }));
-                        toast.error(result.error);
-                      }
-                    })
-                  }
+                  className="text-white/80 hover:bg-white/10 hover:text-white"
+                  asChild
                 >
-                  <Heart className={cn(favorite && "fill-rose text-rose")} aria-hidden />
+                  <a href={item.downloadUrl} aria-label={t("download")}>
+                    <Download aria-hidden />
+                  </a>
                 </Button>
-                {item.downloadUrl && view.status === "completed" ? (
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <a href={item.downloadUrl} aria-label={t("download")}>
-                      <Download aria-hidden />
-                    </a>
-                  </Button>
-                ) : null}
-              </div>
-            </Card>
+              ) : null}
+            </div>
           </li>
         );
       })}

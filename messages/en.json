@@ -14,7 +14,6 @@
   "nav": {
     "label": "Main navigation",
     "skipToContent": "Skip to content",
-    "sidebar": "Studio sidebar",
     "studio": "Studio",
     "products": "Products",
     "ghost": "Ghost Studio",
@@ -29,12 +28,31 @@
       "social": "Social posts",
       "brandKit": "Brand kit",
       "costs": "Cost tracking"
+    },
+    "short": {
+      "studio": "Studio",
+      "products": "Products",
+      "ghost": "Ghost",
+      "ads": "Ads",
+      "library": "Library",
+      "settings": "Settings"
+    },
+    "hint": {
+      "studio": "Overview and the production line",
+      "products": "Photos · Garment DNA · Colourways · Sheet",
+      "ghost": "Front & back · Macro · Colourways",
+      "ads": "Director board · Shots · Video",
+      "library": "Every generation, with filters",
+      "settings": "Director brain · Catalogue style · Keys"
     }
   },
   "preferences": {
     "switchLanguage": "Switch language",
     "darkMode": "Dark mode",
-    "lightMode": "Light mode"
+    "lightMode": "Light mode",
+    "effects": "Motion & effects",
+    "on": "On",
+    "off": "Off"
   },
   "topBar": {
     "openMenu": "Open menu",
@@ -44,7 +62,9 @@
     "mockBrain": "No LLM key: the director brain returns placeholder analysis.",
     "account": "Account",
     "owner": "Owner",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "menu": "Menu",
+    "preferences": "Preferences"
   },
   "login": {
     "title": "Sign in",
@@ -629,7 +649,12 @@
     "preset": "Preset",
     "brief": "Brief (optional)",
     "briefPlaceholder": "Audience, offer, the feeling you want…",
-    "create": "Create director board"
+    "create": "Create director board",
+    "slate": {
+      "status": "Status",
+      "shots": "Shots",
+      "created": "Created"
+    }
   },
   "director": {
     "eyebrow": "Ads Director",
@@ -920,7 +945,21 @@
       "hint": "Every result is copied to your storage as soon as it finishes.",
       "all": "Open library",
       "empty": "Nothing generated yet.",
-      "alt": "Generation"
+      "alt": "Generation",
+      "frame": "Frame {number}",
+      "approved": "Approved"
+    },
+    "form": {
+      "label": "Construction lines",
+      "neckline": "Neckline",
+      "shoulder": "Shoulder seam",
+      "waist": "Waist seam",
+      "hem": "Hem"
+    },
+    "pipeline": {
+      "title": "The production line",
+      "hint": "Every piece moves through the same five steps, and none is skipped.",
+      "live": "{count, plural, =0 {Nothing generating} one {# generating now} other {# generating now}}"
     }
   },
   "library": {

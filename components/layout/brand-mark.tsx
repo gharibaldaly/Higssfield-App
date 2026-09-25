@@ -1,18 +1,31 @@
 import { useTranslations } from "next-intl";
 
-export function BrandMark() {
+import { cn } from "@/lib/utils";
+
+/** Wordmark with an embroidered monogram patch (a stitched ring). Inherits the text colour. */
+export function BrandMark({
+  className,
+  subtitle = true,
+}: {
+  className?: string;
+  subtitle?: boolean;
+}) {
   const t = useTranslations("app");
   return (
-    <div className="flex items-center gap-3">
-      <div className="specular relative grid size-10 place-items-center rounded-2xl bg-[linear-gradient(145deg,var(--color-wine-600),var(--color-wine))] text-cream shadow-[0_10px_30px_-12px_rgba(77,0,17,0.9)]">
-        <span className="font-display text-xl leading-none font-semibold italic" aria-hidden>
-          S
+    <span className={cn("flex items-center gap-3", className)}>
+      <span
+        aria-hidden
+        className="relative grid size-10 shrink-0 place-items-center rounded-full border border-current/35"
+      >
+        <span className="absolute inset-[3px] rounded-full border border-dashed border-current/45" />
+        <span className="font-editorial text-lg leading-none">S</span>
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="font-editorial text-xl leading-none tracking-tight" dir="ltr">
+          {t("brand")}
         </span>
-      </div>
-      <div className="leading-tight">
-        <p className="font-display text-lg font-semibold tracking-tight">{t("brand")}</p>
-        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">{t("studio")}</p>
-      </div>
-    </div>
+        {subtitle ? <span className="mt-1 truncate hud opacity-75">{t("studio")}</span> : null}
+      </span>
+    </span>
   );
 }

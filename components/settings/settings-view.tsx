@@ -134,7 +134,7 @@ function BrainCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Bot className="size-5 text-champagne-ink" aria-hidden />
+          <Bot className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>
@@ -150,11 +150,9 @@ function BrainCard({
             <RadioGroup.Item
               key={option}
               value={option}
-              className="rounded-2xl p-4 text-start glass transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=checked]:ring-2 data-[state=checked]:ring-primary"
+              className="rounded-(--radius-control) border border-border p-4 text-start transition-[border-color,background-color] outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=checked]:border-primary data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
             >
-              <span className="block font-display text-lg font-semibold">
-                {t(`providers.${option}`)}
-              </span>
+              <span className="block font-heading text-lg">{t(`providers.${option}`)}</span>
               <span
                 className={cn(
                   "text-xs",
@@ -206,7 +204,7 @@ function BrainCard({
             {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Save aria-hidden />}
             {t("save")}
           </Button>
-          <Badge variant={brain.provider === "mock" ? "warning" : "champagne"}>
+          <Badge variant={brain.provider === "mock" ? "warning" : "accent"}>
             {t("active", { provider: brain.provider, model: brain.model })}
           </Badge>
         </div>
@@ -224,7 +222,7 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Palette className="size-5 text-champagne-ink" aria-hidden />
+          <Palette className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>
@@ -333,7 +331,7 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
         <div className="flex flex-col items-center gap-2">
           <div
             role="img"
-            className="flex w-full items-center justify-center rounded-xl border border-border shadow-inner"
+            className="flex w-full items-center justify-center rounded-(--radius-control) border border-border shadow-inner"
             style={{
               background: value.background,
               aspectRatio: `${w} / ${h}`,
@@ -341,7 +339,8 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
             }}
             aria-label={t("preview")}
           >
-            <div className="size-full rounded-[40%_40%_12%_12%] bg-[linear-gradient(160deg,#cfa8a4,#6b0a1f)] opacity-80" />
+            {/* A neutral stand-in garment: the preview is about background, padding and shadow. */}
+            <div className="size-full rounded-[40%_40%_12%_12%] bg-[linear-gradient(160deg,#a3a3a3,#4d4d4d)] opacity-80" />
           </div>
           <span className="text-xs text-muted-foreground">{t("preview")}</span>
         </div>
@@ -369,7 +368,7 @@ function ModelsCard({
     <Card className="xl:col-span-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Shapes className="size-5 text-champagne-ink" aria-hidden />
+          <Shapes className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
           <Badge variant={providerMode === "mock" ? "warning" : "success"}>
             {t(`provider.${providerMode}`)}
@@ -421,7 +420,7 @@ function ModelsCard({
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {[...imageModels, ...videoModels].map((model) => (
-            <div key={model.id} className="rounded-2xl bg-muted p-4">
+            <div key={model.id} className="rounded-(--radius-control) border border-border p-4">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
                   <p className="font-medium">{model.label}</p>
@@ -463,7 +462,7 @@ function KeysCard({ keys }: { keys: KeyStatus }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <KeyRound className="size-5 text-champagne-ink" aria-hidden />
+          <KeyRound className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>
@@ -503,7 +502,7 @@ function DriveCard({ drive, configured }: { drive: DriveSettings; configured: bo
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Cloud className="size-5 text-champagne-ink" aria-hidden />
+          <Cloud className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
           <Badge variant="muted">{t("phase")}</Badge>
         </CardTitle>
@@ -535,7 +534,7 @@ function DriveCard({ drive, configured }: { drive: DriveSettings; configured: bo
         </label>
         <div className="flex flex-wrap gap-2">
           <Button
-            variant="glass"
+            variant="surface"
             disabled={pending}
             onClick={() =>
               save({
@@ -567,7 +566,7 @@ function CostCard({ costs }: { costs: CostSummary }) {
     <Card className="xl:col-span-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Coins className="size-5 text-champagne-ink" aria-hidden />
+          <Coins className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>
@@ -596,9 +595,9 @@ function CostCard({ costs }: { costs: CostSummary }) {
               t("failedValue", { count: costs.generations.failed }),
             ],
           ].map(([label, value, sub]) => (
-            <div key={label} className="rounded-2xl bg-muted p-4">
+            <div key={label} className="rounded-(--radius-control) border border-border p-4">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="mt-1 font-display text-3xl font-semibold" dir="ltr">
+              <p className="mt-1 font-editorial text-4xl" dir="ltr">
                 {value}
               </p>
               <p className="text-xs text-muted-foreground">{sub}</p>
@@ -610,7 +609,7 @@ function CostCard({ costs }: { costs: CostSummary }) {
             {costs.byPurpose.map((row) => (
               <li
                 key={row.purpose}
-                className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-(--radius-control) border border-border px-3 py-2 text-sm"
               >
                 <span>{tp(row.purpose as "ghost_front")}</span>
                 <span className="text-muted-foreground" dir="ltr">

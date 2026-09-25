@@ -4,57 +4,46 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
-   Brand palette and design tokens
-   Deep wine #4D0011 · rose #CFA8A4 · champagne #C9A66B · cream #F7F3EE · ink #111111
-   Dark mode is primary. Text colours are chosen for ≥ 4.5:1 contrast on the
-   glass surfaces (see --glass-bg), never relying on the blurred backdrop.
+   Satin atelier
+   Dark (primary): deep emerald satin, pearl text, blush accent.
+   Light: blush tissue paper, emerald ink.
+   Text colours keep ≥ 4.5:1 on every surface and on the satin itself (its
+   brightest sheen is capped in the shader palette below, --satin-*).
+   Garment images always sit on a neutral grey stage (--stage), never on a
+   tinted surface, so colour is judged without a cast.
    --------------------------------------------------------------------------- */
 
 @theme {
-  --color-wine: #4d0011;
-  --color-wine-600: #6b0a1f;
-  --color-rose: #cfa8a4;
-  --color-champagne: #c9a66b;
-  --color-cream: #f7f3ee;
-  --color-ink: #111111;
+  --color-emerald-950: #031512;
+  --color-emerald-900: #082620;
+  --color-emerald-800: #0e3229;
+  --color-emerald-600: #0e5c49;
+  --color-pearl: #f3efe8;
+  --color-mist: #a9bdb5;
+  --color-blush: #ffb8cb;
+  --color-blush-ink: #2a0714;
+  --color-veil-rose: #ff6a9a;
+  --color-tissue: #f9e1e7;
 
-  --font-sans: var(--font-jost), var(--font-tajawal), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-cormorant), var(--font-tajawal), ui-serif, Georgia, serif;
-  --font-arabic: var(--font-tajawal), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-plex), var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
+  /* Page titles and the hero. Arabic switches to Ruq'ah below. */
+  --font-display: var(--font-gloock), var(--font-ruqaa), ui-serif, Georgia, serif;
+  /* Card and section titles. Arabic switches to Plex Sans Arabic below. */
+  --font-heading: var(--font-gloock), var(--font-plex-arabic), ui-serif, Georgia, serif;
+  /* Latin numerals and the wordmark in any language. */
+  --font-editorial: var(--font-gloock), ui-serif, Georgia, serif;
+  --font-mono:
+    var(--font-plex-mono), var(--font-plex-arabic), ui-monospace, SFMono-Regular, monospace;
+  --font-arabic: var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
 
-  --radius-glass: 1.5rem;
+  --radius-panel: 1.25rem;
+  --radius-control: 0.75rem;
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-silk: cubic-bezier(0.65, 0, 0.35, 1);
 
-  --animate-drift-a: drift-a 42s ease-in-out infinite alternate;
-  --animate-drift-b: drift-b 56s ease-in-out infinite alternate;
-  --animate-drift-c: drift-c 48s ease-in-out infinite alternate;
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
 
-  @keyframes drift-a {
-    0% {
-      transform: translate3d(-8%, -6%, 0) scale(1);
-    }
-    100% {
-      transform: translate3d(10%, 8%, 0) scale(1.18);
-    }
-  }
-  @keyframes drift-b {
-    0% {
-      transform: translate3d(12%, 4%, 0) scale(1.1);
-    }
-    100% {
-      transform: translate3d(-10%, -8%, 0) scale(0.92);
-    }
-  }
-  @keyframes drift-c {
-    0% {
-      transform: translate3d(0, 10%, 0) scale(0.95);
-    }
-    100% {
-      transform: translate3d(-6%, -12%, 0) scale(1.15);
-    }
-  }
   @keyframes shimmer {
     0% {
       background-position: -200% 0;
@@ -76,84 +65,126 @@
 
 :root {
   color-scheme: light;
-  --background: #f3eee8;
-  --foreground: #141112;
-  --muted: rgba(20, 17, 18, 0.05);
-  --muted-foreground: #5a524e;
-  --card: rgba(255, 255, 255, 0.66);
-  --card-foreground: #141112;
-  --popover: rgba(255, 252, 249, 0.94);
-  --popover-foreground: #141112;
-  --primary: #4d0011;
-  --primary-foreground: #f7f3ee;
-  --secondary: rgba(77, 0, 17, 0.07);
-  --secondary-foreground: #3a0a14;
-  --accent: #cfa8a4;
-  --accent-foreground: #2a0a10;
-  --champagne-ink: #7a5a22;
+  --background: #f9e1e7;
+  --foreground: #062a22;
+  --muted: rgba(6, 42, 34, 0.06);
+  --muted-foreground: #3e6158;
+  --card: #fff7f9;
+  --card-foreground: #062a22;
+  --popover: #fff7f9;
+  --popover-foreground: #062a22;
+  --primary: #0e5c49;
+  --primary-foreground: #f9e1e7;
+  --secondary: rgba(14, 92, 73, 0.1);
+  --secondary-foreground: #062a22;
+  --accent: #ffb8cb;
+  --accent-foreground: #2a0714;
+  --accent-ink: #0e5c49;
   --destructive: #b42318;
   --destructive-foreground: #ffffff;
-  --success: #1f7a4d;
+  --success: #0b6b45;
   --warning: #8a5a00;
-  --border: rgba(20, 17, 18, 0.1);
-  --input: rgba(20, 17, 18, 0.14);
-  --ring: #9c6b2a;
+  --border: rgba(6, 42, 34, 0.12);
+  --border-strong: rgba(6, 42, 34, 0.26);
+  --input: rgba(6, 42, 34, 0.22);
+  --ring: #0e5c49;
+  --highlight: rgba(14, 92, 73, 0.1);
 
-  --highlight: rgba(77, 0, 17, 0.09);
+  --surface: rgba(255, 247, 249, 0.9);
+  --surface-raised: rgba(255, 250, 251, 0.94);
+  --surface-solid: #fff7f9;
+  --surface-edge: rgba(6, 42, 34, 0.1);
+  --surface-shine: rgba(255, 255, 255, 0.95);
+  --surface-shadow: 0 1px 0 rgba(6, 42, 34, 0.04), 0 24px 48px -30px rgba(6, 42, 34, 0.38);
 
-  --glass-bg: rgba(255, 255, 255, 0.62);
-  --glass-bg-strong: rgba(255, 253, 250, 0.84);
-  --glass-solid: #fbf8f4;
-  --glass-border: rgba(255, 255, 255, 0.7);
-  --glass-edge: rgba(20, 17, 18, 0.08);
-  --glass-highlight: rgba(255, 255, 255, 0.9);
-  --glass-shadow: 0 1px 1px rgba(40, 10, 15, 0.04), 0 12px 40px -12px rgba(77, 0, 17, 0.18);
+  --stage: #d4d4d4;
+  --stage-mark: rgba(0, 0, 0, 0.38);
 
-  --ambient-base: #f3eee8;
-  --ambient-a: rgba(207, 168, 164, 0.55);
-  --ambient-b: rgba(201, 166, 107, 0.4);
-  --ambient-c: rgba(77, 0, 17, 0.12);
+  --veil: #0e5c49;
+  --grease: #c0265e;
+  --inverse: #0e5c49;
+  --inverse-foreground: #f9e1e7;
+
+  /* Satin shader palette (hex only: read by components/fx/satin-background.tsx). */
+  --satin-shade: #efcfd8;
+  --satin-base: #f9e1e7;
+  --satin-light: #fff7f9;
+  --satin-sheen: #e3f3ec;
+
+  /* Ghost form particles (components/fx/ghost-form.tsx). */
+  --form-tone: ink;
+  --form-surface: #0e5c49;
+  --form-seam: #0b3d31;
+  --form-stand: #3e6158;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0d090a;
-  --foreground: #f7f3ee;
-  --muted: rgba(247, 243, 238, 0.06);
-  --muted-foreground: #b9b2ac;
-  --card: rgba(255, 255, 255, 0.05);
-  --card-foreground: #f7f3ee;
-  --popover: rgba(24, 17, 19, 0.96);
-  --popover-foreground: #f7f3ee;
-  --primary: #c9a66b;
-  --primary-foreground: #140d06;
-  --secondary: rgba(247, 243, 238, 0.08);
-  --secondary-foreground: #f7f3ee;
-  --accent: #cfa8a4;
-  --accent-foreground: #1c0b0e;
-  --champagne-ink: #e2c48e;
-  --destructive: #f2786d;
-  --destructive-foreground: #1a0503;
-  --success: #6fd3a0;
-  --warning: #f0c36a;
-  --border: rgba(247, 243, 238, 0.1);
-  --input: rgba(247, 243, 238, 0.16);
-  --ring: #e2c48e;
+  --background: #031512;
+  --foreground: #f3efe8;
+  --muted: rgba(243, 239, 232, 0.06);
+  --muted-foreground: #a9bdb5;
+  --card: #082620;
+  --card-foreground: #f3efe8;
+  --popover: #0e3229;
+  --popover-foreground: #f3efe8;
+  --primary: #ffb8cb;
+  --primary-foreground: #2a0714;
+  --secondary: rgba(243, 239, 232, 0.08);
+  --secondary-foreground: #f3efe8;
+  --accent: #ff6a9a;
+  --accent-foreground: #2a0714;
+  --accent-ink: #ffb8cb;
+  --destructive: #ff8b7b;
+  --destructive-foreground: #2a0a05;
+  --success: #86e7c0;
+  --warning: #ffcb6b;
+  --border: rgba(243, 239, 232, 0.1);
+  --border-strong: rgba(243, 239, 232, 0.24);
+  --input: rgba(243, 239, 232, 0.2);
+  --ring: #ffb8cb;
+  --highlight: rgba(243, 239, 232, 0.1);
 
-  --highlight: rgba(247, 243, 238, 0.12);
+  --surface: rgba(8, 38, 32, 0.9);
+  --surface-raised: rgba(14, 50, 41, 0.94);
+  --surface-solid: #082620;
+  --surface-edge: rgba(243, 239, 232, 0.09);
+  --surface-shine: rgba(243, 239, 232, 0.06);
+  --surface-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 30px 60px -32px rgba(0, 0, 0, 0.8);
 
-  --glass-bg: rgba(255, 255, 255, 0.055);
-  --glass-bg-strong: rgba(28, 20, 22, 0.82);
-  --glass-solid: #1b1315;
-  --glass-border: rgba(255, 255, 255, 0.09);
-  --glass-edge: rgba(255, 255, 255, 0.06);
-  --glass-highlight: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+  --stage: #242424;
+  --stage-mark: rgba(255, 255, 255, 0.42);
 
-  --ambient-base: #0d090a;
-  --ambient-a: rgba(77, 0, 17, 0.75);
-  --ambient-b: rgba(201, 166, 107, 0.16);
-  --ambient-c: rgba(207, 168, 164, 0.14);
+  --veil: #ff6a9a;
+  --grease: #ff6a9a;
+  --inverse: #ffb8cb;
+  --inverse-foreground: #062a22;
+
+  --satin-shade: #010a08;
+  --satin-base: #062a21;
+  --satin-light: #184a3c;
+  --satin-sheen: #52263a;
+
+  --form-tone: glow;
+  --form-surface: #f3efe8;
+  --form-seam: #ffb8cb;
+  --form-stand: #a9bdb5;
+}
+
+/* The index overlay floods the screen with the inverse colour, so its particles flip tone. */
+.dark .inverse-scope {
+  --form-tone: ink;
+  --form-surface: #062a22;
+  --form-seam: #7a1a3a;
+  --form-stand: #0e3229;
+  --ring: #062a22;
+}
+:root:not(.dark) .inverse-scope {
+  --form-tone: glow;
+  --form-surface: #f9e1e7;
+  --form-seam: #ffb8cb;
+  --form-stand: #a9bdb5;
+  --ring: #f9e1e7;
 }
 
 @theme inline {
@@ -171,26 +202,39 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-champagne-ink: var(--champagne-ink);
+  --color-accent-ink: var(--accent-ink);
   --color-highlight: var(--highlight);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface: var(--surface-solid);
+  --color-stage: var(--stage);
+  --color-veil: var(--veil);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
 }
 
-/* Arabic: Tajawal leads for both UI and display text. */
+/* Arabic: Ruq'ah for page titles, Plex Sans Arabic for everything else. */
 html[lang="ar"] {
-  --font-sans: var(--font-tajawal), var(--font-jost), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-tajawal), var(--font-cormorant), ui-serif, serif;
+  --font-sans: var(--font-plex-arabic), var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-ruqaa), var(--font-gloock), ui-serif, serif;
+  --font-heading: var(--font-plex-arabic), var(--font-plex), ui-sans-serif, sans-serif;
 }
 
 /* Arabic letters join, so tracking meant for Latin labels would break the words apart. */
-html[lang="ar"] [class*="tracking-"] {
+html[lang="ar"] [class*="tracking-"],
+html[lang="ar"] .hud {
   letter-spacing: normal;
+}
+
+/* Gloock ships one weight: headings stay regular in Latin and semibold in Arabic. */
+html[lang="ar"] .font-heading {
+  font-weight: 600;
 }
 
 @layer base {
@@ -198,7 +242,11 @@ html[lang="ar"] [class*="tracking-"] {
     border-color: var(--border);
   }
   html {
-    background: var(--ambient-base);
+    background: var(--background);
+    /* Never fake bold or italic: Gloock and Ruq'ah would smear. */
+    font-synthesis: none;
+    scrollbar-color: var(--border-strong) transparent;
+    scrollbar-width: thin;
   }
   body {
     background: transparent;
@@ -209,7 +257,8 @@ html[lang="ar"] [class*="tracking-"] {
     text-rendering: optimizeLegibility;
   }
   ::selection {
-    background: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--primary);
+    color: var(--primary-foreground);
   }
   :focus-visible {
     outline: 2px solid var(--ring);
@@ -227,78 +276,164 @@ html[lang="ar"] [class*="tracking-"] {
 }
 
 /* ---------------------------------------------------------------------------
-   Liquid glass
+   Surfaces
+   Panels are near-opaque "tulle" with no backdrop blur: the satin keeps moving
+   underneath, and re-blurring it every frame behind every card is too costly.
+   Only floating layers (menus, dialogs, the masthead) blur.
+   Surfaces set their own border and box-shadow, and they are emitted after
+   Tailwind's ring and border utilities. The shadow therefore folds in the ring
+   variables so selection rings stay visible, and a tinted edge is set through
+   --surface-edge (see surface-warning) instead of a border utility.
    --------------------------------------------------------------------------- */
 
-/* Glass sets its own border and box-shadow, and it is emitted after Tailwind's ring and border
-   utilities. The shadow therefore folds in the ring variables so selection rings stay visible, and
-   a tinted edge is set through --glass-border (see glass-warning) instead of a border utility. */
-@utility glass {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--glass-border);
+@utility surface {
+  background: var(--surface);
+  border: 1px solid var(--surface-edge);
   box-shadow:
     var(--tw-ring-offset-shadow, 0 0 #0000),
     var(--tw-ring-shadow, 0 0 #0000),
-    var(--glass-shadow),
-    inset 0 1px 0 0 var(--glass-highlight);
+    var(--surface-shadow),
+    inset 0 1px 0 0 var(--surface-shine);
 }
 
-@utility glass-strong {
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(32px) saturate(170%);
-  backdrop-filter: blur(32px) saturate(170%);
-  border: 1px solid var(--glass-border);
+@utility surface-raised {
+  background: var(--surface-raised);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--surface-edge);
   box-shadow:
     var(--tw-ring-offset-shadow, 0 0 #0000),
     var(--tw-ring-shadow, 0 0 #0000),
-    var(--glass-shadow),
-    inset 0 1px 0 0 var(--glass-highlight);
+    var(--surface-shadow),
+    inset 0 1px 0 0 var(--surface-shine);
 }
 
-/* A glass surface that needs attention: a warning-tinted edge. */
-@utility glass-warning {
-  --glass-border: color-mix(in srgb, var(--warning) 45%, transparent);
+/* A surface that needs attention: a warning-tinted edge. */
+@utility surface-warning {
+  --surface-edge: color-mix(in srgb, var(--warning) 50%, transparent);
 }
 
-/* Without translucency (user setting or no backdrop-filter support) glass becomes a solid panel. */
+/* Without translucency (user setting or no backdrop-filter support) surfaces become solid. */
 @media (prefers-reduced-transparency: reduce) {
-  :root {
-    --glass-bg: var(--glass-solid);
-    --glass-bg-strong: var(--glass-solid);
+  :root,
+  .dark {
+    --surface: var(--surface-solid);
+    --surface-raised: var(--surface-solid);
   }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root {
-    --glass-bg: var(--glass-solid);
-    --glass-bg-strong: var(--glass-solid);
+  :root,
+  .dark {
+    --surface-raised: var(--surface-solid);
   }
 }
 
-/* Specular rim: a thin gradient border that catches light on the top edge. */
-@utility specular {
+/* Neutral grey stage for garment images: colour is judged without a tint from the theme. */
+@utility stage {
+  background-color: var(--stage);
+}
+
+/* Printer's crop marks in the four corners. The element must be positioned. */
+@utility crop-marks {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--stage-mark), var(--stage-mark)) left top / 11px 1px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) left top / 1px 11px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) right top / 11px 1px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) right top / 1px 11px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) left bottom / 11px 1px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) left bottom / 1px 11px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) right bottom / 11px 1px no-repeat,
+      linear-gradient(var(--stage-mark), var(--stage-mark)) right bottom / 1px 11px no-repeat;
+  }
+}
+
+/* A running stitch: a dashed seam line in the current colour. */
+@utility stitch {
+  height: 1px;
+  background-image: repeating-linear-gradient(90deg, currentColor 0 7px, transparent 7px 12px);
+}
+@utility stitch-y {
+  width: 1px;
+  background-image: repeating-linear-gradient(180deg, currentColor 0 7px, transparent 7px 12px);
+}
+
+/* A sewn edge inside the element (primary buttons, labels). The element must be positioned. */
+@utility stitched {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px dashed currentColor;
+    border-radius: inherit;
+    opacity: 0.38;
+    pointer-events: none;
+  }
+}
+
+/* Satin sheen: a highlight that sweeps across on hover. */
+@utility sheen {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
   &::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.45),
-      rgba(255, 255, 255, 0.06) 30%,
-      rgba(255, 255, 255, 0) 55%,
-      rgba(201, 166, 107, 0.28)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
+    z-index: -1;
     pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 30%,
+      color-mix(in srgb, #ffffff 42%, transparent) 50%,
+      transparent 70%
+    );
+    transform: translateX(-130%);
   }
+  &:hover::before {
+    transform: translateX(130%);
+    transition: transform 0.9s var(--ease-silk);
+  }
+  &:where([dir="rtl"], [dir="rtl"] *)::before {
+    transform: translateX(130%);
+  }
+  &:where([dir="rtl"], [dir="rtl"] *):hover::before {
+    transform: translateX(-130%);
+  }
+}
+
+/* Heads-up label: mono, small, tracked. Arabic uses Plex Sans Arabic untracked: the mono face's
+   wide space would pull Arabic words apart. */
+@utility hud {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  &:where(:lang(ar), :lang(ar) *) {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+  }
+}
+
+/* Pinking-shear edges (top and bottom) for fabric swatches. Colour stays untouched. */
+@utility pinked {
+  --pink: 9px;
+  -webkit-mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--pink)
+      51% repeat-x,
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--pink) 51%
+      repeat-x;
+  mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--pink)
+      51% repeat-x,
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--pink) 51%
+      repeat-x;
 }
 
 @utility shimmer {
@@ -317,12 +452,12 @@ html[lang="ar"] [class*="tracking-"] {
 }
 
 @utility checkerboard {
-  background-color: #f2eee9;
+  background-color: #f2f2f2;
   background-image:
-    linear-gradient(45deg, #e6e0d9 25%, transparent 25%),
-    linear-gradient(-45deg, #e6e0d9 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e6e0d9 75%),
-    linear-gradient(-45deg, transparent 75%, #e6e0d9 75%);
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e2e2 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e2e2 75%);
   background-size: 16px 16px;
   background-position:
     0 0,
@@ -331,7 +466,337 @@ html[lang="ar"] [class*="tracking-"] {
     -8px 0;
 }
 
+@layer components {
+  /* Woven garment label: ribbed weave, folded ends, stitched down at both ends. */
+  .woven-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.3rem 1.1rem;
+    border-radius: 2px;
+    line-height: 1.2;
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.06) 0 1px,
+      transparent 1px 3px
+    );
+    box-shadow:
+      inset 5px 0 0 rgba(0, 0, 0, 0.12),
+      inset -5px 0 0 rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+  .woven-label::before,
+  .woven-label::after {
+    content: "";
+    position: absolute;
+    inset-block: 3px;
+    border-inline-start: 1px dashed currentColor;
+    opacity: 0.45;
+  }
+  .woven-label::before {
+    inset-inline-start: 8px;
+  }
+  .woven-label::after {
+    inset-inline-end: 8px;
+  }
+
+  /* A work ticket: notches where the stub tears off, 3.75rem above the bottom edge. */
+  .ticket {
+    --notch: 11px;
+    --notch-y: calc(100% - 3.75rem);
+    -webkit-mask:
+      radial-gradient(circle var(--notch) at 0 var(--notch-y), #0000 98%, #000) left / 51% 100%
+        no-repeat,
+      radial-gradient(circle var(--notch) at 100% var(--notch-y), #0000 98%, #000) right / 51% 100%
+        no-repeat;
+    mask:
+      radial-gradient(circle var(--notch) at 0 var(--notch-y), #0000 98%, #000) left / 51% 100%
+        no-repeat,
+      radial-gradient(circle var(--notch) at 100% var(--notch-y), #0000 98%, #000) right / 51% 100%
+        no-repeat;
+  }
+
+  /* The storyboard's film strip: a neutral base with sprocket holes down both edges. */
+  .film-strip {
+    position: relative;
+    padding: 1.25rem 2.5rem;
+    background-color: #151515;
+    border-radius: var(--radius-panel);
+  }
+  .film-strip::before,
+  .film-strip::after {
+    content: "";
+    position: absolute;
+    inset-block: 0.75rem;
+    width: 0.625rem;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16) 0 0.75rem,
+      transparent 0.75rem 1.5rem
+    );
+    border-radius: 2px;
+  }
+  .film-strip::before {
+    inset-inline-start: 0.9rem;
+  }
+  .film-strip::after {
+    inset-inline-end: 0.9rem;
+  }
+
+  /* Photographic contact sheet: a neutral film base in both themes, with sprocket holes. */
+  .contact-sheet {
+    --grease: #ff6a9a;
+    --ring: #ffb8cb;
+    position: relative;
+    background-color: #151515;
+    color: rgba(255, 255, 255, 0.72);
+    padding-block: 1.75rem;
+  }
+  .contact-sheet::before,
+  .contact-sheet::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0.75rem;
+    height: 0.5rem;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.16) 0 0.75rem,
+      transparent 0.75rem 1.5rem
+    );
+    border-radius: 2px;
+  }
+  .contact-sheet::before {
+    top: 0.6rem;
+  }
+  .contact-sheet::after {
+    bottom: 0.6rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion layer. Every effect is pure CSS so pages render finished on the
+   server; each rule only describes where an element comes from. With
+   html[data-fx="calm"] (owner setting) or reduced motion, they are skipped.
+   --------------------------------------------------------------------------- */
+
+/* A sheer veil that sweeps across when a studio section opens. */
+.veil {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 60;
+  width: 160vw;
+  pointer-events: none;
+  background:
+    radial-gradient(
+        circle,
+        color-mix(in srgb, var(--veil) 55%, transparent) 0.6px,
+        transparent 1.4px
+      )
+      0 0 / 5px 5px,
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--veil) 26%, transparent) 30%,
+      color-mix(in srgb, var(--veil) 34%, transparent) 50%,
+      color-mix(in srgb, var(--veil) 26%, transparent) 70%,
+      transparent
+    );
+  -webkit-mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  transform: translateX(110vw);
+  animation: veil-sweep 0.9s var(--ease-silk) both;
+}
+[dir="rtl"] .veil {
+  transform: translateX(-110vw);
+  animation-name: veil-sweep-rtl;
+}
+@keyframes veil-sweep {
+  from {
+    transform: translateX(-160vw);
+  }
+}
+@keyframes veil-sweep-rtl {
+  from {
+    transform: translateX(160vw);
+  }
+}
+
+.page-enter {
+  animation: page-in 0.7s var(--ease-spring) 0.08s both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+/* Title reveal. Latin words rise one by one; Arabic is written in with an ink sweep
+   from the right, so letters stay joined. */
+.fx-words > span {
+  display: inline-block;
+  animation: word-rise 1s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+}
+@keyframes word-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) rotate(2deg);
+    filter: blur(10px);
+  }
+}
+.fx-ink {
+  /* Ruq'ah strokes reach past the line box; the padding keeps them inside the mask. */
+  padding: 0.3em 0.15em;
+  margin: -0.3em -0.15em;
+  -webkit-mask-image: linear-gradient(to right, transparent 40%, #000 60%);
+  mask-image: linear-gradient(to right, transparent 40%, #000 60%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-position: 100% 0;
+  mask-position: 100% 0;
+  animation: ink-in 1.5s var(--ease-silk) 0.15s both;
+}
+@keyframes ink-in {
+  from {
+    -webkit-mask-position: 0% 0;
+    mask-position: 0% 0;
+  }
+}
+
+/* A seam drawn from the start edge. */
+.stitch-draw {
+  animation: stitch-draw 1.2s var(--ease-silk) 0.35s both;
+}
+[dir="rtl"] .stitch-draw {
+  animation-name: stitch-draw-rtl;
+}
+@keyframes stitch-draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+@keyframes stitch-draw-rtl {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+/* Odometer digits: each column rolls up to its digit. */
+.roll {
+  display: inline-flex;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+}
+.roll > span {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--d, 0) * -1em));
+  animation: roll 1.6s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 90ms + 250ms);
+}
+@keyframes roll {
+  from {
+    transform: translateY(0);
+  }
+}
+
+/* Endless ticker; the track holds the items twice. */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 48s linear infinite;
+}
+[dir="rtl"] .marquee-track {
+  animation-name: marquee-rtl;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes marquee-rtl {
+  to {
+    transform: translateX(50%);
+  }
+}
+
+/* Grease-pencil ring around approved frames. */
+.grease-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: grease 1.1s var(--ease-silk) 0.2s both;
+}
+@keyframes grease {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* The cursor ring's stitches turn while it hovers something clickable. */
+.studio-cursor[data-active="true"] > span {
+  animation: spin 6s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The index overlay opens as a circle growing from the menu button. */
+.index-overlay {
+  --index-origin: calc(100% - 3.5rem) 2rem;
+}
+[dir="rtl"] .index-overlay {
+  --index-origin: 3.5rem 2rem;
+}
+.index-overlay[data-state="open"] {
+  animation: index-open 0.8s var(--ease-silk) both;
+}
+.index-overlay[data-state="closed"] {
+  animation: index-close 0.5s var(--ease-silk) both;
+}
+@keyframes index-open {
+  from {
+    clip-path: circle(0% at var(--index-origin));
+  }
+  to {
+    clip-path: circle(150% at var(--index-origin));
+  }
+}
+@keyframes index-close {
+  from {
+    clip-path: circle(150% at var(--index-origin));
+  }
+  to {
+    clip-path: circle(0% at var(--index-origin));
+  }
+}
+
+/* Staggered entrance for lists (cards, frames). */
+.fx-stagger > * {
+  animation: page-in 0.8s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 60ms + 150ms);
+}
+
+html[data-fx="calm"] .veil {
+  display: none;
+}
+html[data-fx="calm"] :is(.page-enter, .fx-words > span, .fx-ink, .stitch-draw, .roll > span),
+html[data-fx="calm"] :is(.marquee-track, .fx-stagger > *, .grease-path, .index-overlay) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .veil {
+    display: none;
+  }
   *,
   *::before,
   *::after {

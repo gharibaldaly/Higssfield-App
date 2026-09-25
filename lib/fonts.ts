@@ -1,27 +1,50 @@
-import { Cormorant_Garamond, Jost, Tajawal } from "next/font/google";
+import {
+  Aref_Ruqaa,
+  Gloock,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  IBM_Plex_Sans_Arabic,
+} from "next/font/google";
 
-/** English UI. */
-export const jost = Jost({
-  subsets: ["latin"],
-  variable: "--font-jost",
-  display: "swap",
-});
-
-/** English display titles. */
-export const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-cormorant",
-  display: "swap",
-});
-
-/** Arabic UI and titles. */
-export const tajawal = Tajawal({
+/** Arabic display: Ruq'ah calligraphy, used for page titles and the hero only. */
+export const ruqaa = Aref_Ruqaa({
   subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "700", "800"],
-  variable: "--font-tajawal",
+  weight: ["400", "700"],
+  variable: "--font-ruqaa",
   display: "swap",
 });
 
-export const fontVariables = `${jost.variable} ${cormorant.variable} ${tajawal.variable}`;
+/** English display and Latin numerals in editorial settings. */
+export const gloock = Gloock({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-gloock",
+  display: "swap",
+});
+
+/** English UI (variable weight). */
+export const plexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  variable: "--font-plex",
+  display: "swap",
+});
+
+/** Arabic UI. Its Latin glyphs come from IBM Plex Sans, which it was drawn to match. */
+export const plexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex-arabic",
+  display: "swap",
+});
+
+/** Labels, data, timecodes and measurements. */
+export const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
+
+export const fontVariables = [ruqaa, gloock, plexSans, plexArabic, plexMono]
+  .map((font) => font.variable)
+  .join(" ");

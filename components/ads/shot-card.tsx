@@ -41,6 +41,7 @@ import {
 import type { CropOption, ShotView } from "@/lib/director/queries";
 import type { GenerationView } from "@/lib/domain/generation";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
+import { formatTimecode } from "@/lib/format/timecode";
 import { cn } from "@/lib/utils";
 
 const PENDING = new Set(["queued", "in_progress"]);
@@ -81,6 +82,7 @@ export function ShotCard({
   shot,
   index,
   count,
+  startS,
   crops,
   videoModels,
   maxShotDurationS,
@@ -94,6 +96,8 @@ export function ShotCard({
   shot: ShotView;
   index: number;
   count: number;
+  /** Where this shot starts in the cut, in seconds. */
+  startS: number;
   crops: CropOption[];
   videoModels: ModelOption[];
   maxShotDurationS: number;
@@ -188,9 +192,15 @@ export function ShotCard({
 
   return (
     <Card className="p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-          {index + 1}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {/* Frame number and its place in the cut, as printed on a film edge. */}
+        <span className="flex items-baseline gap-2.5" dir="ltr">
+          <span className="font-editorial text-3xl leading-none">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {formatTimecode(startS)} → {formatTimecode(startS + draft.durationS)}
+          </span>
         </span>
         <Input
           value={draft.purpose}
@@ -315,7 +325,7 @@ export function ShotCard({
           </div>
           {overlimitHint(overLimit, maxShotDurationS, t)}
           {overridesOpen ? (
-            <div className="grid gap-3 rounded-2xl bg-muted p-3 sm:grid-cols-3">
+            <div className="grid gap-3 rounded-(--radius-control) border border-dashed border-border-strong p-3 sm:grid-cols-3">
               <label className="flex flex-col gap-1.5 sm:col-span-3">
                 <span className="text-xs font-medium text-muted-foreground">
                   {t("overrideModel")}
@@ -478,7 +488,7 @@ export function ShotCard({
                   className="aspect-[9/16] w-full"
                 />
               ) : (
-                <div className="grid aspect-[9/16] place-items-center rounded-2xl border border-dashed border-input text-xs text-muted-foreground">
+                <div className="grid aspect-[9/16] place-items-center rounded-[14px] border border-dashed border-border-strong stage text-xs text-muted-foreground">
                   {t("noPreview")}
                 </div>
               )}
@@ -489,7 +499,7 @@ export function ShotCard({
             {video ? (
               <GenerationMedia view={video} alt={t("video")} className="aspect-[9/16] w-full" />
             ) : (
-              <div className="grid aspect-[9/16] place-items-center rounded-2xl border border-dashed border-input p-3 text-center text-xs text-muted-foreground">
+              <div className="grid aspect-[9/16] place-items-center rounded-[14px] border border-dashed border-border-strong stage p-3 text-center text-xs text-muted-foreground">
                 <Clapperboard className="mb-1 size-5" aria-hidden />
                 {t("noVideo")}
               </div>
@@ -501,7 +511,7 @@ export function ShotCard({
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {dirty ? (
           <Button
-            variant="glass"
+            variant="surface"
             size="sm"
             disabled={busy !== null}
             onClick={async () => {
@@ -530,7 +540,7 @@ export function ShotCard({
             ) : null}
             <Button
               size="sm"
-              variant={preview?.status === "completed" ? "glass" : "default"}
+              variant={preview?.status === "completed" ? "surface" : "default"}
               disabled={busy !== null || previewPending}
               onClick={() => void generate("preview", false)}
             >
@@ -552,7 +562,7 @@ export function ShotCard({
             ) : null}
             <Button
               size="sm"
-              variant={video?.status === "completed" ? "glass" : "default"}
+              variant={video?.status === "completed" ? "surface" : "default"}
               disabled={busy !== null || videoPending}
               onClick={() => void generate("video", false)}
             >

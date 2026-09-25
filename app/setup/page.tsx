@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { AmbientBackground } from "@/components/layout/ambient-background";
+import { SatinBackground } from "@/components/fx/satin-background";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { keyStatus } from "@/lib/env";
 
@@ -28,16 +28,16 @@ export default async function SetupPage() {
   ];
   return (
     <div className="relative grid min-h-dvh place-items-center px-4 py-10">
-      <AmbientBackground />
-      <main className="specular relative z-10 w-full max-w-xl rounded-[2rem] p-8 glass-strong sm:p-10">
+      <SatinBackground />
+      <main className="relative w-full max-w-xl rounded-(--radius-panel) p-8 surface-raised sm:p-10">
         <BrandMark />
-        <h1 className="mt-8 font-display text-3xl font-semibold">{t("heading")}</h1>
+        <h1 className="mt-8 font-display text-4xl leading-tight">{t("heading")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("body")}</p>
         <ul className="mt-6 flex flex-col gap-2">
           {rows.map((row) => (
             <li
               key={row.name}
-              className="flex items-center justify-between gap-4 rounded-xl bg-muted px-4 py-3 text-sm"
+              className="flex items-center justify-between gap-4 rounded-(--radius-control) border border-border px-4 py-3 text-sm"
             >
               <code dir="ltr" className="font-mono text-xs break-all">
                 {row.name}

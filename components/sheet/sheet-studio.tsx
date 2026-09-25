@@ -150,7 +150,7 @@ export function SheetStudio({
                 href={`/products/${productId}/sheet?s=${sheet.id}`}
                 scroll={false}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium",
+                  "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-xs font-medium transition-colors",
                   sheet.id === selected?.id
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border hover:bg-muted",
@@ -195,7 +195,7 @@ export function SheetStudio({
                       .map((card) => (
                         <div
                           key={card.id}
-                          className="absolute border-2 border-champagne/90"
+                          className="absolute border-2 border-veil"
                           style={{
                             left: `${card.imageRect!.x * 100}%`,
                             top: `${card.imageRect!.y * 100}%`,
@@ -203,7 +203,7 @@ export function SheetStudio({
                             height: `${card.imageRect!.h * 100}%`,
                           }}
                         >
-                          <span className="absolute top-0 left-0 bg-black/60 px-1 text-[11px] text-cream">
+                          <span className="absolute top-0 left-0 bg-black/60 px-1 text-[11px] text-white">
                             {card.label}
                           </span>
                         </div>
@@ -227,12 +227,12 @@ export function SheetStudio({
                     {t("isApproved")}
                   </Badge>
                 )}
-                <Button variant="glass" onClick={() => generate(false)} disabled={busy !== null}>
+                <Button variant="surface" onClick={() => generate(false)} disabled={busy !== null}>
                   <RefreshCw aria-hidden />
                   {t("regenerate")}
                 </Button>
                 <Button
-                  variant="glass"
+                  variant="surface"
                   onClick={() => setShowNote((value) => !value)}
                   disabled={busy !== null}
                 >
@@ -286,7 +286,7 @@ export function SheetStudio({
                     src={reference.url}
                     alt={reference.label}
                     fit="cover"
-                    className="aspect-square rounded-xl"
+                    className="aspect-square rounded-(--radius-control) stage"
                   />
                   <figcaption className="mt-1 truncate text-xs text-muted-foreground">
                     {reference.label}
@@ -305,7 +305,7 @@ export function SheetStudio({
                 <CardDescription>{t("crops.hint")}</CardDescription>
               </div>
               {generation?.url ? (
-                <Button variant="glass" onClick={() => setEditing(true)}>
+                <Button variant="surface" onClick={() => setEditing(true)}>
                   <Scissors aria-hidden />
                   {t("crops.adjust")}
                 </Button>
@@ -318,7 +318,7 @@ export function SheetStudio({
                     <StorageImage
                       src={crop.url}
                       alt={crop.label}
-                      className="aspect-square rounded-xl bg-[#FAF8F5]"
+                      className="aspect-square rounded-(--radius-control) bg-[#FAF8F5]"
                     />
                     <p className="mt-1.5 truncate text-xs font-medium">{crop.label}</p>
                     <p className="text-xs text-muted-foreground">
@@ -373,9 +373,7 @@ export function SheetStudio({
                 ))}
               </ul>
               <div>
-                <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {t("plan.details")}
-                </p>
+                <p className="mb-2 hud text-muted-foreground">{t("plan.details")}</p>
                 <ol className="flex flex-col gap-2">
                   {selected.plan.detailCards.map((card, index) => (
                     <li key={index}>

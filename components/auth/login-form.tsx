@@ -15,7 +15,7 @@ export function LoginForm() {
   const t = useTranslations("login");
   const [state, formAction, pending] = useActionState(signIn, initialState);
   return (
-    <form action={formAction} className="mt-8 flex flex-col gap-5" noValidate>
+    <form action={formAction} className="flex flex-col gap-5" noValidate>
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">{t("email")}</Label>
         <Input id="email" name="email" type="email" autoComplete="email" dir="ltr" required />
@@ -34,12 +34,12 @@ export function LoginForm() {
       {state.error ? (
         <p
           role="alert"
-          className="rounded-xl bg-[color-mix(in_srgb,var(--destructive)_14%,transparent)] px-3 py-2 text-sm text-destructive"
+          className="rounded-(--radius-control) border border-[color-mix(in_srgb,var(--destructive)_35%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] px-3 py-2 text-sm text-destructive"
         >
           {t(`errors.${state.error}`)}
         </p>
       ) : null}
-      <Button type="submit" size="lg" disabled={pending} className="mt-2">
+      <Button type="submit" size="lg" disabled={pending} className="mt-2 w-full">
         {pending ? (
           <Loader2 className="animate-spin" aria-hidden />
         ) : (

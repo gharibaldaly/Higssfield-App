@@ -141,8 +141,11 @@ export function RowListEditor<T>({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {items.map((row, index) => (
-        <div key={index} className="flex items-start gap-2 rounded-2xl bg-muted/60 p-3">
-          <span className="mt-2.5 grid size-6 shrink-0 place-items-center rounded-full bg-background/60 text-xs font-semibold text-muted-foreground">
+        <div
+          key={index}
+          className="flex items-start gap-2 rounded-(--radius-control) border border-border p-3"
+        >
+          <span className="mt-2.5 grid size-6 shrink-0 place-items-center rounded-full border border-border-strong font-mono text-xs text-muted-foreground">
             {index + 1}
           </span>
           <div className="min-w-0 flex-1">

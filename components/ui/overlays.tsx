@@ -10,7 +10,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const floating =
-  "glass-strong z-50 rounded-xl text-popover-foreground data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95";
+  "surface-raised z-50 rounded-(--radius-control) text-popover-foreground data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95";
 
 function TooltipProvider({
   delayDuration = 250,

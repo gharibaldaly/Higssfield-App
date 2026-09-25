@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
+import { HangTag } from "@/components/common/hang-tag";
 import { Field, StringListEditor } from "@/components/dna/list-editors";
 import { PhotoRail } from "@/components/dna/photo-rail";
 import { PieceEditor } from "@/components/dna/piece-editor";
@@ -158,7 +159,7 @@ export function DnaWorkbench({
     });
 
   const brainBadge = (
-    <Badge variant={brain.mock ? "warning" : "champagne"}>
+    <Badge variant={brain.mock ? "warning" : "accent"}>
       <Bot aria-hidden />
       {brain.mock ? t("mockBrain") : `${brain.provider} · ${brain.model}`}
     </Badge>
@@ -182,7 +183,7 @@ export function DnaWorkbench({
                 )}
                 {busy === "analyze" ? t("analyzing") : t("analyze")}
               </Button>
-              <Button size="lg" variant="glass" onClick={manual} disabled={busy !== null}>
+              <Button size="lg" variant="surface" onClick={manual} disabled={busy !== null}>
                 <FilePlus2 aria-hidden />
                 {t("manual")}
               </Button>
@@ -208,7 +209,7 @@ export function DnaWorkbench({
                     onClick={() => void select(version.id)}
                     aria-current={version.id === selected.id ? "true" : undefined}
                     className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-xs font-medium transition-colors",
                       version.id === selected.id
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border hover:bg-muted",
@@ -241,7 +242,7 @@ export function DnaWorkbench({
             <div className="ms-auto flex flex-wrap items-center gap-2">
               {brainBadge}
               <Button
-                variant="glass"
+                variant="surface"
                 size="sm"
                 onClick={analyze}
                 disabled={busy !== null || photos.length === 0}
@@ -258,22 +259,17 @@ export function DnaWorkbench({
         </Card>
 
         {dna && dna.photoGaps.length > 0 ? (
-          <Card className="glass-warning">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertTriangle className="size-5 text-warning" aria-hidden />
-                {t("gapsTitle")}
-              </CardTitle>
-              <CardDescription>{t("gapsHint")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc space-y-1 ps-5 text-sm">
-                {dna.photoGaps.map((gap, index) => (
-                  <li key={index}>{gap}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <HangTag
+            icon={<AlertTriangle className="size-5" aria-hidden />}
+            title={<span className="font-heading text-lg">{t("gapsTitle")}</span>}
+          >
+            <p>{t("gapsHint")}</p>
+            <ul className="mt-2 list-disc space-y-1 ps-5 text-foreground">
+              {dna.photoGaps.map((gap, index) => (
+                <li key={index}>{gap}</li>
+              ))}
+            </ul>
+          </HangTag>
         ) : null}
 
         {dna ? (
@@ -342,7 +338,7 @@ export function DnaWorkbench({
               </CardContent>
             </Card>
 
-            <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-full p-2 ps-5 glass-strong">
+            <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-full p-2 ps-5 surface-raised">
               <p className="me-auto text-sm text-muted-foreground">
                 {dirty
                   ? t("unsaved")
@@ -351,7 +347,7 @@ export function DnaWorkbench({
                     : t("reviewHint")}
               </p>
               <Button
-                variant="glass"
+                variant="surface"
                 onClick={() => run("save", async () => void (await save()))}
                 disabled={busy !== null || !dirty}
               >

@@ -47,7 +47,7 @@ export function PasswordCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <LockKeyhole className="size-5 text-champagne-ink" aria-hidden />
+          <LockKeyhole className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>

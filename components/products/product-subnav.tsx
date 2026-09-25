@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 
+/** The product's workroom tabs, in working order. */
 export function ProductSubnav({ productId }: { productId: string }) {
   const t = useTranslations("products.subnav");
   const pathname = usePathname();
@@ -19,34 +20,38 @@ export function ProductSubnav({ productId }: { productId: string }) {
     { href: `${base}/sheet`, label: t("sheet"), icon: LayoutPanelLeft },
   ];
   return (
-    <nav
-      aria-label={t("label")}
-      className="mb-8 inline-flex max-w-full gap-1 overflow-x-auto rounded-full p-1 glass"
-    >
-      {items.map((item) => {
-        const active = pathname === item.href;
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "relative inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors",
-              active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {active ? (
-              <motion.span
-                layoutId="product-subnav"
-                className="absolute inset-0 rounded-full bg-primary"
-              />
-            ) : null}
-            <Icon className="relative size-4" aria-hidden />
-            <span className="relative">{item.label}</span>
-          </Link>
-        );
-      })}
+    <nav aria-label={t("label")} className="mb-10 border-b border-border">
+      <ul className="flex gap-7 overflow-x-auto">
+        {items.map((item, index) => {
+          const active = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <li key={item.href} className="shrink-0">
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative flex h-12 items-center gap-2.5 rounded-t-md text-sm font-medium whitespace-nowrap transition-colors",
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span className="hud opacity-70" dir="ltr">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <Icon className="size-4" aria-hidden />
+                {item.label}
+                {active ? (
+                  <motion.span
+                    layoutId="product-subnav"
+                    aria-hidden
+                    className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary"
+                  />
+                ) : null}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

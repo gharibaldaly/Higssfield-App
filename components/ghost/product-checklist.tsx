@@ -100,7 +100,7 @@ export function ProductChecklist({
         {t("batch")}
         <button
           type="button"
-          className="text-xs font-normal text-champagne-ink hover:underline"
+          className="text-xs font-normal text-accent-ink hover:underline"
           onClick={() =>
             onSelectedChange(
               selected.length > 0
@@ -122,7 +122,7 @@ export function ProductChecklist({
             <li key={product.id}>
               <label
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted",
+                  "flex cursor-pointer items-center gap-3 rounded-(--radius-control) px-2 py-2 transition-colors hover:bg-muted",
                   issue && "opacity-60",
                 )}
               >

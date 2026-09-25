@@ -55,7 +55,7 @@ export function PhotoTile({ photo, productId }: { photo: PhotoView; productId: s
         src={photo.url}
         alt={photo.label ?? t(`kinds.${photo.kind}`)}
         fit="cover"
-        className="aspect-square w-full rounded-2xl bg-muted"
+        className="aspect-square w-full rounded-(--radius-control) stage"
       />
       {photo.label ? (
         <figcaption className="mt-1.5 truncate text-xs text-muted-foreground" title={photo.label}>
@@ -65,7 +65,7 @@ export function PhotoTile({ photo, productId }: { photo: PhotoView; productId: s
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="glass"
+            variant="surface"
             size="icon-sm"
             className="absolute end-2 top-2 size-8 opacity-100 data-[state=open]:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
             aria-label={t("actions")}

@@ -130,14 +130,15 @@ export function GhostStudio({
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <Tabs value={jobType} onValueChange={(value) => setJobType(value as JobType)}>
-              <TabsList className="w-full">
+              {/* The three job types stay visibly separate: one tile each. */}
+              <TabsList className="grid w-full grid-cols-3 gap-2 border-0">
                 {JOB_TYPES.map((item) => {
                   const Icon = item.icon;
                   return (
                     <TabsTrigger
                       key={item.value}
                       value={item.value}
-                      className="min-w-0 flex-1 px-2 text-xs sm:px-3 sm:text-sm [&_svg]:hidden sm:[&_svg]:block"
+                      className="h-auto min-w-0 flex-col gap-2 rounded-(--radius-control) border border-border px-2 py-3.5 text-xs whitespace-normal after:hidden hover:border-border-strong data-[state=active]:border-primary data-[state=active]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] sm:text-sm [&_svg]:size-5"
                     >
                       <Icon aria-hidden />
                       {t(`types.${item.value}.short`)}
@@ -145,7 +146,10 @@ export function GhostStudio({
                   );
                 })}
               </TabsList>
-              <TabsContent value={jobType} className="rounded-2xl bg-muted p-4">
+              <TabsContent
+                value={jobType}
+                className="rounded-(--radius-control) border border-dashed border-border-strong p-4"
+              >
                 <p className="text-sm font-medium">{t(`types.${jobType}.title`)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t(`types.${jobType}.description`)}
@@ -153,7 +157,7 @@ export function GhostStudio({
               </TabsContent>
             </Tabs>
 
-            <div className="inline-flex w-fit rounded-full p-1 glass">
+            <div className="inline-flex w-fit rounded-full border border-border p-1">
               {(["single", "batch"] as const).map((value) => (
                 <button
                   key={value}
@@ -195,9 +199,9 @@ export function GhostStudio({
               id="ghost-model"
             />
 
-            <div className="flex items-center gap-3 rounded-2xl bg-muted p-3 text-xs">
+            <div className="flex items-center gap-3 rounded-(--radius-control) border border-border p-3 text-xs">
               <span
-                className="size-8 shrink-0 rounded-lg border border-border"
+                className="size-8 shrink-0 rounded-md border border-border-strong"
                 style={{ background: style.background }}
               />
               <span className="flex-1 text-muted-foreground">
@@ -205,7 +209,7 @@ export function GhostStudio({
               </span>
               <Link
                 href="/settings"
-                className="font-medium text-champagne-ink underline-offset-4 hover:underline"
+                className="font-medium text-accent-ink underline-offset-4 hover:underline"
               >
                 {t("editStyle")}
               </Link>
@@ -233,7 +237,7 @@ export function GhostStudio({
         {runner.current || runner.waiting.length > 0 ? (
           <Card className="px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">
-              <Loader2 className="size-5 animate-spin text-champagne-ink" aria-hidden />
+              <Loader2 className="size-5 animate-spin text-accent-ink" aria-hidden />
               <p className="text-sm font-medium">
                 {running
                   ? t("runner.running", {

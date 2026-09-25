@@ -94,9 +94,9 @@ export function PhotoDropzone({
         }}
         disabled={uploading > 0}
         className={cn(
-          "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-input text-center text-muted-foreground transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait",
+          "flex w-full flex-col items-center justify-center gap-2 rounded-(--radius-control) border border-dashed border-border-strong bg-[repeating-linear-gradient(135deg,transparent_0_9px,var(--muted)_9px_10px)] text-center text-muted-foreground transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait",
           compact ? "aspect-square p-2" : "min-h-32 p-5",
-          dragging && "border-ring bg-muted text-foreground",
+          dragging && "border-ring bg-highlight text-foreground",
         )}
       >
         {uploading > 0 ? (

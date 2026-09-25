@@ -6,6 +6,7 @@ import * as React from "react";
 import { Toaster } from "sonner";
 
 import { ConfirmProvider } from "@/components/common/confirm-dialog";
+import { StudioCursor } from "@/components/fx/studio-cursor";
 import { TooltipProvider } from "@/components/ui/overlays";
 
 export function Providers({
@@ -25,13 +26,14 @@ export function Providers({
       >
         <TooltipProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
+          <StudioCursor />
           <Toaster
             dir={dir}
             theme={theme}
             position={dir === "rtl" ? "bottom-left" : "bottom-right"}
             toastOptions={{
               classNames: {
-                toast: "!glass-strong !rounded-2xl !text-foreground !font-sans",
+                toast: "!surface-raised !rounded-(--radius-control) !text-foreground !font-sans",
                 description: "!text-muted-foreground",
               },
             }}

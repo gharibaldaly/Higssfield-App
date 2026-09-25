@@ -25,12 +25,15 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 border-t border-border pt-6 first:border-t-0 first:pt-0">
+    // A tech-pack section: numbered title in the margin, the spec beside it.
+    <section className="grid gap-4 border-t border-dashed border-border-strong pt-7 [counter-increment:dna] first:border-t-0 first:pt-0 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
       <div>
-        <h3 className="font-display text-lg font-semibold">{title}</h3>
-        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+        <h3 className="font-heading text-lg leading-tight before:mb-1.5 before:block before:font-mono before:text-[11px] before:tracking-[0.14em] before:text-accent-ink before:content-[counter(dna,decimal-leading-zero)]">
+          {title}
+        </h3>
+        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
       </div>
-      {children}
+      <div className="flex min-w-0 flex-col gap-3">{children}</div>
     </section>
   );
 }
@@ -75,7 +78,7 @@ function HexRangeEditor({
       {values.map((hex, index) => (
         <div
           key={index}
-          className="flex items-center gap-1.5 rounded-full bg-background/60 py-1 ps-1 pe-2"
+          className="flex items-center gap-1.5 rounded-full border border-border bg-(--surface-solid) py-1 ps-1 pe-2"
         >
           <input
             type="color"
@@ -133,7 +136,7 @@ export function PieceEditor({
   const patch = (partial: Partial<PieceDna>) => onChange({ ...piece, ...partial });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7 [counter-reset:dna]">
       <Section title={t("identity")}>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label={t("category")}>

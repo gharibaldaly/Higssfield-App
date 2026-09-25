@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Frosted glass panel — the base surface of the studio. */
+/** A panel of the studio: near-opaque tulle over the satin. `strong` lifts it (floating use). */
 function Card({
   className,
   strong = false,
@@ -12,8 +12,8 @@ function Card({
     <div
       data-slot="card"
       className={cn(
-        strong ? "glass-strong" : "glass",
-        "specular rounded-(--radius-glass) text-card-foreground",
+        strong ? "surface-raised" : "surface",
+        "rounded-(--radius-panel) text-card-foreground",
         className,
       )}
       {...props}
@@ -40,7 +40,7 @@ function CardTitle({
   return (
     <Heading
       data-slot="card-title"
-      className={cn("font-display text-xl leading-tight font-semibold tracking-tight", className)}
+      className={cn("font-heading text-[1.35rem] leading-tight tracking-tight", className)}
       {...props}
     />
   );
@@ -50,7 +50,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm leading-relaxed text-muted-foreground", className)}
       {...props}
     />
   );

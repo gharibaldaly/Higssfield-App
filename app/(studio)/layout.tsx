@@ -25,15 +25,18 @@ export default async function StudioLayout({ children }: { children: React.React
       </a>
       <AmbientBackground />
       <div className="relative z-10 flex min-h-dvh">
-        {/* A plain box: the <nav> inside is the landmark, and pages keep their own <aside>. */}
-        <div className="sticky top-0 hidden h-dvh w-72 shrink-0 p-4 lg:block">
+        {/* Named, so it stays distinct from the <aside> panels that pages add. */}
+        <aside
+          aria-label={t("sidebar")}
+          className="sticky top-0 hidden h-dvh w-72 shrink-0 p-4 lg:block"
+        >
           <div className="specular flex h-full flex-col gap-8 overflow-y-auto rounded-[1.75rem] p-4 glass">
             <div className="px-2 pt-2">
               <BrandMark />
             </div>
             <AppNav />
           </div>
-        </div>
+        </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             email={owner.user.email}

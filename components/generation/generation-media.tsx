@@ -2,7 +2,7 @@
 
 import { AlertTriangle, FlaskConical, ImageOff, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useTranslations } from "next-intl";
+import { useNow, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Elapsed } from "@/components/generation/elapsed";
@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 /** Rough expected durations, used only for the progress bar feel. */
 const EXPECTED_MS = { image: 60_000, video: 180_000 } as const;
 
-function progressFor(view: GenerationView): number {
+function progressFor(view: GenerationView, now: Date): number {
   if (!view.submittedAt) return 4;
-  const elapsed = Date.now() - Date.parse(view.submittedAt);
+  const elapsed = now.getTime() - Date.parse(view.submittedAt);
   const expected = EXPECTED_MS[view.kind];
   // Ease towards 92% so the bar never claims to be done before it is.
   return Math.min(92, 8 + (elapsed / expected) * 84);
@@ -83,6 +83,7 @@ export function GenerationMedia({
   controls?: boolean;
 }) {
   const t = useTranslations("generation");
+  const now = useNow({ updateInterval: 5_000 });
   const pending = view.status === "queued" || view.status === "in_progress";
   const failed = view.status === "failed" || view.status === "nsfw" || view.status === "canceled";
   return (
@@ -109,7 +110,7 @@ export function GenerationMedia({
             </div>
             <Progress
               className="relative w-2/3 max-w-40"
-              value={progressFor(view)}
+              value={progressFor(view, now)}
               aria-label={t("progress")}
             />
           </motion.div>

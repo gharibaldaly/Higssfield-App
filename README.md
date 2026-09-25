@@ -72,7 +72,7 @@ configured / missing and never displays a value.
 ## 3. Deploy on Vercel
 
 1. **Add New → Project**, import this GitHub repository. The framework (Next.js) and pnpm are
-   detected automatically. Node.js 22 or later.
+   detected automatically. Node.js 22 or 24.
 2. Add the environment variables above for Production (and Preview if you use it).
 3. Optional: **Settings → Functions → Region** → Frankfurt (`fra1`), next to the database.
 4. Deploy. Set `APP_URL` to the production URL and redeploy if you enable webhooks.
@@ -84,7 +84,7 @@ Long operations (garment analysis, copying finished videos into Storage) declare
 
 ## 4. Local development
 
-Requirements: Node.js ≥ 22.12 and pnpm 10.
+Requirements: Node.js 22 or 24 and pnpm 10.
 
 ```bash
 pnpm install

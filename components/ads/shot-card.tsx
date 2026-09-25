@@ -239,7 +239,7 @@ export function ShotCard({
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="flex min-w-0 flex-col gap-3">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">{t("detailShown")}</span>

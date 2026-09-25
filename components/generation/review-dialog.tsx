@@ -79,7 +79,7 @@ export function ReviewDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{t("hint")}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div>
             {done && generation.url && beforeUrl && generation.mimeType?.startsWith("image/") ? (
               <CompareSlider

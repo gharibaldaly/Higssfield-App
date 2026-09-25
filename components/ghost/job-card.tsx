@@ -2,7 +2,7 @@
 
 import { BadgeCheck, RotateCcw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -43,6 +43,7 @@ export function JobCard({
 }) {
   const t = useTranslations("ghost");
   const format = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reviewing, setReviewing] = useState<GhostOutput | null>(null);
@@ -74,7 +75,7 @@ export function JobCard({
         ) : null}
         {isRunning ? <Badge variant="champagne">{t("preparing")}</Badge> : null}
         <span className="ms-auto text-xs text-muted-foreground">
-          {format.relativeTime(new Date(job.createdAt), new Date())}
+          {format.relativeTime(new Date(job.createdAt), now)}
         </span>
         {job.status === "queued" || job.status === "failed" ? (
           <Button

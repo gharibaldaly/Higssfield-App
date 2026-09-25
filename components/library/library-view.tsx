@@ -3,7 +3,7 @@
 import { BadgeCheck, Download, Heart, Images } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -340,6 +340,7 @@ function FilterSelect({
 function GenerationGrid({ items }: { items: LibraryItem[] }) {
   const t = useTranslations("library");
   const format = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
   const router = useRouter();
   const { views } = useGenerationPolling(items, { onSettled: () => router.refresh() });
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
@@ -375,7 +376,7 @@ function GenerationGrid({ items }: { items: LibraryItem[] }) {
                   <p className="truncate text-sm font-medium">{item.productName ?? "—"}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {t(`purposes.${item.purpose as "ghost_front"}`)} ·{" "}
-                    {format.relativeTime(new Date(item.createdAt), new Date())}
+                    {format.relativeTime(new Date(item.createdAt), now)}
                   </p>
                   {item.reviewStatus === "approved" ? (
                     <Badge variant="success" className="mt-1">

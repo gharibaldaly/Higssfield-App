@@ -186,7 +186,7 @@ export function DnaWorkbench({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="flex min-w-0 flex-col gap-6">
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3">

@@ -140,7 +140,7 @@ export function SheetStudio({
   const ready = generation?.status === "completed";
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex min-w-0 flex-col gap-6">
         {sheets.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">

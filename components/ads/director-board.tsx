@@ -146,7 +146,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardContent className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <CardContent className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="flex flex-col gap-3">
             <Input
               value={name}
@@ -267,7 +267,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)_300px]">
         <Card className="xl:sticky xl:top-24 xl:max-h-[calc(100dvh-7rem)] xl:self-start xl:overflow-y-auto">
           <CardHeader>
             <CardTitle className="text-lg">{t("controlsTitle")}</CardTitle>

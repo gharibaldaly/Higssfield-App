@@ -121,7 +121,7 @@ export function GhostStudio({
   const running = runner.current ? jobs.find((job) => job.id === runner.current) : null;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="flex flex-col gap-6 xl:sticky xl:top-24 xl:self-start">
         <Card>
           <CardHeader>
@@ -134,7 +134,11 @@ export function GhostStudio({
                 {JOB_TYPES.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <TabsTrigger key={item.value} value={item.value} className="flex-1 px-3">
+                    <TabsTrigger
+                      key={item.value}
+                      value={item.value}
+                      className="min-w-0 flex-1 px-2 text-xs sm:px-3 sm:text-sm [&_svg]:hidden sm:[&_svg]:block"
+                    >
                       <Icon aria-hidden />
                       {t(`types.${item.value}.short`)}
                     </TabsTrigger>

@@ -128,7 +128,7 @@ export function CropEditor({
                 height: `${box.rect.h * 100}%`,
               }}
             >
-              <span className="absolute top-0 left-0 max-w-full truncate bg-black/60 px-1.5 py-0.5 text-[10px] text-cream">
+              <span className="absolute top-0 left-0 max-w-full truncate bg-black/60 px-1.5 py-0.5 text-[11px] text-cream">
                 {box.label}
               </span>
               <span

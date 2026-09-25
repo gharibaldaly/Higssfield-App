@@ -52,7 +52,7 @@ export function AppNav({
         })}
       </ul>
       <div>
-        <p className="mb-2 px-3.5 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+        <p className="mb-2 px-3.5 text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
           {t("soonHeading")}
         </p>
         <ul className="flex flex-col gap-0.5">
@@ -66,7 +66,7 @@ export function AppNav({
                 >
                   <Icon className="size-[18px] opacity-70" aria-hidden />
                   <span className="flex-1 truncate">{t(`soon.${item.key}`)}</span>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
                     {t("soonBadge")}
                   </span>
                 </span>

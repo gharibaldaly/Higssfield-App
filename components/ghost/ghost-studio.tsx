@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/controls";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { queueCatalogueJobsAction, runCatalogueJobAction } from "@/lib/actions/catalogue";
 import type { GhostJob, GhostProduct } from "@/lib/catalogue/queries";
 import type { CatalogueStyle } from "@/lib/domain/catalogue-style";
@@ -145,13 +145,13 @@ export function GhostStudio({
                   );
                 })}
               </TabsList>
+              <TabsContent value={jobType} className="rounded-2xl bg-muted p-4">
+                <p className="text-sm font-medium">{t(`types.${jobType}.title`)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t(`types.${jobType}.description`)}
+                </p>
+              </TabsContent>
             </Tabs>
-            <div className="rounded-2xl bg-muted p-4">
-              <p className="text-sm font-medium">{t(`types.${jobType}.title`)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(`types.${jobType}.description`)}
-              </p>
-            </div>
 
             <div className="inline-flex w-fit rounded-full p-1 glass">
               {(["single", "batch"] as const).map((value) => (

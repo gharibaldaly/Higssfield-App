@@ -5,8 +5,15 @@
     "brand": "Dr. Secret",
     "studio": "استوديو الذكاء الاصطناعي"
   },
+  "common": {
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "delete": "حذف",
+    "discard": "تجاهل التغييرات"
+  },
   "nav": {
     "label": "التنقل الرئيسي",
+    "skipToContent": "انتقل إلى المحتوى",
     "studio": "الاستوديو",
     "products": "المنتجات",
     "ghost": "استوديو المانيكان الخفي",
@@ -655,6 +662,7 @@
     "controlsHint": "اختر من الإعدادات أو اكتب بكلماتك. تُحفظ مع الإعلان.",
     "rules": "قواعد الإعداد",
     "addRule": "إضافة قاعدة",
+    "ruleNumber": "القاعدة {number}",
     "storyboard": "الستوري بورد",
     "generateAll": "توليد كل اللقطات",
     "generatingAll": "جارٍ التوليد · متبقٍ {count}",

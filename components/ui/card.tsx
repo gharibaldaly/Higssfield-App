@@ -31,9 +31,14 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
+/** Cards sit directly under the page's h1, so the title is an h2 unless the card is nested. */
+function CardTitle({
+  className,
+  as: Heading = "h2",
+  ...props
+}: React.ComponentProps<"h2"> & { as?: "h2" | "h3" | "h4" }) {
   return (
-    <h3
+    <Heading
       data-slot="card-title"
       className={cn("font-display text-xl leading-tight font-semibold tracking-tight", className)}
       {...props}

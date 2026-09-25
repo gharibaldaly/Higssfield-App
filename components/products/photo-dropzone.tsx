@@ -76,34 +76,42 @@ export function PhotoDropzone({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => inputRef.current?.click()}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        setDragging(false);
-        void handleFiles(event.dataTransfer.files);
-      }}
-      disabled={uploading > 0}
-      className={cn(
-        "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-input text-center text-muted-foreground transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait",
-        compact ? "aspect-square p-2" : "min-h-32 p-5",
-        dragging && "border-ring bg-muted text-foreground",
-      )}
-    >
-      {uploading > 0 ? (
-        <Loader2 className="size-5 animate-spin" aria-hidden />
-      ) : (
-        <ImagePlus className="size-5" aria-hidden />
-      )}
-      <span className="text-xs font-medium">
-        {uploading > 0 ? t("uploading", { count: uploading }) : compact ? t("addShort") : t("add")}
-      </span>
+    // `contents` keeps the button as the grid item; the file input is a hidden sibling because
+    // an input nested inside a button is unreachable for assistive technology.
+    <div className="contents">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          void handleFiles(event.dataTransfer.files);
+        }}
+        disabled={uploading > 0}
+        className={cn(
+          "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-input text-center text-muted-foreground transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait",
+          compact ? "aspect-square p-2" : "min-h-32 p-5",
+          dragging && "border-ring bg-muted text-foreground",
+        )}
+      >
+        {uploading > 0 ? (
+          <Loader2 className="size-5 animate-spin" aria-hidden />
+        ) : (
+          <ImagePlus className="size-5" aria-hidden />
+        )}
+        <span className="text-xs font-medium">
+          {uploading > 0
+            ? t("uploading", { count: uploading })
+            : compact
+              ? t("addShort")
+              : t("add")}
+        </span>
+      </button>
       <input
         ref={inputRef}
         type="file"
@@ -111,11 +119,12 @@ export function PhotoDropzone({
         multiple={kind === "detail"}
         className="sr-only"
         tabIndex={-1}
+        aria-hidden
         onChange={(event) => {
           void handleFiles(event.target.files);
           event.target.value = "";
         }}
       />
-    </button>
+    </div>
   );
 }

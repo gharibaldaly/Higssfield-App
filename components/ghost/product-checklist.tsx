@@ -54,9 +54,11 @@ export function ProductChecklist({
     return (
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">{t("product")}</span>
+          <span id="ghost-product-label" className="text-sm font-medium">
+            {t("product")}
+          </span>
           <Select value={single?.id} onValueChange={(id) => onSelectedChange([id])}>
-            <SelectTrigger>
+            <SelectTrigger aria-labelledby="ghost-product-label">
               <SelectValue placeholder={t("choose")} />
             </SelectTrigger>
             <SelectContent>
@@ -136,7 +138,7 @@ export function ProductChecklist({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{product.name}</span>
-                  <span className="block text-[11px] text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {issue
                       ? t(`issues.${issue}`)
                       : jobType === "colorways"

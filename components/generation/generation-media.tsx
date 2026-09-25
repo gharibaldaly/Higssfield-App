@@ -151,7 +151,7 @@ export function GenerationMedia({
         )}
       </AnimatePresence>
       {view.provider === "mock" && view.status === "completed" ? (
-        <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-cream backdrop-blur">
+        <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-cream backdrop-blur">
           <FlaskConical className="size-3" aria-hidden />
           {view.kind === "video" ? t("mockVideo") : t("mock")}
         </span>

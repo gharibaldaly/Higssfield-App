@@ -19,12 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0d090a" },
-    { media: "(prefers-color-scheme: light)", color: "#f3eee8" },
-  ],
-};
+// The browser bar follows the studio theme (cookie), not the OS colour scheme.
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await getTheme();
+  return { themeColor: theme === "dark" ? "#0d090a" : "#f3eee8" };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const rawLocale = await getLocale();

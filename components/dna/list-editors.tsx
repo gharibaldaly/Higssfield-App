@@ -64,18 +64,23 @@ function RowControls({
   );
 }
 
-/** Ordered list of short strings (do-not-alter rules, gaps…). */
+/**
+ * Ordered list of short strings (do-not-alter rules, gaps…). Outside a <Field>, pass `itemLabel`
+ * so every input gets its own accessible name.
+ */
 export function StringListEditor({
   items,
   onChange,
   placeholder,
   addLabel,
+  itemLabel,
   minItems = 0,
 }: {
   items: string[];
   onChange: (items: string[]) => void;
   placeholder?: string;
   addLabel: string;
+  itemLabel?: (index: number) => string;
   minItems?: number;
 }) {
   return (
@@ -84,6 +89,7 @@ export function StringListEditor({
         <div key={index} className="flex items-center gap-2">
           <Input
             value={item}
+            aria-label={itemLabel?.(index)}
             placeholder={placeholder}
             onChange={(event) =>
               onChange(items.map((value, i) => (i === index ? event.target.value : value)))
@@ -136,7 +142,7 @@ export function RowListEditor<T>({
     <div className={cn("flex flex-col gap-3", className)}>
       {items.map((row, index) => (
         <div key={index} className="flex items-start gap-2 rounded-2xl bg-muted/60 p-3">
-          <span className="mt-2.5 grid size-6 shrink-0 place-items-center rounded-full bg-background/60 text-[11px] font-semibold text-muted-foreground">
+          <span className="mt-2.5 grid size-6 shrink-0 place-items-center rounded-full bg-background/60 text-xs font-semibold text-muted-foreground">
             {index + 1}
           </span>
           <div className="min-w-0 flex-1">

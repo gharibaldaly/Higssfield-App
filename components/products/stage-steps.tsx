@@ -17,7 +17,7 @@ export function StageSteps({ stage, className }: { stage: ProductStage; classNam
           key={step}
           title={t(step)}
           className={cn(
-            "grid size-5 place-items-center rounded-full border text-[10px]",
+            "grid size-5 place-items-center rounded-full border text-[11px]",
             index <= reached
               ? "border-transparent bg-primary text-primary-foreground"
               : "border-border text-muted-foreground",

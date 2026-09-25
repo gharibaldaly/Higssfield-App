@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { Field, StringListEditor } from "@/components/dna/list-editors";
 import { PhotoRail } from "@/components/dna/photo-rail";
@@ -52,6 +53,8 @@ export function DnaWorkbench({
   brain: { provider: string; model: string; mock: boolean };
 }) {
   const t = useTranslations("dna");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const router = useRouter();
   const selected = versions.find((version) => version.id === selectedId) ?? versions[0] ?? null;
   const [dna, setDna] = useState<GarmentDna | null>(selected?.data ?? null);
@@ -77,8 +80,15 @@ export function DnaWorkbench({
     setDirty(true);
   }
 
-  function select(id: string) {
-    if (dirty && !window.confirm(t("discardChanges"))) return;
+  async function select(id: string) {
+    if (dirty) {
+      const confirmed = await confirm({
+        title: t("discardChanges"),
+        confirmLabel: tc("discard"),
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
     router.replace(`/products/${productId}/dna?v=${id}`, { scroll: false });
   }
 
@@ -190,28 +200,28 @@ export function DnaWorkbench({
       <div className="flex min-w-0 flex-col gap-6">
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-1.5" role="list" aria-label={t("versions")}>
+            <ul className="flex flex-wrap gap-1.5" aria-label={t("versions")}>
               {versions.map((version) => (
-                <button
-                  key={version.id}
-                  type="button"
-                  role="listitem"
-                  onClick={() => select(version.id)}
-                  aria-current={version.id === selected.id ? "true" : undefined}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                    version.id === selected.id
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border hover:bg-muted",
-                  )}
-                >
-                  v{version.version}
-                  {version.status === "approved" ? (
-                    <BadgeCheck className="size-3.5" aria-hidden />
-                  ) : null}
-                </button>
+                <li key={version.id}>
+                  <button
+                    type="button"
+                    onClick={() => void select(version.id)}
+                    aria-current={version.id === selected.id ? "true" : undefined}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                      version.id === selected.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:bg-muted",
+                    )}
+                  >
+                    v{version.version}
+                    {version.status === "approved" ? (
+                      <BadgeCheck className="size-3.5" aria-hidden />
+                    ) : null}
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
             <Badge
               variant={
                 selected.status === "approved"
@@ -248,7 +258,7 @@ export function DnaWorkbench({
         </Card>
 
         {dna && dna.photoGaps.length > 0 ? (
-          <Card className="border-warning/40">
+          <Card className="glass-warning">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <AlertTriangle className="size-5 text-warning" aria-hidden />

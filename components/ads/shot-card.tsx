@@ -413,7 +413,7 @@ export function ShotCard({
                     alt={crop.label}
                     className="aspect-square rounded-lg bg-[#FAF8F5]"
                   />
-                  <figcaption className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  <figcaption className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {crop.label}
                   </figcaption>
                 </figure>
@@ -452,7 +452,7 @@ export function ShotCard({
                             alt={crop.label}
                             className="aspect-square bg-[#FAF8F5]"
                           />
-                          <span className="block truncate px-1 py-0.5 text-[10px]">
+                          <span className="block truncate px-1 py-0.5 text-[11px]">
                             {crop.label}
                           </span>
                         </button>

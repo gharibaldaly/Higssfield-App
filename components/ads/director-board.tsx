@@ -10,6 +10,7 @@ import { DirectorControlsPanel } from "@/components/ads/director-controls-panel"
 import { SavePresetDialog } from "@/components/ads/save-preset-dialog";
 import { ShotCard } from "@/components/ads/shot-card";
 import { VideoSettingsPanel } from "@/components/ads/video-settings-panel";
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { StringListEditor } from "@/components/dna/list-editors";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
@@ -39,6 +40,8 @@ import type { DirectorControls, VideoSettings } from "@/lib/domain/director";
 
 export function DirectorBoard({ data }: { data: DirectorBoardData }) {
   const t = useTranslations("director");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const router = useRouter();
   const { project } = data;
   const [name, setName] = useState(project.name);
@@ -174,7 +177,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                   })
                 }
               >
-                <SelectTrigger className="w-64">
+                <SelectTrigger className="w-64" aria-label={t("applyPreset")}>
                   <SelectValue placeholder={t("applyPreset")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -276,10 +279,15 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
           <CardContent className="flex flex-col gap-7">
             <DirectorControlsPanel controls={controls} onChange={mark(setControls)} />
             <div className="flex flex-col gap-3">
-              <h3 className="text-[11px] font-semibold tracking-[0.18em] text-champagne-ink uppercase">
+              <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
                 {t("rules")}
               </h3>
-              <StringListEditor items={rules} onChange={mark(setRules)} addLabel={t("addRule")} />
+              <StringListEditor
+                items={rules}
+                onChange={mark(setRules)}
+                addLabel={t("addRule")}
+                itemLabel={(index) => t("ruleNumber", { number: index + 1 })}
+              />
             </div>
           </CardContent>
         </Card>
@@ -342,8 +350,13 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                 preview={shot.preview ? (views.get(shot.preview.id) ?? shot.preview) : null}
                 video={shot.video ? (views.get(shot.video.id) ?? shot.video) : null}
                 onChanged={() => router.refresh()}
-                onDelete={() => {
-                  if (!window.confirm(t("confirmDeleteShot"))) return;
+                onDelete={async () => {
+                  const confirmed = await confirm({
+                    title: t("confirmDeleteShot"),
+                    confirmLabel: tc("delete"),
+                    destructive: true,
+                  });
+                  if (!confirmed) return;
                   startTransition(async () => {
                     const result = await deleteShotAction(project.id, shot.id);
                     if (!result.ok) toast.error(result.error);

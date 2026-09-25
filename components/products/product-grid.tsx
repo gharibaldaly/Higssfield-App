@@ -11,7 +11,7 @@ import { StorageImage } from "@/components/generation/generation-media";
 import { ProductLineBadge } from "@/components/products/product-line-badge";
 import { StageSteps } from "@/components/products/stage-steps";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { setProductFavoriteAction } from "@/lib/actions/products";
 import { PRODUCT_LINES, type ProductLine } from "@/lib/domain/product";
 import type { ProductCardData } from "@/lib/products/queries";
@@ -32,34 +32,39 @@ export function ProductGrid({ products }: { products: ProductCardData[] }) {
     [filter, products],
   );
   return (
-    <div className="flex flex-col gap-6">
-      <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
-        <TabsList>
-          <TabsTrigger value="all">{t("filters.all")}</TabsTrigger>
-          {PRODUCT_LINES.map((line) => (
-            <TabsTrigger key={line} value={line}>
-              {line}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value="favorites">
-            <Heart aria-hidden />
-            {t("filters.favorites")}
+    <Tabs
+      className="gap-6"
+      value={filter}
+      onValueChange={(value) => setFilter(value as typeof filter)}
+    >
+      <TabsList>
+        <TabsTrigger value="all">{t("filters.all")}</TabsTrigger>
+        {PRODUCT_LINES.map((line) => (
+          <TabsTrigger key={line} value={line}>
+            {line}
           </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {visible.map((product, index) => (
-          <motion.li
-            key={product.id}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: Math.min(index, 12) * 0.04 }}
-          >
-            <ProductCard product={product} />
-          </motion.li>
         ))}
-      </ul>
-    </div>
+        <TabsTrigger value="favorites">
+          <Heart aria-hidden />
+          {t("filters.favorites")}
+        </TabsTrigger>
+      </TabsList>
+      {/* The filtered grid is the active tab's panel. */}
+      <TabsContent value={filter}>
+        <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visible.map((product, index) => (
+            <motion.li
+              key={product.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(index, 12) * 0.04 }}
+            >
+              <ProductCard product={product} />
+            </motion.li>
+          ))}
+        </ul>
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -69,7 +74,10 @@ function ProductCard({ product }: { product: ProductCardData }) {
   const [pending, startTransition] = useTransition();
   return (
     <Card className="group overflow-hidden transition-transform duration-300 ease-(--ease-spring) hover:-translate-y-1">
-      <Link href={`/products/${product.id}`} className="block focus-visible:outline-none">
+      <Link
+        href={`/products/${product.id}`}
+        className="block rounded-(--radius-glass) focus-visible:-outline-offset-2"
+      >
         <div className="relative aspect-[4/5] overflow-hidden rounded-t-(--radius-glass) bg-muted">
           <StorageImage
             src={product.coverUrl}
@@ -84,7 +92,7 @@ function ProductCard({ product }: { product: ProductCardData }) {
         </div>
         <div className="flex flex-col gap-3 p-4">
           <div>
-            <h3 className="font-display text-xl leading-tight font-semibold">{product.name}</h3>
+            <h2 className="font-display text-xl leading-tight font-semibold">{product.name}</h2>
             <p className="mt-1 truncate text-xs text-muted-foreground">
               {t("pieces", { count: product.pieceCount })} · {product.pieceNames.join(" · ")}
             </p>

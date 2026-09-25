@@ -44,7 +44,11 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
   );
 }
 
-function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+function Slider({
+  className,
+  "aria-label": ariaLabel,
+  ...props
+}: React.ComponentProps<typeof SliderPrimitive.Root>) {
   return (
     <SliderPrimitive.Root
       data-slot="slider"
@@ -54,9 +58,11 @@ function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimi
       <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-input">
         <SliderPrimitive.Range className="absolute h-full bg-primary" />
       </SliderPrimitive.Track>
+      {/* The thumb carries role="slider", so it is the element that needs the name. */}
       {(props.value ?? props.defaultValue ?? [0]).map((_, index) => (
         <SliderPrimitive.Thumb
           key={index}
+          aria-label={ariaLabel}
           className="block size-5 rounded-full border-2 border-primary bg-cream shadow transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring"
         />
       ))}
@@ -81,7 +87,7 @@ function Progress({
         <div className="absolute inset-0 shimmer bg-[linear-gradient(90deg,transparent,var(--color-champagne),transparent)] bg-[length:50%_100%] bg-no-repeat" />
       ) : (
         <ProgressPrimitive.Indicator
-          className="h-full bg-[linear-gradient(90deg,var(--color-wine-600),var(--color-champagne))] transition-[width] duration-500 ease-(--ease-spring)"
+          className="h-full bg-[linear-gradient(90deg,var(--color-wine-600),var(--color-champagne))] transition-[width] duration-500 ease-(--ease-spring) rtl:bg-[linear-gradient(270deg,var(--color-wine-600),var(--color-champagne))]"
           style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
         />
       )}

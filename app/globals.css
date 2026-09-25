@@ -99,8 +99,11 @@
   --input: rgba(20, 17, 18, 0.14);
   --ring: #9c6b2a;
 
+  --highlight: rgba(77, 0, 17, 0.09);
+
   --glass-bg: rgba(255, 255, 255, 0.62);
   --glass-bg-strong: rgba(255, 253, 250, 0.84);
+  --glass-solid: #fbf8f4;
   --glass-border: rgba(255, 255, 255, 0.7);
   --glass-edge: rgba(20, 17, 18, 0.08);
   --glass-highlight: rgba(255, 255, 255, 0.9);
@@ -137,8 +140,11 @@
   --input: rgba(247, 243, 238, 0.16);
   --ring: #e2c48e;
 
+  --highlight: rgba(247, 243, 238, 0.12);
+
   --glass-bg: rgba(255, 255, 255, 0.055);
   --glass-bg-strong: rgba(28, 20, 22, 0.82);
+  --glass-solid: #1b1315;
   --glass-border: rgba(255, 255, 255, 0.09);
   --glass-edge: rgba(255, 255, 255, 0.06);
   --glass-highlight: rgba(255, 255, 255, 0.12);
@@ -166,6 +172,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-champagne-ink: var(--champagne-ink);
+  --color-highlight: var(--highlight);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
@@ -179,6 +186,11 @@
 html[lang="ar"] {
   --font-sans: var(--font-tajawal), var(--font-jost), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-tajawal), var(--font-cormorant), ui-serif, serif;
+}
+
+/* Arabic letters join, so tracking meant for Latin labels would break the words apart. */
+html[lang="ar"] [class*="tracking-"] {
+  letter-spacing: normal;
 }
 
 @layer base {
@@ -203,6 +215,12 @@ html[lang="ar"] {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  /* Tailwind 4 gives buttons the default cursor; the studio keeps the pointer on anything clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
   input[type="number"]::-webkit-inner-spin-button {
     opacity: 0.5;
   }
@@ -212,12 +230,17 @@ html[lang="ar"] {
    Liquid glass
    --------------------------------------------------------------------------- */
 
+/* Glass sets its own border and box-shadow, and it is emitted after Tailwind's ring and border
+   utilities. The shadow therefore folds in the ring variables so selection rings stay visible, and
+   a tinted edge is set through --glass-border (see glass-warning) instead of a border utility. */
 @utility glass {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
   border: 1px solid var(--glass-border);
   box-shadow:
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     var(--glass-shadow),
     inset 0 1px 0 0 var(--glass-highlight);
 }
@@ -228,8 +251,29 @@ html[lang="ar"] {
   backdrop-filter: blur(32px) saturate(170%);
   border: 1px solid var(--glass-border);
   box-shadow:
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     var(--glass-shadow),
     inset 0 1px 0 0 var(--glass-highlight);
+}
+
+/* A glass surface that needs attention: a warning-tinted edge. */
+@utility glass-warning {
+  --glass-border: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+/* Without translucency (user setting or no backdrop-filter support) glass becomes a solid panel. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-bg: var(--glass-solid);
+    --glass-bg-strong: var(--glass-solid);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-bg: var(--glass-solid);
+    --glass-bg-strong: var(--glass-solid);
+  }
 }
 
 /* Specular rim: a thin gradient border that catches light on the top edge. */

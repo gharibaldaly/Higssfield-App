@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AppNav } from "@/components/layout/app-nav";
 import { BrandMark } from "@/components/layout/brand-mark";
@@ -12,18 +14,26 @@ export default async function StudioLayout({ children }: { children: React.React
   await ensureOwnerDefaults(owner.supabase, owner.user.id);
   const status = keyStatus();
   const theme = await getTheme();
+  const t = await getTranslations("nav");
   return (
     <div className="relative min-h-dvh">
+      <a
+        href="#main"
+        className="sr-only rounded-full px-5 py-2.5 text-sm font-medium glass-strong focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50"
+      >
+        {t("skipToContent")}
+      </a>
       <AmbientBackground />
       <div className="relative z-10 flex min-h-dvh">
-        <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 p-4 lg:block">
+        {/* A plain box: the <nav> inside is the landmark, and pages keep their own <aside>. */}
+        <div className="sticky top-0 hidden h-dvh w-72 shrink-0 p-4 lg:block">
           <div className="specular flex h-full flex-col gap-8 overflow-y-auto rounded-[1.75rem] p-4 glass">
             <div className="px-2 pt-2">
               <BrandMark />
             </div>
             <AppNav />
           </div>
-        </aside>
+        </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             email={owner.user.email}
@@ -33,7 +43,8 @@ export default async function StudioLayout({ children }: { children: React.React
           />
           <main
             id="main"
-            className="mx-auto w-full max-w-[1600px] flex-1 px-4 pt-6 pb-20 sm:px-6 lg:px-8"
+            tabIndex={-1}
+            className="mx-auto w-full max-w-[1600px] flex-1 px-4 pt-6 pb-20 outline-none sm:px-6 lg:px-8"
           >
             {children}
           </main>

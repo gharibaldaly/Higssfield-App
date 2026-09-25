@@ -101,7 +101,7 @@ function DropdownMenuItem({
   return (
     <MenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none select-none focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4",
+        "relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none select-none focus:bg-highlight data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4",
         variant === "destructive" && "text-destructive",
         className,
       )}

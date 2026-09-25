@@ -7,6 +7,7 @@ import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionTitle } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ export function AdsOverview({
   presets: PresetSummary[];
 }) {
   const t = useTranslations("ads");
+  const confirm = useConfirm();
   const format = useFormatter();
   const now = useNow({ updateInterval: 60_000 });
   const router = useRouter();
@@ -89,7 +91,7 @@ export function AdsOverview({
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {projects.map((project) => (
               <li key={project.id}>
-                <Link href={`/ads/${project.id}`} className="block focus-visible:outline-none">
+                <Link href={`/ads/${project.id}`} className="block rounded-(--radius-glass)">
                   <Card className="h-full p-5 transition-transform duration-300 hover:-translate-y-1">
                     <div className="flex items-start justify-between gap-3">
                       <div className="grid size-11 place-items-center rounded-2xl bg-[linear-gradient(145deg,var(--color-wine-600),var(--color-wine))] text-cream">
@@ -128,7 +130,7 @@ export function AdsOverview({
             <li key={preset.id}>
               <Card className="h-full">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
+                  <CardTitle as="h3" className="flex items-center gap-2 text-lg">
                     <Sparkles className="size-4 text-champagne-ink" aria-hidden />
                     {preset.name}
                   </CardTitle>
@@ -142,8 +144,12 @@ export function AdsOverview({
                         size="sm"
                         variant="ghost"
                         disabled={pending}
-                        onClick={() => {
-                          if (!window.confirm(t("presets.confirmReset"))) return;
+                        onClick={async () => {
+                          const confirmed = await confirm({
+                            title: t("presets.confirmReset"),
+                            confirmLabel: t("presets.resetAction"),
+                          });
+                          if (!confirmed) return;
                           startTransition(async () => {
                             const result = await resetPresetAction(preset.id);
                             if (!result.ok) toast.error(result.error);
@@ -162,8 +168,13 @@ export function AdsOverview({
                       variant="ghost"
                       className="text-destructive"
                       disabled={pending}
-                      onClick={() => {
-                        if (!window.confirm(t("presets.confirmDelete"))) return;
+                      onClick={async () => {
+                        const confirmed = await confirm({
+                          title: t("presets.confirmDelete"),
+                          confirmLabel: t("presets.delete"),
+                          destructive: true,
+                        });
+                        if (!confirmed) return;
                         startTransition(async () => {
                           const result = await deletePresetAction(preset.id);
                           if (!result.ok) toast.error(result.error);

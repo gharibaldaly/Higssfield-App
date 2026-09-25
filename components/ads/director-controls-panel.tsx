@@ -31,7 +31,7 @@ export function DirectorControlsPanel({
     <div className="flex flex-col gap-7">
       {GROUPS.map((group) => (
         <section key={group.key} className="flex flex-col gap-5">
-          <h3 className="text-[11px] font-semibold tracking-[0.18em] text-champagne-ink uppercase">
+          <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
             {t(`groups.${group.key}`)}
           </h3>
           {group.single.map((control) => (
@@ -54,7 +54,7 @@ export function DirectorControlsPanel({
       ))}
 
       <section className="flex flex-col gap-5">
-        <h3 className="text-[11px] font-semibold tracking-[0.18em] text-champagne-ink uppercase">
+        <h3 className="text-xs font-semibold tracking-[0.18em] text-champagne-ink uppercase">
           {t("groups.rhythm")}
         </h3>
         <div className="flex items-center justify-between gap-3">

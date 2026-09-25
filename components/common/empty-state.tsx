@@ -25,7 +25,7 @@ export function EmptyState({
       <div className="specular relative mb-5 grid size-16 place-items-center rounded-3xl bg-[linear-gradient(145deg,color-mix(in_srgb,var(--color-champagne)_35%,transparent),color-mix(in_srgb,var(--color-wine)_30%,transparent))]">
         <Icon className="size-7 text-champagne-ink" aria-hidden />
       </div>
-      <h3 className="font-display text-2xl font-semibold">{title}</h3>
+      <h2 className="font-display text-2xl font-semibold">{title}</h2>
       {description ? (
         <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
       ) : null}

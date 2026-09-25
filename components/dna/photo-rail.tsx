@@ -37,15 +37,19 @@ export function PhotoRail({
                     type="button"
                     onClick={() => setOpen(photo)}
                     className="group relative overflow-hidden rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`${tk(photo.kind)} ${photo.label ?? ""}`}
+                    aria-label={[tk(photo.kind), photo.label].filter(Boolean).join(" · ")}
                   >
+                    {/* The button carries the name; the thumbnail and caption only repeat it. */}
                     <StorageImage
                       src={photo.url}
-                      alt={photo.label ?? tk(photo.kind)}
+                      alt=""
                       fit="cover"
                       className="aspect-square w-full"
                     />
-                    <span className="absolute inset-x-1 bottom-1 truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] text-cream">
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-1 bottom-1 truncate rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] text-cream"
+                    >
                       {photo.label || tk(photo.kind)}
                     </span>
                   </button>

@@ -5,8 +5,15 @@
     "brand": "Dr. Secret",
     "studio": "AI Studio"
   },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "discard": "Discard changes"
+  },
   "nav": {
     "label": "Main navigation",
+    "skipToContent": "Skip to content",
     "studio": "Studio",
     "products": "Products",
     "ghost": "Ghost Studio",
@@ -655,6 +662,7 @@
     "controlsHint": "Tap presets, add your own words. Saved with the ad.",
     "rules": "Preset rules",
     "addRule": "Add rule",
+    "ruleNumber": "Rule {number}",
     "storyboard": "Storyboard",
     "generateAll": "Generate all shots",
     "generatingAll": "Generating · {count} left",

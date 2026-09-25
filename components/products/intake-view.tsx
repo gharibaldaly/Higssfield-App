@@ -16,6 +16,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { PhotoDropzone } from "@/components/products/photo-dropzone";
 import { PhotoTile } from "@/components/products/photo-tile";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +98,7 @@ export function IntakeView({
         {pieces.map((piece) => (
           <Card key={piece.id}>
             <CardHeader>
-              <CardTitle>
+              <CardTitle id={`${piece.id}-title`}>
                 <span className="text-muted-foreground">
                   {t("piece", { number: piece.position })} ·
                 </span>{" "}
@@ -113,13 +114,14 @@ export function IntakeView({
                 return (
                   <section
                     key={kind}
-                    aria-labelledby={`${piece.id}-${kind}`}
+                    // Piece name + view, so each region's name is unique ("Robe · Front").
+                    aria-labelledby={`${piece.id}-title ${piece.id}-${kind}`}
                     className={cn(kind === "detail" && "lg:col-span-1")}
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 id={`${piece.id}-${kind}`} className="text-sm font-semibold">
+                      <h3 id={`${piece.id}-${kind}`} className="text-sm font-semibold">
                         {t(`kinds.${kind}`)}
-                      </h4>
+                      </h3>
                       <Badge
                         variant={
                           list.length > 0 ? "success" : kind === "detail" ? "muted" : "warning"
@@ -232,6 +234,7 @@ function ProductSettingsCard({
 }) {
   const t = useTranslations("products.intake");
   const tl = useTranslations("products.lines");
+  const confirm = useConfirm();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -256,8 +259,14 @@ function ProductSettingsCard({
           variant="ghost"
           className="text-destructive"
           disabled={pending}
-          onClick={() => {
-            if (!window.confirm(t("confirmDelete"))) return;
+          onClick={async () => {
+            const confirmed = await confirm({
+              title: t("delete"),
+              description: t("confirmDelete"),
+              confirmLabel: t("delete"),
+              destructive: true,
+            });
+            if (!confirmed) return;
             startTransition(async () => {
               const result = await deleteProductAction(product.id);
               if (!result.ok) toast.error(result.error);

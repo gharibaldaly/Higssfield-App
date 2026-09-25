@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { StorageImage } from "@/components/generation/generation-media";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ import type { PhotoView } from "@/lib/products/queries";
 
 export function PhotoTile({ photo, productId }: { photo: PhotoView; productId: string }) {
   const t = useTranslations("products.photos");
+  const confirm = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
@@ -89,9 +91,13 @@ export function PhotoTile({ photo, productId }: { photo: PhotoView; productId: s
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() => {
-              if (window.confirm(t("confirmDelete")))
-                run(() => deletePhotoAction(photo.id, productId), t("deleted"));
+            onSelect={async () => {
+              const confirmed = await confirm({
+                title: t("confirmDelete"),
+                confirmLabel: t("delete"),
+                destructive: true,
+              });
+              if (confirmed) run(() => deletePhotoAction(photo.id, productId), t("deleted"));
             }}
           >
             <Trash2 aria-hidden />

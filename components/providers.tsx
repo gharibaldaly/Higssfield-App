@@ -5,6 +5,7 @@ import { Direction } from "radix-ui";
 import * as React from "react";
 import { Toaster } from "sonner";
 
+import { ConfirmProvider } from "@/components/common/confirm-dialog";
 import { TooltipProvider } from "@/components/ui/overlays";
 
 export function Providers({
@@ -23,7 +24,7 @@ export function Providers({
         transition={{ type: "spring", stiffness: 260, damping: 30 }}
       >
         <TooltipProvider>
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
           <Toaster
             dir={dir}
             theme={theme}

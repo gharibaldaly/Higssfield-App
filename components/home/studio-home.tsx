@@ -104,7 +104,7 @@ export function StudioHome({
       </section>
 
       {!setup.higgsfield || !setup.brain ? (
-        <Card className="border-warning/40">
+        <Card className="glass-warning">
           <CardContent className="flex flex-wrap items-center gap-4">
             <Sparkles className="size-6 shrink-0 text-warning" aria-hidden />
             <div className="min-w-0 flex-1">
@@ -138,7 +138,7 @@ export function StudioHome({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
             >
-              <Link href={tile.href} className="block focus-visible:outline-none">
+              <Link href={tile.href} className="block rounded-(--radius-glass)">
                 <Card className="p-5 transition-transform duration-300 hover:-translate-y-1">
                   <Icon className="size-5 text-champagne-ink" aria-hidden />
                   <p className="mt-4 font-display text-4xl font-semibold" dir="ltr">

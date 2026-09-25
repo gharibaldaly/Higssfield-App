@@ -203,7 +203,7 @@ export function SheetStudio({
                             height: `${card.imageRect!.h * 100}%`,
                           }}
                         >
-                          <span className="absolute top-0 left-0 bg-black/60 px-1 text-[10px] text-cream">
+                          <span className="absolute top-0 left-0 bg-black/60 px-1 text-[11px] text-cream">
                             {card.label}
                           </span>
                         </div>
@@ -288,7 +288,7 @@ export function SheetStudio({
                     fit="cover"
                     className="aspect-square rounded-xl"
                   />
-                  <figcaption className="mt-1 truncate text-[11px] text-muted-foreground">
+                  <figcaption className="mt-1 truncate text-xs text-muted-foreground">
                     {reference.label}
                   </figcaption>
                 </figure>
@@ -321,7 +321,7 @@ export function SheetStudio({
                       className="aspect-square rounded-xl bg-[#FAF8F5]"
                     />
                     <p className="mt-1.5 truncate text-xs font-medium">{crop.label}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {t(`crops.kinds.${crop.kind as "front"}`)}
                     </p>
                   </li>

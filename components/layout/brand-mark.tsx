@@ -11,9 +11,7 @@ export function BrandMark() {
       </div>
       <div className="leading-tight">
         <p className="font-display text-lg font-semibold tracking-tight">{t("brand")}</p>
-        <p className="text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-          {t("studio")}
-        </p>
+        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">{t("studio")}</p>
       </div>
     </div>
   );

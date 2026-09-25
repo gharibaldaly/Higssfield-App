@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { setGenerationFavorite } from "@/lib/actions/generations";
 import type { ProductStage, ProductLine } from "@/lib/domain/product";
 import type { LibraryFilters, LibraryItem } from "@/lib/library/queries";
@@ -98,207 +98,221 @@ export function LibraryView({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Tabs
-        value={active}
-        onValueChange={(value) => setParam("tab", value === "generations" ? null : value)}
-      >
-        <TabsList>
-          {TABS.map((value) => (
-            <TabsTrigger key={value} value={value}>
-              {t(`tabs.${value}`)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+    <Tabs
+      className="gap-6"
+      value={active}
+      onValueChange={(value) => setParam("tab", value === "generations" ? null : value)}
+    >
+      <TabsList>
+        {TABS.map((value) => (
+          <TabsTrigger key={value} value={value}>
+            {t(`tabs.${value}`)}
+          </TabsTrigger>
+        ))}
+      </TabsList>
 
-      {active === "generations" ? (
-        <>
-          <div className="flex flex-wrap gap-2">
-            <FilterSelect
-              value={filters.kind}
-              placeholder={t("filters.kind")}
-              options={[
-                ["image", t("filters.images")],
-                ["video", t("filters.videos")],
-              ]}
-              onChange={(value) => setParam("kind", value)}
-              allLabel={t("filters.all")}
-            />
-            <FilterSelect
-              value={filters.purpose}
-              placeholder={t("filters.purpose")}
-              options={PURPOSES.map(
-                (purpose) => [purpose, t(`purposes.${purpose}`)] as [string, string],
-              )}
-              onChange={(value) => setParam("purpose", value)}
-              allLabel={t("filters.all")}
-            />
-            <FilterSelect
-              value={filters.status}
-              placeholder={t("filters.status")}
-              options={[
-                ["completed", t("filters.completed")],
-                ["pending", t("filters.pending")],
-                ["failed", t("filters.failed")],
-              ]}
-              onChange={(value) => setParam("status", value)}
-              allLabel={t("filters.all")}
-            />
-            <FilterSelect
-              value={filters.product}
-              placeholder={t("filters.product")}
-              options={products.map((product) => [product.id, product.name] as [string, string])}
-              onChange={(value) => setParam("product", value)}
-              allLabel={t("filters.all")}
-            />
-            <Button
-              variant={filters.favorites ? "default" : "glass"}
-              size="sm"
-              className="h-10"
-              onClick={() => setParam("favorites", filters.favorites ? null : "1")}
-            >
-              <Heart aria-hidden />
-              {t("filters.favorites")}
-            </Button>
-            <Button
-              variant={filters.approved ? "default" : "glass"}
-              size="sm"
-              className="h-10"
-              onClick={() => setParam("approved", filters.approved ? null : "1")}
-            >
-              <BadgeCheck aria-hidden />
-              {t("filters.approved")}
-            </Button>
-          </div>
-          <GenerationGrid items={items} />
-        </>
-      ) : null}
+      {/* The active tab's panel; its trigger's aria-controls points here. */}
+      <TabsContent value={active} className="flex flex-col gap-6">
+        {active === "generations" ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <FilterSelect
+                value={filters.kind}
+                placeholder={t("filters.kind")}
+                options={[
+                  ["image", t("filters.images")],
+                  ["video", t("filters.videos")],
+                ]}
+                onChange={(value) => setParam("kind", value)}
+                allLabel={t("filters.all")}
+              />
+              <FilterSelect
+                value={filters.purpose}
+                placeholder={t("filters.purpose")}
+                options={PURPOSES.map(
+                  (purpose) => [purpose, t(`purposes.${purpose}`)] as [string, string],
+                )}
+                onChange={(value) => setParam("purpose", value)}
+                allLabel={t("filters.all")}
+              />
+              <FilterSelect
+                value={filters.status}
+                placeholder={t("filters.status")}
+                options={[
+                  ["completed", t("filters.completed")],
+                  ["pending", t("filters.pending")],
+                  ["failed", t("filters.failed")],
+                ]}
+                onChange={(value) => setParam("status", value)}
+                allLabel={t("filters.all")}
+              />
+              <FilterSelect
+                value={filters.product}
+                placeholder={t("filters.product")}
+                options={products.map((product) => [product.id, product.name] as [string, string])}
+                onChange={(value) => setParam("product", value)}
+                allLabel={t("filters.all")}
+              />
+              <Button
+                variant={filters.favorites ? "default" : "glass"}
+                size="sm"
+                className="h-10"
+                onClick={() => setParam("favorites", filters.favorites ? null : "1")}
+              >
+                <Heart aria-hidden />
+                {t("filters.favorites")}
+              </Button>
+              <Button
+                variant={filters.approved ? "default" : "glass"}
+                size="sm"
+                className="h-10"
+                onClick={() => setParam("approved", filters.approved ? null : "1")}
+              >
+                <BadgeCheck aria-hidden />
+                {t("filters.approved")}
+              </Button>
+            </div>
+            <GenerationGrid items={items} />
+          </>
+        ) : null}
 
-      {active === "products" ? (
-        products.length === 0 ? (
-          <EmptyState icon={Images} title={t("empty.title")} description={t("empty.description")} />
-        ) : (
-          <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-            {products.map((product) => (
-              <li key={product.id}>
-                <Link href={`/products/${product.id}`}>
+        {active === "products" ? (
+          products.length === 0 ? (
+            <EmptyState
+              icon={Images}
+              title={t("empty.title")}
+              description={t("empty.description")}
+            />
+          ) : (
+            <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+              {products.map((product) => (
+                <li key={product.id}>
+                  <Link href={`/products/${product.id}`} className="block rounded-(--radius-glass)">
+                    <Card className="overflow-hidden">
+                      <StorageImage
+                        src={product.coverUrl}
+                        alt={product.name}
+                        fit="cover"
+                        className="aspect-[4/5] w-full"
+                      />
+                      <div className="flex flex-col gap-2 p-3">
+                        <p className="truncate font-medium">{product.name}</p>
+                        <ProductLineBadge line={product.productLine} />
+                        <StageSteps stage={product.stage} />
+                      </div>
+                    </Card>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {active === "dna" ? (
+          <Card className="overflow-x-auto p-2">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-start text-xs text-muted-foreground">
+                  <th className="px-3 py-2 text-start font-medium">{t("columns.product")}</th>
+                  <th className="px-3 py-2 text-start font-medium">{t("columns.version")}</th>
+                  <th className="px-3 py-2 text-start font-medium">{t("columns.status")}</th>
+                  <th className="px-3 py-2 text-start font-medium">{t("columns.source")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dna.map((row) => (
+                  <tr key={row.id} className="border-t border-border">
+                    <td className="px-3 py-2">
+                      <Link
+                        className="hover:underline"
+                        href={`/products/${row.productId}/dna?v=${row.id}`}
+                      >
+                        {row.productName}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2" dir="ltr">
+                      v{row.version}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={row.status === "approved" ? "success" : "muted"}>
+                        {t(`dnaStatus.${row.status as "draft"}`)}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {t(`dnaSource.${row.source as "llm"}`)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        ) : null}
+
+        {active === "sheets" ? (
+          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {sheets.map((sheet) => (
+              <li key={sheet.id}>
+                <Link
+                  href={`/products/${sheet.productId}/sheet?s=${sheet.id}`}
+                  className="block rounded-(--radius-glass)"
+                >
                   <Card className="overflow-hidden">
                     <StorageImage
-                      src={product.coverUrl}
-                      alt={product.name}
-                      fit="cover"
-                      className="aspect-[4/5] w-full"
+                      src={sheet.url}
+                      alt={sheet.productName}
+                      className="aspect-video w-full bg-[#FAF8F5]"
                     />
-                    <div className="flex flex-col gap-2 p-3">
-                      <p className="truncate font-medium">{product.name}</p>
-                      <ProductLineBadge line={product.productLine} />
-                      <StageSteps stage={product.stage} />
+                    <div className="flex items-center justify-between gap-2 p-3">
+                      <span className="truncate font-medium">
+                        {sheet.productName} · v{sheet.version}
+                      </span>
+                      <Badge variant={sheet.status === "approved" ? "success" : "muted"}>
+                        {t(`sheetStatus.${sheet.status as "draft"}`)}
+                      </Badge>
                     </div>
                   </Card>
                 </Link>
               </li>
             ))}
           </ul>
-        )
-      ) : null}
+        ) : null}
 
-      {active === "dna" ? (
-        <Card className="overflow-x-auto p-2">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-start text-xs text-muted-foreground">
-                <th className="px-3 py-2 text-start font-medium">{t("columns.product")}</th>
-                <th className="px-3 py-2 text-start font-medium">{t("columns.version")}</th>
-                <th className="px-3 py-2 text-start font-medium">{t("columns.status")}</th>
-                <th className="px-3 py-2 text-start font-medium">{t("columns.source")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dna.map((row) => (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="px-3 py-2">
-                    <Link
-                      className="hover:underline"
-                      href={`/products/${row.productId}/dna?v=${row.id}`}
-                    >
-                      {row.productName}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2" dir="ltr">
-                    v{row.version}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={row.status === "approved" ? "success" : "muted"}>
-                      {t(`dnaStatus.${row.status as "draft"}`)}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {t(`dnaSource.${row.source as "llm"}`)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      ) : null}
-
-      {active === "sheets" ? (
-        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sheets.map((sheet) => (
-            <li key={sheet.id}>
-              <Link href={`/products/${sheet.productId}/sheet?s=${sheet.id}`}>
-                <Card className="overflow-hidden">
-                  <StorageImage
-                    src={sheet.url}
-                    alt={sheet.productName}
-                    className="aspect-video w-full bg-[#FAF8F5]"
-                  />
-                  <div className="flex items-center justify-between gap-2 p-3">
-                    <span className="truncate font-medium">
-                      {sheet.productName} · v{sheet.version}
-                    </span>
-                    <Badge variant={sheet.status === "approved" ? "success" : "muted"}>
-                      {t(`sheetStatus.${sheet.status as "draft"}`)}
-                    </Badge>
-                  </div>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {active === "colorways" ? (
-        <ul className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
-          {colorways.map((colorway) => (
-            <li key={colorway.id}>
-              <Link href={`/products/${colorway.productId}/colorways`}>
-                <Card className="overflow-hidden">
-                  <div className="relative h-24" style={{ background: colorway.hex }}>
-                    {colorway.swatchUrl ? (
-                      <StorageImage
-                        src={colorway.swatchUrl}
-                        alt={colorway.name}
-                        fit="cover"
-                        className="absolute inset-y-0 end-0 w-1/2"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="p-3 text-sm">
-                    <p className="truncate font-medium">{colorway.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{colorway.productName}</p>
-                    <p className="font-mono text-xs" dir="ltr">
-                      {colorway.hex}
-                    </p>
-                  </div>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+        {active === "colorways" ? (
+          <ul className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
+            {colorways.map((colorway) => (
+              <li key={colorway.id}>
+                <Link
+                  href={`/products/${colorway.productId}/colorways`}
+                  className="block rounded-(--radius-glass)"
+                >
+                  <Card className="overflow-hidden">
+                    <div className="relative h-24" style={{ background: colorway.hex }}>
+                      {colorway.swatchUrl ? (
+                        <StorageImage
+                          src={colorway.swatchUrl}
+                          alt={colorway.name}
+                          fit="cover"
+                          className="absolute inset-y-0 end-0 w-1/2"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="p-3 text-sm">
+                      <p className="truncate font-medium">{colorway.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {colorway.productName}
+                      </p>
+                      <p className="font-mono text-xs" dir="ltr">
+                        {colorway.hex}
+                      </p>
+                    </div>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </TabsContent>
+    </Tabs>
   );
 }
 

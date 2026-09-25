@@ -67,7 +67,7 @@ export function JobCard({
   return (
     <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h3 className="font-display text-xl font-semibold">{job.productName}</h3>
+        <h2 className="font-display text-xl font-semibold">{job.productName}</h2>
         <Badge variant="outline">{t(`types.${job.jobType}.short`)}</Badge>
         <Badge variant={STATUS_VARIANT[job.status]}>{t(`jobStatus.${job.status}`)}</Badge>
         {job.status === "queued" && queuePosition ? (

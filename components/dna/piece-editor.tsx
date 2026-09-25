@@ -27,7 +27,7 @@ function Section({
   return (
     <section className="flex flex-col gap-3 border-t border-border pt-6 first:border-t-0 first:pt-0">
       <div>
-        <h4 className="font-display text-lg font-semibold">{title}</h4>
+        <h3 className="font-display text-lg font-semibold">{title}</h3>
         {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       </div>
       {children}

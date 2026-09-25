@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { Eyedropper } from "@/components/colorways/eyedropper";
 import { StorageImage } from "@/components/generation/generation-media";
@@ -99,6 +100,7 @@ export function ColorwayManager({
 
 function ColorwayCard({ colorway, productId }: { colorway: ColorwayView; productId: string }) {
   const t = useTranslations("colorways");
+  const confirm = useConfirm();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(colorway.name);
@@ -169,8 +171,13 @@ function ColorwayCard({ colorway, productId }: { colorway: ColorwayView; product
               variant="ghost"
               className="text-destructive"
               disabled={pending}
-              onClick={() => {
-                if (!window.confirm(t("confirmDelete"))) return;
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: t("confirmDelete"),
+                  confirmLabel: t("delete"),
+                  destructive: true,
+                });
+                if (!confirmed) return;
                 startTransition(async () => {
                   const result = await deleteColorwayAction(colorway.id, productId);
                   if (!result.ok) toast.error(result.error);

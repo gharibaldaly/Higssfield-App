@@ -45,7 +45,7 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("outline-none", className)}
+      className={cn("rounded-(--radius-glass)", className)}
       {...props}
     />
   );

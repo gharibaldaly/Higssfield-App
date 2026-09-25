@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { RadioGroup } from "radix-ui";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -139,18 +140,17 @@ function BrainCard({
         <CardDescription>{t("hint")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t("provider")}>
+        <RadioGroup.Root
+          className="grid grid-cols-2 gap-3"
+          aria-label={t("provider")}
+          value={provider}
+          onValueChange={(value) => setProvider(value as typeof provider)}
+        >
           {(["claude", "gemini"] as const).map((option) => (
-            <button
+            <RadioGroup.Item
               key={option}
-              type="button"
-              role="radio"
-              aria-checked={provider === option}
-              onClick={() => setProvider(option)}
-              className={cn(
-                "rounded-2xl p-4 text-start glass transition-all",
-                provider === option && "ring-2 ring-primary",
-              )}
+              value={option}
+              className="rounded-2xl p-4 text-start glass transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=checked]:ring-2 data-[state=checked]:ring-primary"
             >
               <span className="block font-display text-lg font-semibold">
                 {t(`providers.${option}`)}
@@ -167,9 +167,9 @@ function BrainCard({
                   ? t("keyConfigured")
                   : t("keyMissing")}
               </span>
-            </button>
+            </RadioGroup.Item>
           ))}
-        </div>
+        </RadioGroup.Root>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="claude-model">{t("claudeModel")}</Label>
@@ -254,14 +254,14 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label>{t("aspect")}</Label>
+              <Label id="style-aspect-label">{t("aspect")}</Label>
               <Select
                 value={value.aspectRatio}
                 onValueChange={(aspectRatio) =>
                   setValue({ ...value, aspectRatio: aspectRatio as CatalogueStyle["aspectRatio"] })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-labelledby="style-aspect-label">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,14 +274,14 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
               </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <Label>{t("shadow")}</Label>
+              <Label id="style-shadow-label">{t("shadow")}</Label>
               <Select
                 value={value.shadow}
                 onValueChange={(shadow) =>
                   setValue({ ...value, shadow: shadow as CatalogueStyle["shadow"] })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-labelledby="style-shadow-label">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,6 +332,7 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
         </div>
         <div className="flex flex-col items-center gap-2">
           <div
+            role="img"
             className="flex w-full items-center justify-center rounded-xl border border-border shadow-inner"
             style={{
               background: value.background,
@@ -385,9 +386,9 @@ function ModelsCard({
             ] as const
           ).map(([kind, value, setter, models]) => (
             <div key={kind} className="flex flex-col gap-2">
-              <Label>{t(`default.${kind}`)}</Label>
+              <Label id={`default-${kind}-label`}>{t(`default.${kind}`)}</Label>
               <Select value={value} onValueChange={setter}>
-                <SelectTrigger>
+                <SelectTrigger aria-labelledby={`default-${kind}-label`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -424,7 +425,7 @@ function ModelsCard({
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
                   <p className="font-medium">{model.label}</p>
-                  <p className="font-mono text-[11px] text-muted-foreground" dir="ltr">
+                  <p className="font-mono text-xs text-muted-foreground" dir="ltr">
                     {model.id}
                   </p>
                 </div>
@@ -435,7 +436,7 @@ function ModelsCard({
               ) : null}
               <ModelCapabilitiesSummary model={model} />
               {model.sourceNote ? (
-                <p className="mt-2 text-[11px] text-muted-foreground">{model.sourceNote}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{model.sourceNote}</p>
               ) : null}
             </div>
           ))}

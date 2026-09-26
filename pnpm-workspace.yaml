@@ -1,0 +1,7 @@
+ignoredBuiltDependencies:
+  - "@google/genai"
+  - "@parcel/watcher"
+  - "@swc/core"
+  - protobufjs
+  - sharp
+  - unrs-resolver

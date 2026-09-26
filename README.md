@@ -27,7 +27,8 @@ they are ready; Settings shows what is configured.
 ## Stack
 
 Next.js 16 (App Router, TypeScript strict) · Supabase (Postgres + RLS, Storage, Auth) · Tailwind CSS 4 ·
-shadcn-style components on Radix · Motion · next-intl (Arabic RTL / English) · Vitest · pnpm.
+shadcn-style components on Radix · Motion · Lenis (smooth scroll) · raw WebGL for the satin, fluid and
+display form · next-intl (Arabic RTL / English) · Vitest · pnpm.
 
 ## 1. Supabase
 

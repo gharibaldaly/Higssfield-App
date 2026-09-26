@@ -951,18 +951,22 @@ html[lang="ar"] .font-heading {
 
 /* Side rails (components/layout/side-rails.tsx): vertical labels at both edges and a stitched
    thread that fills as the page scrolls. */
-/* White with difference blending reads on the satin and on the light colour bands alike. */
+/* Muted ink on the light theme. On the dark satin the rails are white with difference blending, so
+   they also read over the light colour bands that scroll beneath them. */
 .rail {
   position: fixed;
   top: 50%;
   z-index: 30;
-  color: #fff;
-  mix-blend-mode: difference;
   display: flex;
   align-items: center;
   gap: 1rem;
+  color: var(--muted-foreground);
   writing-mode: vertical-rl;
   pointer-events: none;
+}
+.dark .rail {
+  color: #fff;
+  mix-blend-mode: difference;
 }
 /* Physical sides: logical insets would resolve in the rail's own vertical writing mode. */
 .rail-start {
@@ -987,7 +991,7 @@ html[lang="ar"] .font-heading {
   height: 18vh;
   background-image: repeating-linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.45) 0 5px,
+    color-mix(in srgb, currentColor 45%, transparent) 0 5px,
     transparent 5px 9px
   );
 }

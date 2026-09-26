@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { RevealText } from "@/components/fx/reveal-text";
+import { LiquidTitle } from "@/components/fx/liquid-title";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,7 +31,7 @@ export function PageHeader({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-5xl min-w-0">
           <h1 className="font-display text-[clamp(2.6rem,6.2vw,5.75rem)] leading-[1.04] tracking-tight text-balance">
-            {typeof title === "string" ? <RevealText text={title} /> : title}
+            {typeof title === "string" ? <LiquidTitle text={title} /> : title}
           </h1>
           {description ? (
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

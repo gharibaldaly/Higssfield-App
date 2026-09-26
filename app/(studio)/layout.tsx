@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { SatinBackground } from "@/components/fx/satin-background";
 import { Masthead } from "@/components/layout/masthead";
+import { SideRails } from "@/components/layout/side-rails";
 import { requireOwner } from "@/lib/auth/owner";
 import { keyStatus } from "@/lib/env";
 import { getEffects, getTheme } from "@/lib/preferences";
@@ -21,6 +22,7 @@ export default async function StudioLayout({ children }: { children: React.React
         {t("skipToContent")}
       </a>
       <SatinBackground />
+      <SideRails />
       <Masthead
         email={owner.user.email ?? null}
         theme={theme}

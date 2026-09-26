@@ -84,13 +84,20 @@ Montage (Phase 2): order/trim clips, upload a music track, render final video vi
 UGC ads with a talking character · Fragrance product shots (100 ml rectangular bottle family: Khomra, Midnight Diva, Secret Rose, Harmony, After Dark, Secret Flame, Whisper) · Social posts & carousels · Brand kit · Cost tracking per project (full dashboard).
 
 ## UI direction
-Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, motion and effects; see the Decisions log).
+Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, motion and effects), then pushed closer to sloshseltzer.com's motion and scroll the same day (see the Decisions log).
 - **Satin atelier**: the studio feels like a couture workroom, not an admin dashboard and not a generic AI look. A deep emerald shot-satin background (WebGL shader) moves behind near-opaque "tulle" panels. The signature is a WebGL point-cloud display form (seam rings, princess seams, stand) on the home hero, sign-in and the index menu. Motifs come from the trade: woven labels, a work ticket, pinked swatches, tech-pack sections, film slates and a film strip with timecodes, a contact sheet with grease-pencil rings, hang tags.
 - Palette. Dark (primary): emerald `#031512` / `#082620` / `#0E3229`, pearl `#F3EFE8`, mist `#A9BDB5`, blush `#FFB8CB`, veil rose `#FF6A9A`. Light: blush tissue `#F9E1E7`, emerald ink `#062A22`, emerald `#0E5C49`. Product-line labels keep fixed colours in both themes (SECRET blush, HOURS mint, VOWS pearl).
 - Garment images always sit on a neutral grey stage (`#242424` dark / `#D4D4D4` light) with crop marks, never on a tinted surface, and no effect ever touches their pixels.
 - Fonts: Arabic titles — Aref Ruqaa; English titles and Latin numerals — Gloock; UI — IBM Plex Sans + IBM Plex Sans Arabic; labels and data — IBM Plex Mono.
 - Layout: a sticky masthead (wordmark, section links, preferences) and a full-screen index overlay; pages open with a large display title and a drawn seam.
-- Motion is CSS-first so pages render finished on the server: veil sweep between sections, title reveals (Latin word by word, Arabic by an ink sweep so joined letters never split), stitch draws, odometer numbers, a stitched cursor ring. The "FX" toggle (cookie) and `prefers-reduced-motion` turn the decorative layer into still frames.
+- Motion (after sloshseltzer.com), kept on the decorative layer:
+  - **Scroll:** weighted smooth scrolling (Lenis) over native scroll; display titles lean with the scroll speed.
+  - **Page transitions:** a liquid pour between sections — two wavy layers of satin rise, the page loads underneath, and the liquid runs off.
+  - **Titles:** fill like a glass behind a rising wavy line.
+  - **Satin:** swirls behind the cursor (a fluid simulation) and sloshes with the scroll.
+  - **Home:** stickers and hand-drawn doodles; the SECRET · HOURS · VOWS colour bands slide with the scroll while the display form crosses them.
+  - **Page chrome:** lists slide into view, and side rails carry a stitched scroll thread.
+- Motion stays CSS-first wherever it can (scroll-driven animations included), so pages render finished on the server. The "FX" toggle (cookie) and `prefers-reduced-motion` turn the decorative layer into still frames and plain scrolling.
 - Desktop-first (laptop), but must not break on mobile. Text keeps WCAG AA on every surface and on the satin itself.
 - Rich loading states for long generations (progress, elapsed time, queue position), toasts, empty states with guidance.
 
@@ -149,3 +156,39 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
 - **Garment fidelity:** every garment image (photos, results, compare view, crops) sits on the neutral grey stage. The contact sheet and film strip use a neutral `#151515` film base in both themes. Decoration never overlaps garment pixels beyond corner crop marks and the grease-pencil ring around approved frames.
 - **Navigation:** the sidebar became a masthead with short labels (`nav.short.*`) and a full-screen index with full names, one-line hints (`nav.hint.*`) and the coming-soon modules. The home page also runs the coming-soon modules as a ticker.
 - **Verification (preview):** a Playwright run seeded one test product through the real flows (mock providers), visited every page 57 times across dark/light × ar/en × desktop/phone with effects on, then deleted the product. It found no console errors and no horizontal overflow. axe (WCAG 2.2 AA plus best practices) flagged only light-mode contrast on dimmed labels, since fixed (no text is dimmed below 85% now). The same run caught two bugs, both fixed: a Latin title inside an Arabic page rendered its words in reverse order (each word is an inline-block; the run is now an explicit LTR span), and garment photos that finished loading before hydration stayed invisible behind the fade-in (the image now reads its own `complete` state on mount).
+
+### 2026-09-26 — Motion pass after sloshseltzer.com
+- **Why:** the owner asked for the studio to feel closer to sloshseltzer.com in effects, visual impact, animation and scroll.
+- **Research:** the site is one WebGL canvas (Buttermax, Hydra framework), and its GPU blocklist rejects SwiftShader. It was captured in a Vercel sandbox with a spoofed `WEBGL_debug_renderer_info`, and its `app.js` was read. What it does:
+  - **Scroll:** virtual scroll (`lerp 0.1`).
+  - **Pour:** a can pours liquid that floods each section in a new colour.
+  - **Type:** huge outlined type that fills with liquid.
+  - **Mouse:** a fluid simulation (`sim 128, dye 512, velocity 0.98, density 0.97, pressure 0.8, curl 30`).
+  - **Bands:** flavour bands a 3D can rolls across.
+  - **Decoration:** stickers, doodles and side labels.
+  - Each of these was mapped to an atelier equivalent. Garment images are never touched.
+- **Smooth scroll:** Lenis 1.3.26 (MIT), only with full effects and a fine pointer. It glides over native scroll, so sticky elements, keyboard scrolling and CSS scroll timelines keep working.
+  - It stops while Radix locks the page (`body[data-scroll-locked]`).
+  - Dialogs, menus, listboxes and popovers scroll natively (`prevent`, `allowNestedScroll`).
+  - One loop publishes offset, speed and progress (`components/fx/scroll-store.ts`), which the fluid, the forms, the ticker and the `.fx-skew` titles read.
+- **Liquid transition** (replaces the CSS veil):
+  - A capture-phase click listener runs before Next's `Link`, which then sees `defaultPrevented`.
+  - Liquid covers the page, and `router.push` fires at 80% of the cover. The liquid runs off when the pathname changes, with a 6 s safety drain.
+  - It only pours when the section or the item changes (`shouldPour`). Tabs and filters stay instant.
+  - Sign-in pours on submit and drains back on an error.
+- **Liquid titles:**
+  - **Mask:** the fill is masked by a wave image three title-heights tall, so at rest (no animation, calm mode) the title is solid.
+  - **Latin ghost:** an outline. `-webkit-text-fill-color: transparent` keeps `currentColor` for the stroke.
+  - **Arabic ghost:** a faint copy instead, because outlines expose the joins.
+- **Fluid satin:** a stable-fluids solver in the satin's own WebGL context. It prefers WebGL 2, falls back to WebGL 1 half floats, and stays off without them.
+  - The velocity drags the folds; the dye lifts ridges and tints within the capped satin palette, so text on the satin keeps AA.
+  - It rests after 5 s without input and runs only with a fine pointer.
+  - It lives only in the background layer, never over garment images.
+- **Scroll-driven CSS:** `animation-timeline: view()/scroll()`, guarded by `@supports`, full effects and `prefers-reduced-motion: no-preference`.
+  - Lists only slide in (no tilt or scale), because they hold garment images.
+  - `page-in` now animates the `translate` property, so it composes with scroll-driven `transform`s.
+- **Bands:** fixed product-line colours in both themes. The sticky form eases between tones (`GhostForm tone`), and the bands use `overflow-x: clip` so their wave edges can overlap.
+- **RTL pitfalls:**
+  - Strips twice the screen width overflow to the left in RTL, so wave strips set `direction: ltr`.
+  - Logical insets resolve in an element's own (vertical) writing mode, so the side rails use physical sides.
+  - The ring text is centred on its path and fitted with `lengthAdjust="spacingAndGlyphs"`, which keeps Arabic letters joined.

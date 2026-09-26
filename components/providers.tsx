@@ -6,6 +6,8 @@ import * as React from "react";
 import { Toaster } from "sonner";
 
 import { ConfirmProvider } from "@/components/common/confirm-dialog";
+import { LiquidTransition } from "@/components/fx/liquid-transition";
+import { SmoothScroll } from "@/components/fx/smooth-scroll";
 import { StudioCursor } from "@/components/fx/studio-cursor";
 import { TooltipProvider } from "@/components/ui/overlays";
 
@@ -26,6 +28,8 @@ export function Providers({
       >
         <TooltipProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
+          <SmoothScroll />
+          <LiquidTransition />
           <StudioCursor />
           <Toaster
             dir={dir}

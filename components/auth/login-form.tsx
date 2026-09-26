@@ -2,8 +2,10 @@
 
 import { Loader2, LogIn } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
+import { drainLiquid, pourLiquid } from "@/components/fx/liquid-transition";
+import { useFullEffects } from "@/components/fx/use-full-effects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +16,23 @@ const initialState: SignInState = { error: null };
 export function LoginForm() {
   const t = useTranslations("login");
   const [state, formAction, pending] = useActionState(signIn, initialState);
+  const full = useFullEffects();
+
+  // Signing in pours the liquid over the page; a successful sign-in lands on the studio and the
+  // liquid runs off there. A failed attempt drains it straight back to show the error.
+  useEffect(() => {
+    if (state.error) drainLiquid();
+  }, [state]);
+
   return (
-    <form action={formAction} className="flex flex-col gap-5" noValidate>
+    <form
+      action={formAction}
+      onSubmit={() => {
+        if (full) void pourLiquid();
+      }}
+      className="flex flex-col gap-5"
+      noValidate
+    >
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">{t("email")}</Label>
         <Input id="email" name="email" type="email" autoComplete="email" dir="ltr" required />

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-import { createProgram, mountCanvas, readHexColor, startLoop } from "@/components/fx/gl";
+import { createProgram, mountCanvas, readHexColor, startLoop, type Rgb } from "@/components/fx/gl";
+import { readScroll } from "@/components/fx/scroll-store";
 import { useFullEffects } from "@/components/fx/use-full-effects";
 import { buildGhostForm, type GhostFormGeometry } from "@/lib/fx/ghost-form-geometry";
 import { cn } from "@/lib/utils";
@@ -77,13 +78,31 @@ const STILL = { rotate: 0.55, tilt: 0.05, time: 3 };
 
 let sharedGeometry: GhostFormGeometry | null = null;
 
+/** Turn per px scrolled when the form follows the scroll, and lean per unit of scroll speed. */
+const SCROLL_TURN = 0.0032;
+const SCROLL_LEAN = 0.28;
+
+type Tone = { surface: Rgb; seam: Rgb; stand: Rgb };
+
 /**
  * The studio's signature: an invisible display form drawn in points of light. It assembles from
  * scattered points, breathes, turns slowly and leans towards the pointer. Colours and blending
- * come from --form-tone / --form-* on the element, so it adapts to theme and to the index overlay.
+ * come from --form-tone / --form-* on the element, so it adapts to theme and to the index overlay;
+ * colour changes glide rather than jump. With `spin="scroll"` it also turns as the page scrolls
+ * and leans with the scroll speed. Change `tone` to make it re-read its colours (e.g. when the
+ * wrapper's --form-* change).
  */
-export function GhostForm({ className }: { className?: string }) {
+export function GhostForm({
+  className,
+  spin = "time",
+  tone,
+}: {
+  className?: string;
+  spin?: "time" | "scroll";
+  tone?: string;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const applyToneRef = useRef<(() => void) | null>(null);
   const full = useFullEffects();
 
   useEffect(() => {
@@ -136,16 +155,51 @@ export function GhostForm({ className }: { className?: string }) {
     gl.enable(gl.BLEND);
     gl.clearColor(0, 0, 0, 0);
 
+    // Colours ease towards the target tone each frame; calm mode snaps to it.
+    const target: Tone = {
+      surface: [0.95, 0.94, 0.91],
+      seam: [1, 0.72, 0.8],
+      stand: [0.66, 0.74, 0.71],
+    };
+    const current: Tone = {
+      surface: [...target.surface],
+      seam: [...target.seam],
+      stand: [...target.stand],
+    };
+    const uploadTone = () => {
+      gl.uniform3fv(u.surface, current.surface);
+      gl.uniform3fv(u.seam, current.seam);
+      gl.uniform3fv(u.stand, current.stand);
+    };
+    const easeTone = (rate: number) => {
+      let moving = false;
+      for (const key of ["surface", "seam", "stand"] as const) {
+        for (let i = 0; i < 3; i++) {
+          const gap = target[key][i]! - current[key][i]!;
+          if (Math.abs(gap) > 0.001) moving = true;
+          current[key][i] = current[key][i]! + gap * rate;
+        }
+      }
+      if (moving || rate === 1) uploadTone();
+    };
+    let toneRead = false;
     const applyTone = () => {
       const style = getComputedStyle(host);
       const glow = style.getPropertyValue("--form-tone").trim() !== "ink";
       // Light adds up on dark grounds; on light grounds the points are ink laid over paper.
       gl.blendFunc(gl.ONE, glow ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
-      gl.uniform3fv(u.surface, readHexColor(style, "--form-surface", [0.95, 0.94, 0.91]));
-      gl.uniform3fv(u.seam, readHexColor(style, "--form-seam", [1, 0.72, 0.8]));
-      gl.uniform3fv(u.stand, readHexColor(style, "--form-stand", [0.66, 0.74, 0.71]));
+      target.surface = readHexColor(style, "--form-surface", target.surface);
+      target.seam = readHexColor(style, "--form-seam", target.seam);
+      target.stand = readHexColor(style, "--form-stand", target.stand);
+      // The first read (and every read in calm mode) snaps; later changes glide.
+      easeTone(!toneRead || !full ? 1 : 0);
+      toneRead = true;
     };
     applyTone();
+    applyToneRef.current = () => {
+      applyTone();
+      if (!full) renderStill();
+    };
 
     const resize = () => {
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -205,11 +259,13 @@ export function GhostForm({ className }: { className?: string }) {
         const time = seconds - start;
         eased.x += (pointer.x - eased.x) * 0.05;
         eased.y += (pointer.y - eased.y) * 0.05;
+        easeTone(0.06);
+        const scroll = spin === "scroll" ? readScroll() : null;
         render(
           time,
           Math.min(1, time / ASSEMBLE_SECONDS),
-          time * 0.22 + eased.x * 0.8,
-          eased.y * 0.2,
+          time * 0.22 + eased.x * 0.8 + (scroll ? scroll.y * SCROLL_TURN : 0),
+          eased.y * 0.2 + (scroll ? scroll.velocity * SCROLL_LEAN : 0),
         );
       }, 60);
     } else {
@@ -218,13 +274,19 @@ export function GhostForm({ className }: { className?: string }) {
 
     return () => {
       stopLoop();
+      applyToneRef.current = null;
       window.removeEventListener("pointermove", onPointerMove);
       visibility.disconnect();
       sizeObserver.disconnect();
       themeObserver.disconnect();
       dispose();
     };
-  }, [full]);
+  }, [full, spin]);
+
+  // A new tone (e.g. the band behind the form changed): read the colours again.
+  useEffect(() => {
+    applyToneRef.current?.();
+  }, [tone]);
 
   return <div ref={hostRef} aria-hidden className={cn("relative", className)} />;
 }

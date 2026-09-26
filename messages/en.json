@@ -960,6 +960,17 @@
       "title": "The production line",
       "hint": "Every piece moves through the same five steps, and none is skipped.",
       "live": "{count, plural, =0 {Nothing generating} one {# generating now} other {# generating now}}"
+    },
+    "lines": {
+      "title": "Three lines, one standard"
+    },
+    "stickers": {
+      "fidelity": "garment fidelity",
+      "ring": "Product lock · Strict negatives · Side by side · "
+    },
+    "hints": {
+      "start": "Start here",
+      "scroll": "Scroll"
     }
   },
   "library": {
@@ -1144,5 +1155,8 @@
     "retry": "Try again",
     "notFound": "This page does not exist.",
     "home": "Back to the studio"
+  },
+  "rails": {
+    "scroll": "Scroll"
   }
 }

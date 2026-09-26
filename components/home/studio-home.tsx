@@ -9,12 +9,15 @@ import type * as React from "react";
 import { HangTag } from "@/components/common/hang-tag";
 import { GhostForm } from "@/components/fx/ghost-form";
 import { GreaseCircle } from "@/components/fx/grease-circle";
+import { LiquidTitle } from "@/components/fx/liquid-title";
 import { Magnetic } from "@/components/fx/magnetic";
 import { Marquee } from "@/components/fx/marquee";
-import { RevealText } from "@/components/fx/reveal-text";
 import { RollingNumber } from "@/components/fx/rolling-number";
+import { ScrollBoost } from "@/components/fx/scroll-boost";
+import { Doodles, RingText, ScribbleArrow, Starburst, type Doodle } from "@/components/fx/stickers";
 import { GenerationMedia } from "@/components/generation/generation-media";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
+import { LineBands } from "@/components/home/line-bands";
 import { SOON_ITEMS } from "@/components/layout/nav-items";
 import { Button } from "@/components/ui/button";
 import type { GenerationView } from "@/lib/domain/generation";
@@ -41,6 +44,17 @@ const CALLOUTS = [
   { key: "hem", top: 65.9, side: "start", reach: 18 },
 ] as const;
 
+/** Line drawings around the hero, clear of the title and the form's construction labels. */
+const HERO_DOODLES: Doodle[] = [
+  { kind: "sparkle", top: "3%", start: "46%", size: 22, depth: 0.5 },
+  { kind: "needle", top: "9%", start: "93%", size: 30, depth: 1.1, rotate: 12 },
+  { kind: "zigzag", top: "76%", start: "1%", size: 34, depth: 0.8 },
+  { kind: "button", top: "86%", start: "44%", size: 24, depth: 1.4 },
+  { kind: "cross", top: "34%", start: "97%", size: 16, depth: 0.7 },
+  { kind: "spool", top: "58%", start: "49%", size: 26, depth: 1.2, rotate: -10 },
+  { kind: "heart", top: "18%", start: "40%", size: 16, depth: 0.9, rotate: 8 },
+];
+
 export function StudioHome({
   stats,
   recent,
@@ -65,20 +79,30 @@ export function StudioHome({
 
   return (
     <div className="flex flex-col gap-20 lg:gap-28">
-      {/* Hero: the thesis beside the form it is made for. */}
-      <section className="grid min-h-[calc(100dvh-10rem)] items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="flex flex-col">
+      {/* Hero: the thesis beside the form it is made for, with the workroom's stickers around it. */}
+      <section className="relative grid min-h-[calc(100dvh-10rem)] items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <Doodles items={HERO_DOODLES} className="hidden text-accent-ink opacity-80 md:block" />
+        <div className="relative flex flex-col">
           <div className="mb-6 flex items-center gap-3 text-accent-ink">
             <span aria-hidden className="h-px w-8 bg-current" />
             <p className="hud">{t("eyebrow")}</p>
           </div>
           <h1 className="font-display text-[clamp(3.1rem,8.2vw,8.25rem)] leading-[1] tracking-tight text-balance">
-            <RevealText text={t("heading")} />
+            <LiquidTitle text={t("heading")} />
           </h1>
           <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
             {t("subheading")}
           </p>
-          <div className="mt-10 flex flex-wrap items-center gap-3">
+          <div className="relative mt-20 flex flex-wrap items-center gap-3">
+            <div
+              aria-hidden
+              className="absolute start-36 -top-16 hidden items-end gap-1 text-accent-ink sm:flex"
+            >
+              <ScribbleArrow className="h-12 w-20 ltr:-scale-x-100" />
+              <span className="mb-7 rounded-full border border-current px-3 py-1 hud">
+                {t("hints.start")}
+              </span>
+            </div>
             <Magnetic>
               <Button asChild size="lg">
                 <Link href="/products/new">
@@ -102,8 +126,8 @@ export function StudioHome({
           </div>
         </div>
 
-        <figure className="relative h-[min(74vh,720px)] min-h-[420px]">
-          <GhostForm className="absolute inset-0" />
+        <figure className="sd-hero-lift relative h-[min(74vh,720px)] min-h-[420px]">
+          <GhostForm className="absolute inset-0" spin="scroll" />
           <figcaption className="sr-only">{t("form.label")}</figcaption>
           <div aria-hidden className="absolute inset-0 hidden sm:block">
             {CALLOUTS.map((callout) => (
@@ -137,7 +161,37 @@ export function StudioHome({
               </div>
             ))}
           </div>
+          <Starburst
+            value="100%"
+            label={t("stickers.fidelity")}
+            className="absolute start-[2%] bottom-[3%] w-28 text-[12px] sm:w-32 sm:text-[13px]"
+          />
+          <RingText
+            id="hero-ring"
+            text={t("stickers.ring")}
+            className="absolute start-[4%] top-[30%] w-24 text-accent-ink sm:w-28"
+          />
         </figure>
+
+        <div
+          aria-hidden
+          className="absolute inset-x-0 -bottom-6 mx-auto hidden w-fit flex-col items-center gap-2 text-muted-foreground lg:flex"
+        >
+          <span className="rounded-full border border-current px-3 py-1 hud">
+            {t("hints.scroll")}
+          </span>
+          <svg
+            viewBox="0 0 16 24"
+            className="nudge h-6 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M8 2v19M2 15l6 6 6-6" />
+          </svg>
+        </div>
       </section>
 
       {!setup.higgsfield || !setup.brain ? (
@@ -274,7 +328,10 @@ export function StudioHome({
         </section>
       </div>
 
-      {/* The modules still to come, as a slow ticker. */}
+      {/* The three product lines as colour bands the form passes through. */}
+      <LineBands />
+
+      {/* The modules still to come, as a ticker that speeds up with the scroll. */}
       <section
         aria-labelledby="soon-title"
         className="-mx-4 border-y border-border py-7 sm:-mx-6 lg:-mx-10"
@@ -282,26 +339,28 @@ export function StudioHome({
         <h2 id="soon-title" className="sr-only">
           {tn("soonHeading")}
         </h2>
-        <Marquee
-          label={tn("soonHeading")}
-          items={SOON_ITEMS.map((item) => (
-            <span key={item.key} className="flex items-center gap-4">
-              <span className="font-display text-[clamp(2rem,4vw,3.25rem)] leading-none whitespace-nowrap">
-                {tn(`soon.${item.key}`)}
+        <ScrollBoost>
+          <Marquee
+            label={tn("soonHeading")}
+            items={SOON_ITEMS.map((item) => (
+              <span key={item.key} className="flex items-center gap-4">
+                <span className="font-display text-[clamp(2rem,4vw,3.25rem)] leading-none whitespace-nowrap">
+                  {tn(`soon.${item.key}`)}
+                </span>
+                <span className="rounded-full border border-border-strong px-2.5 py-1 hud text-muted-foreground">
+                  {tn("soonBadge")}
+                </span>
               </span>
-              <span className="rounded-full border border-border-strong px-2.5 py-1 hud text-muted-foreground">
-                {tn("soonBadge")}
+            ))}
+            itemClassName="gap-10 pe-10"
+            separator={
+              <span aria-hidden className="relative grid size-4 place-items-center text-accent-ink">
+                <span className="absolute inset-0 rounded-full border border-dashed border-current" />
+                <span className="size-1 rounded-full bg-current" />
               </span>
-            </span>
-          ))}
-          itemClassName="gap-10 pe-10"
-          separator={
-            <span aria-hidden className="relative grid size-4 place-items-center text-accent-ink">
-              <span className="absolute inset-0 rounded-full border border-dashed border-current" />
-              <span className="size-1 rounded-full bg-current" />
-            </span>
-          }
-        />
+            }
+          />
+        </ScrollBoost>
       </section>
     </div>
   );

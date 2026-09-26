@@ -101,6 +101,10 @@
   --stage-mark: rgba(0, 0, 0, 0.38);
 
   --veil: #0e5c49;
+  /* Liquid page transition: two layers and the waiting ring on top of them. */
+  --pour-back: #0e5c49;
+  --pour-front: #062a22;
+  --pour-ink: #f9e1e7;
   --grease: #c0265e;
   --inverse: #0e5c49;
   --inverse-foreground: #f9e1e7;
@@ -156,6 +160,9 @@
   --stage-mark: rgba(255, 255, 255, 0.42);
 
   --veil: #ff6a9a;
+  --pour-back: #ff6a9a;
+  --pour-front: #ffb8cb;
+  --pour-ink: #2a0714;
   --grease: #ff6a9a;
   --inverse: #ffb8cb;
   --inverse-foreground: #062a22;
@@ -580,90 +587,154 @@ html[lang="ar"] .font-heading {
    html[data-fx="calm"] (owner setting) or reduced motion, they are skipped.
    --------------------------------------------------------------------------- */
 
-/* A sheer veil that sweeps across when a studio section opens. */
-.veil {
+/* Liquid page transition (components/fx/liquid-transition.tsx): two layers of liquid satin, each
+   one screen tall with a wave at both ends, rise over the page and run on up and off it. The
+   script drives the rise; the waves drift sideways on their own. */
+.liquid-veil {
+  --wave-h: clamp(3rem, 9vh, 7rem);
   position: fixed;
-  inset-block: 0;
-  inset-inline-start: 0;
-  z-index: 60;
-  width: 160vw;
+  inset: 0;
+  z-index: 65;
+  overflow: hidden;
   pointer-events: none;
-  background:
-    radial-gradient(
-        circle,
-        color-mix(in srgb, var(--veil) 55%, transparent) 0.6px,
-        transparent 1.4px
-      )
-      0 0 / 5px 5px,
-    linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in srgb, var(--veil) 26%, transparent) 30%,
-      color-mix(in srgb, var(--veil) 34%, transparent) 50%,
-      color-mix(in srgb, var(--veil) 26%, transparent) 70%,
-      transparent
-    );
-  -webkit-mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
-  mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
-  transform: translateX(110vw);
-  animation: veil-sweep 0.9s var(--ease-silk) both;
+  visibility: hidden;
 }
-[dir="rtl"] .veil {
-  transform: translateX(-110vw);
-  animation-name: veil-sweep-rtl;
+.liquid-veil:not([data-phase="idle"]) {
+  visibility: visible;
 }
-@keyframes veil-sweep {
-  from {
-    transform: translateX(-160vw);
+.liquid-veil:is([data-phase="cover"], [data-phase="hold"]) {
+  pointer-events: auto;
+  cursor: progress;
+}
+.liquid-layer {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(var(--wave-h) * -1);
+  display: flex;
+  height: calc(100% + var(--wave-h) * 2);
+  flex-direction: column;
+  transform: translateY(calc(100% - var(--wave-h)));
+}
+.liquid-back {
+  color: var(--pour-back);
+}
+.liquid-front {
+  color: var(--pour-front);
+}
+.liquid-body {
+  flex: 1;
+  margin-block: -1px;
+  background: currentColor;
+}
+.liquid-edge {
+  height: var(--wave-h);
+  flex: none;
+  overflow: hidden;
+  /* The strip is twice as wide as the screen and drifts left; keep it anchored left in RTL too. */
+  direction: ltr;
+}
+.liquid-edge-bottom {
+  transform: scaleY(-1);
+}
+.liquid-edge svg {
+  display: block;
+  width: 200%;
+  height: 100%;
+  animation: liquid-drift 2.6s linear infinite;
+}
+.liquid-front .liquid-edge svg {
+  animation-duration: 1.9s;
+  animation-direction: reverse;
+}
+.liquid-veil[data-phase="idle"] .liquid-edge svg {
+  animation-play-state: paused;
+}
+@keyframes liquid-drift {
+  to {
+    transform: translateX(-50%);
   }
 }
-@keyframes veil-sweep-rtl {
-  from {
-    transform: translateX(160vw);
-  }
+/* A stitched ring turns on the liquid when the next page takes a moment. */
+.liquid-wait {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -1.375rem 0 0 -1.375rem;
+  border: 1.5px dashed var(--pour-ink);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: spin 2.4s linear infinite;
+}
+.liquid-veil[data-phase="hold"] .liquid-wait {
+  opacity: 1;
+  transition-delay: 0.45s;
 }
 
 .page-enter {
   animation: page-in 0.7s var(--ease-spring) 0.08s both;
 }
+/* Uses the individual `translate` property so scroll-driven `transform` rises compose with it. */
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    translate: 0 18px;
   }
 }
 
-/* Title reveal. Latin words rise one by one; Arabic is written in with an ink sweep
-   from the right, so letters stay joined. */
-.fx-words > span {
-  display: inline-block;
-  animation: word-rise 1s var(--ease-spring) both;
-  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+/* Liquid title (components/fx/liquid-title.tsx). The ghost (outline in Latin, a faint copy in
+   Arabic, whose joins an outline would expose) shows first; the solid title fills in behind a
+   rising wavy line. The mask image is three title-heights tall: clear above the wave, solid below
+   it, so at rest (no animation) the whole title is solid. */
+.liquid-title {
+  display: inline-grid;
+  --ghost: 0.42;
 }
-@keyframes word-rise {
-  from {
-    opacity: 0;
-    transform: translateY(0.45em) rotate(2deg);
-    filter: blur(10px);
-  }
+.liquid-title-arabic {
+  --ghost: 0.14;
 }
-.fx-ink {
+.liquid-title > * {
+  grid-area: 1 / 1;
   /* Ruq'ah strokes reach past the line box; the padding keeps them inside the mask. */
   padding: 0.3em 0.15em;
   margin: -0.3em -0.15em;
-  -webkit-mask-image: linear-gradient(to right, transparent 40%, #000 60%);
-  mask-image: linear-gradient(to right, transparent 40%, #000 60%);
-  -webkit-mask-size: 300% 100%;
-  mask-size: 300% 100%;
-  -webkit-mask-position: 100% 0;
-  mask-position: 100% 0;
-  animation: ink-in 1.5s var(--ease-silk) 0.15s both;
 }
-@keyframes ink-in {
-  from {
-    -webkit-mask-position: 0% 0;
-    mask-position: 0% 0;
+/* Only the fill goes transparent: the stroke keeps the text colour (currentColor). */
+.liquid-ghost {
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px currentColor;
+  opacity: 0;
+  animation: liquid-ghost 2s var(--ease-silk) 0.1s both;
+}
+.liquid-title-arabic > .liquid-ghost {
+  -webkit-text-fill-color: currentColor;
+  -webkit-text-stroke: 0;
+}
+@keyframes liquid-ghost {
+  from,
+  72% {
+    opacity: var(--ghost);
   }
+}
+.liquid-fill {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 600' preserveAspectRatio='none'%3E%3Cpath d='M0 200C25 178 75 178 100 200C125 222 175 222 200 200V600H0Z'/%3E%3C/svg%3E")
+    0 57.5% / 2.4em 300% repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 600' preserveAspectRatio='none'%3E%3Cpath d='M0 200C25 178 75 178 100 200C125 222 175 222 200 200V600H0Z'/%3E%3C/svg%3E")
+    0 57.5% / 2.4em 300% repeat-x;
+  animation: liquid-fill 1.8s cubic-bezier(0.33, 0, 0.2, 1) 0.15s both;
+}
+@keyframes liquid-fill {
+  from {
+    -webkit-mask-position: -7.2em -7.5%;
+    mask-position: -7.2em -7.5%;
+  }
+}
+
+/* Display titles lean with the scroll speed (--skew, -1…1, set by SmoothScroll). */
+.fx-skew {
+  transform: skewY(calc(var(--skew, 0) * 3.5deg));
 }
 
 /* A seam drawn from the start edge. */
@@ -785,18 +856,243 @@ html[lang="ar"] .font-heading {
   animation-delay: calc(var(--i, 0) * 60ms + 150ms);
 }
 
-html[data-fx="calm"] .veil {
-  display: none;
+/* Stickers (components/fx/stickers.tsx): the starburst turns, the ring turns slower. */
+.sticker-spin {
+  animation: spin 28s linear infinite;
 }
-html[data-fx="calm"] :is(.page-enter, .fx-words > span, .fx-ink, .stitch-draw, .roll > span),
-html[data-fx="calm"] :is(.marquee-track, .fx-stagger > *, .grease-path, .index-overlay) {
-  animation: none;
+.sticker-spin-slow {
+  animation: spin 40s linear infinite reverse;
+}
+.ring-text {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.ring-text:lang(ar) {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  letter-spacing: normal;
+}
+/* The hand-drawn arrow draws itself in after the title has filled. */
+.scribble-path {
+  stroke-dasharray: 1;
+  animation: scribble 1.3s var(--ease-silk) 1.3s both;
+}
+.scribble-head {
+  stroke-dasharray: 1;
+  animation: scribble 0.35s var(--ease-silk) 2.55s both;
+}
+@keyframes scribble {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+/* Doodles bob on their own; with scroll-driven animation support they also drift (below). */
+.doodle {
+  animation: doodle-bob 5.5s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i, 0) * -0.8s);
+}
+@keyframes doodle-bob {
+  to {
+    translate: 0 -9px;
+  }
+}
+.nudge {
+  animation: nudge 1.8s var(--ease-silk) infinite;
+}
+@keyframes nudge {
+  50% {
+    translate: 0 6px;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .veil {
-    display: none;
+/* Product-line bands (components/home/line-bands.tsx). */
+.band {
+  overflow-x: clip;
+}
+/* Wider than the screen; the band's flex centring keeps it centred as it overflows both sides. */
+.band-track {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+}
+.band-word {
+  padding-inline: 0.16em;
+  font-family: var(--font-editorial);
+  font-size: clamp(4.5rem, 15vw, 13rem);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+}
+.band-word-outline {
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 2px currentColor;
+}
+.band-edge {
+  position: absolute;
+  inset-inline: 0;
+  height: clamp(1.75rem, 4vw, 3.5rem);
+  overflow: hidden;
+  pointer-events: none;
+  direction: ltr;
+}
+.band-edge-top {
+  bottom: calc(100% - 1px);
+}
+.band-edge-bottom {
+  top: calc(100% - 1px);
+  transform: scaleY(-1);
+}
+.band-edge svg {
+  display: block;
+  width: 200%;
+  height: 100%;
+}
+
+/* Side rails (components/layout/side-rails.tsx): vertical labels at both edges and a stitched
+   thread that fills as the page scrolls. */
+/* White with difference blending reads on the satin and on the light colour bands alike. */
+.rail {
+  position: fixed;
+  top: 50%;
+  z-index: 30;
+  color: #fff;
+  mix-blend-mode: difference;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  writing-mode: vertical-rl;
+  pointer-events: none;
+}
+/* Physical sides: logical insets would resolve in the rail's own vertical writing mode. */
+.rail-start {
+  left: 0.85rem;
+  transform: translateY(-50%) rotate(180deg);
+}
+.rail-end {
+  right: 0.85rem;
+  transform: translateY(-50%);
+}
+[dir="rtl"] .rail-start {
+  right: 0.85rem;
+  left: auto;
+}
+[dir="rtl"] .rail-end {
+  right: auto;
+  left: 0.85rem;
+}
+.rail-thread {
+  position: relative;
+  width: 1px;
+  height: 18vh;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0 5px,
+    transparent 5px 9px
+  );
+}
+/* The filled part only exists where scroll timelines run (below); elsewhere the thread stays bare. */
+.rail-thread > span {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background: currentColor;
+  transform-origin: top;
+}
+
+/* Scroll-driven motion (CSS scroll timelines, compositor-run). Only with full effects, no
+   reduced-motion request and browser support; otherwise everything simply sits in place. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Lists slide up into view as they are scrolled to. */
+    html[data-fx="full"] .fx-stagger > * {
+      animation:
+        page-in 0.8s var(--ease-spring) both,
+        sd-rise linear both;
+      animation-delay: calc(var(--i, 0) * 60ms + 150ms), 0s;
+      animation-timeline: auto, view();
+      animation-range:
+        normal,
+        entry 0% entry 85%;
+    }
+    /* The hero form lifts away and shrinks as the page leaves the hero. */
+    html[data-fx="full"] .sd-hero-lift {
+      animation: sd-hero-lift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 100vh;
+    }
+    /* Doodles drift up at their own depth. */
+    html[data-fx="full"] .doodle {
+      animation:
+        doodle-bob 5.5s ease-in-out infinite alternate,
+        doodle-drift linear both;
+      animation-delay: calc(var(--i, 0) * -0.8s), 0s;
+      animation-timeline: auto, scroll(root);
+      animation-range:
+        normal,
+        0 120vh;
+    }
+    /* Band names slide sideways, alternate bands in opposite directions; the edges slosh. */
+    html[data-fx="full"] .band-track {
+      animation: band-slide linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+    html[data-fx="full"] .band-edge svg {
+      animation: band-slosh linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+    html[data-fx="full"] .rail-thread > span {
+      display: block;
+      animation: rail-fill linear both;
+      animation-timeline: scroll(root);
+    }
   }
+}
+/* Lists (which hold garment images) only slide up; nothing tilts or scales a garment. */
+@keyframes sd-rise {
+  from {
+    transform: translateY(9vh);
+  }
+}
+@keyframes sd-hero-lift {
+  to {
+    transform: translateY(-12vh) scale(0.9);
+    opacity: 0.4;
+  }
+}
+@keyframes doodle-drift {
+  to {
+    transform: translateY(calc(var(--depth, 1) * -22vh));
+  }
+}
+@keyframes band-slide {
+  from {
+    transform: translateX(calc(var(--band-dir, 1) * -16%));
+  }
+  to {
+    transform: translateX(calc(var(--band-dir, 1) * 16%));
+  }
+}
+@keyframes band-slosh {
+  to {
+    transform: translateX(-40%);
+  }
+}
+@keyframes rail-fill {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+html[data-fx="calm"] :is(.page-enter, .liquid-ghost, .liquid-fill, .stitch-draw, .roll > span),
+html[data-fx="calm"] :is(.marquee-track, .fx-stagger > *, .grease-path, .index-overlay),
+html[data-fx="calm"] :is(.sticker-spin, .sticker-spin-slow, .scribble-path, .scribble-head),
+html[data-fx="calm"] :is(.doodle, .nudge) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {

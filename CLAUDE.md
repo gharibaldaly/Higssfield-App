@@ -192,3 +192,8 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Strips twice the screen width overflow to the left in RTL, so wave strips set `direction: ltr`.
   - Logical insets resolve in an element's own (vertical) writing mode, so the side rails use physical sides.
   - The ring text is centred on its path and fitted with `lengthAdjust="spacingAndGlyphs"`, which keeps Arabic letters joined.
+- **Verification (preview):** the seeded Playwright run (mock providers; the test product was deleted afterwards) made 57 visits across dark/light × ar/en × desktop/phone with effects on.
+  - No console errors and no horizontal overflow. Lenis ran on every desktop page, and the liquid layer was idle after every page load.
+  - A timing probe showed the pour holds until the next page arrives and then drains at once; calm mode navigates instantly.
+  - The sticky masthead stayed at top 0 in every frame of a glide. Screenshots taken mid-glide can show it offset; that is a capture artifact.
+  - axe flagged only the light-theme rails, whose difference-blended white text it measures as 1.23:1. The rails now use the muted ink there, and a re-check of 16 pages across all four combinations found no violations.

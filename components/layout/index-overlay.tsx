@@ -87,7 +87,7 @@ export function IndexOverlay({ email, theme, effects }: ShellProps) {
                             />
                           ) : null}
                         </span>
-                        <span className="hud opacity-75">{t(`hint.${item.key}`)}</span>
+                        <span className="hud opacity-85">{t(`hint.${item.key}`)}</span>
                       </Link>
                     </li>
                   );
@@ -99,7 +99,7 @@ export function IndexOverlay({ email, theme, effects }: ShellProps) {
 
           <div className="mx-auto w-full max-w-[1680px] shrink-0 border-t border-current/15 px-4 py-5 sm:px-6 lg:px-10">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <p className="hud opacity-75">{t("soonHeading")}</p>
+              <p className="hud opacity-85">{t("soonHeading")}</p>
               <ul className="flex flex-wrap gap-2">
                 {SOON_ITEMS.map((item) => {
                   const Icon = item.icon;
@@ -111,7 +111,7 @@ export function IndexOverlay({ email, theme, effects }: ShellProps) {
                       >
                         <Icon className="size-4 opacity-80" aria-hidden />
                         {t(`soon.${item.key}`)}
-                        <span className="hud opacity-70">{t("soonBadge")}</span>
+                        <span className="hud opacity-85">{t("soonBadge")}</span>
                       </span>
                     </li>
                   );

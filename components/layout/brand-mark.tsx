@@ -24,7 +24,7 @@ export function BrandMark({
         <span className="font-editorial text-xl leading-none tracking-tight" dir="ltr">
           {t("brand")}
         </span>
-        {subtitle ? <span className="mt-1 truncate hud opacity-75">{t("studio")}</span> : null}
+        {subtitle ? <span className="mt-1 truncate hud opacity-85">{t("studio")}</span> : null}
       </span>
     </span>
   );

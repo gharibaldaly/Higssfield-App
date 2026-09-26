@@ -35,7 +35,7 @@ export function ProductSubnav({ productId }: { productId: string }) {
                   active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span className="hud opacity-70" dir="ltr">
+                <span className="hud" dir="ltr">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <Icon className="size-4" aria-hidden />

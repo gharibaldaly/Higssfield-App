@@ -3,7 +3,7 @@
 import { AlertTriangle, FlaskConical, ImageOff, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useNow, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Elapsed } from "@/components/generation/elapsed";
 import { Progress } from "@/components/ui/controls";
@@ -39,6 +39,13 @@ export function StorageImage({
 }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  // A server-rendered <img> can finish loading before hydration attaches onLoad; read its state
+  // when React takes over, or the picture would stay hidden behind the fade-in.
+  const imageRef = useCallback((node: HTMLImageElement | null) => {
+    if (!node?.complete) return;
+    if (node.naturalWidth > 0) setLoaded(true);
+    else setFailed(true);
+  }, []);
   if (!src || failed) {
     return (
       <div className={cn("grid place-items-center stage text-muted-foreground", className)}>
@@ -50,6 +57,7 @@ export function StorageImage({
     <div className={cn("relative overflow-hidden", className)}>
       {!loaded ? <div className="absolute inset-0 shimmer stage" /> : null}
       <img
+        ref={imageRef}
         src={src}
         alt={alt}
         loading="lazy"

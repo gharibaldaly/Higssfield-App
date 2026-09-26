@@ -14,8 +14,10 @@ export function RevealText({ text, className }: { text: string; className?: stri
     return <span className={cn("fx-ink inline-block", className)}>{text}</span>;
   }
   let index = 0;
+  // Each word is an inline-block, which the bidi algorithm would reorder inside an Arabic page;
+  // an explicit LTR run keeps a Latin title in reading order there.
   return (
-    <span className={cn("fx-words", className)}>
+    <span className={cn("fx-words", className)} dir="ltr">
       {text.split(/(\s+)/).map((part, position) =>
         /^\s*$/.test(part) ? (
           part

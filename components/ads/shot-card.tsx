@@ -258,7 +258,7 @@ export function ShotCard({
               onChange={(event) => patch({ detailShown: event.target.value })}
             />
           </label>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             {(["framing", "angle", "movement"] as const).map((field) => (
               <label key={field} className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">{t(field)}</span>
@@ -266,6 +266,7 @@ export function ShotCard({
                   value={draft[field]}
                   onChange={(event) => patch({ [field]: event.target.value })}
                   className="h-9 text-sm"
+                  dir="auto"
                 />
               </label>
             ))}
@@ -275,6 +276,7 @@ export function ShotCard({
                 value={draft.placement ?? ""}
                 onChange={(event) => patch({ placement: event.target.value || null })}
                 className="h-9 text-sm"
+                dir="auto"
               />
             </label>
           </div>

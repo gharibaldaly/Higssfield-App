@@ -390,15 +390,16 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
               />
             </CardContent>
           </Card>
-          <Card className="opacity-80">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                {t("montage.title")}
-                <Badge variant="muted">{t("montage.phase")}</Badge>
-              </CardTitle>
-              <CardDescription>{t("montage.description")}</CardDescription>
-            </CardHeader>
-          </Card>
+          {/* Phase 2 placeholder: a dashed cut-out rather than dimmed text, so it stays readable. */}
+          <section className="rounded-(--radius-panel) border border-dashed border-border-strong bg-[color-mix(in_srgb,var(--surface-solid)_84%,transparent)] p-5 sm:p-6">
+            <h2 className="flex items-center gap-2 font-heading text-lg leading-tight">
+              {t("montage.title")}
+              <Badge variant="muted">{t("montage.phase")}</Badge>
+            </h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+              {t("montage.description")}
+            </p>
+          </section>
         </aside>
       </div>
 

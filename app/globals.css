@@ -520,7 +520,7 @@ html[lang="ar"] .font-heading {
   /* The storyboard's film strip: a neutral base with sprocket holes down both edges. */
   .film-strip {
     position: relative;
-    padding: 1.25rem 2.5rem;
+    padding: 1.25rem 2.25rem;
     background-color: #151515;
     border-radius: var(--radius-panel);
   }

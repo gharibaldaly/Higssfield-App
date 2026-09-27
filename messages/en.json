@@ -40,7 +40,7 @@
     "hint": {
       "studio": "Overview and the production line",
       "products": "Photos · Garment DNA · Colourways · Sheet",
-      "ghost": "Front & back · Macro · Colourways",
+      "ghost": "From photos · front & back · close-ups · colours",
       "ads": "Director board · Shots · Video",
       "library": "Every generation, with filters",
       "settings": "Director brain · Catalogue style · Keys"
@@ -522,7 +522,7 @@
   "ghost": {
     "eyebrow": "Catalogue images",
     "title": "Ghost Mannequin Studio",
-    "description": "Catalogue images on an invisible display form, locked to the approved Garment DNA, in one consistent catalogue style.",
+    "description": "Drop the photos of your models: the studio renders front, back and close-ups for each one, then the colours. Every image shares one white catalogue look and stays locked to its Garment DNA.",
     "empty": {
       "title": "Add a product first",
       "description": "Ghost images are generated from a product's photos and its approved Garment DNA.",

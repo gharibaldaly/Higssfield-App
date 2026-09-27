@@ -197,11 +197,7 @@ async function classifyItemPhotos(
       ),
     ),
   );
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const result = await brain.classifyPhotos({
     product: {
       name: product.name,

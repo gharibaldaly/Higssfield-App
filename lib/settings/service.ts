@@ -24,6 +24,7 @@ export type OwnerSettings = {
   llmProvider: SettingsRow["llm_provider"];
   claudeModel: string | null;
   geminiModel: string | null;
+  gatewayModel: string | null;
   catalogueStyle: CatalogueStyle;
   defaultImageModel: string | null;
   defaultVideoModel: string | null;
@@ -39,6 +40,7 @@ export function settingsFromRow(row: SettingsRow | null): OwnerSettings {
     llmProvider: row?.llm_provider ?? "claude",
     claudeModel: row?.claude_model ?? null,
     geminiModel: row?.gemini_model ?? null,
+    gatewayModel: row?.gateway_model ?? null,
     catalogueStyle: row ? parseCatalogueStyle(row.catalogue_style) : DEFAULT_CATALOGUE_STYLE,
     defaultImageModel: row?.default_image_model ?? null,
     defaultVideoModel: row?.default_video_model ?? null,
@@ -113,6 +115,7 @@ export async function updateOwnerSettings(
   if (patch.llmProvider) update.llm_provider = patch.llmProvider;
   if (patch.claudeModel !== undefined) update.claude_model = patch.claudeModel;
   if (patch.geminiModel !== undefined) update.gemini_model = patch.geminiModel;
+  if (patch.gatewayModel !== undefined) update.gateway_model = patch.gatewayModel;
   if (patch.catalogueStyle) update.catalogue_style = patch.catalogueStyle as unknown as Json;
   if (patch.defaultImageModel !== undefined) update.default_image_model = patch.defaultImageModel;
   if (patch.defaultVideoModel !== undefined) update.default_video_model = patch.defaultVideoModel;

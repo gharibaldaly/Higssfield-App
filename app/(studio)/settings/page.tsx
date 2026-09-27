@@ -4,11 +4,12 @@ import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/common/page-header";
 import { SettingsView } from "@/components/settings/settings-view";
 import { requireOwner } from "@/lib/auth/owner";
-import { keyStatus } from "@/lib/env";
+import { keyStatus, llmGatewayConfig } from "@/lib/env";
 import { ownerRegistry } from "@/lib/generations/models";
 import { toModelOptions } from "@/lib/providers/higgsfield/options";
 import { activeProviderMode } from "@/lib/providers/higgsfield";
 import { DEFAULT_CLAUDE_MODEL, DEFAULT_GEMINI_MODEL, getDirectorBrain } from "@/lib/providers/llm";
+import { listGatewayModels } from "@/lib/providers/llm/gateway";
 import { loadCostSummary } from "@/lib/settings/costs";
 import { getOwnerSettings } from "@/lib/settings/service";
 
@@ -25,11 +26,9 @@ export default async function SettingsPage() {
     loadCostSummary(supabase),
   ]);
   const registry = await ownerRegistry(settings);
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
+  const gateway = llmGatewayConfig();
+  const gatewayModels = gateway ? await listGatewayModels(gateway) : [];
   return (
     <>
       <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} />
@@ -38,6 +37,7 @@ export default async function SettingsPage() {
           llmProvider: settings.llmProvider,
           claudeModel: settings.claudeModel,
           geminiModel: settings.geminiModel,
+          gatewayModel: settings.gatewayModel,
           catalogueStyle: settings.catalogueStyle,
           defaultImageModel: settings.defaultImageModel,
           defaultVideoModel: settings.defaultVideoModel,
@@ -45,7 +45,12 @@ export default async function SettingsPage() {
           drive: settings.drive,
         }}
         brain={{ provider: brain.provider, model: brain.model }}
-        defaults={{ claude: DEFAULT_CLAUDE_MODEL, gemini: DEFAULT_GEMINI_MODEL }}
+        defaults={{
+          claude: DEFAULT_CLAUDE_MODEL,
+          gemini: DEFAULT_GEMINI_MODEL,
+          gateway: gateway?.model ?? "",
+        }}
+        gateway={{ name: gateway?.name ?? null, models: gatewayModels }}
         keys={keyStatus()}
         providerMode={activeProviderMode()}
         imageModels={toModelOptions(registry, "image", ["image-to-image", "text-to-image"])}

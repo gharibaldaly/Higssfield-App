@@ -59,11 +59,7 @@ export async function reviewGenerationFidelity(
     await downloadObject(supabase, generation.storage_path),
     "Generated result",
   );
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const review = await brain.reviewFidelity({
     dna: dna.dna,
     context: CONTEXT[generation.purpose],

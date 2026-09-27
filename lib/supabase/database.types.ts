@@ -284,9 +284,10 @@ export type GhostBatchItemRow = Timestamps & {
 
 export type SettingsRow = Timestamps & {
   owner_id: string;
-  llm_provider: "claude" | "gemini";
+  llm_provider: "claude" | "gemini" | "gateway";
   claude_model: string | null;
   gemini_model: string | null;
+  gateway_model: string | null;
   catalogue_style: Json;
   default_image_model: string | null;
   default_video_model: string | null;
@@ -496,6 +497,7 @@ export type Database = {
         | "llm_provider"
         | "claude_model"
         | "gemini_model"
+        | "gateway_model"
         | "default_image_model"
         | "default_video_model"
         | "custom_models"

@@ -219,11 +219,7 @@ async function loadJobContext(
     approvedFront,
     model,
     mode,
-    brain: getDirectorBrain({
-      provider: settings.llmProvider,
-      claudeModel: settings.claudeModel,
-      geminiModel: settings.geminiModel,
-    }),
+    brain: getDirectorBrain(settings),
   };
 }
 

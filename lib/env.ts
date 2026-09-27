@@ -33,6 +33,12 @@ const serverEnvSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
 
+  LLM_GATEWAY_BASE_URL: optionalString,
+  LLM_GATEWAY_API_KEY: optionalString,
+  LLM_GATEWAY_MODEL: optionalString,
+  LLM_GATEWAY_NAME: optionalString,
+  LLM_GATEWAY_MAX_TOKENS: optionalString,
+
   GOOGLE_DRIVE_CLIENT_ID: optionalString,
   GOOGLE_DRIVE_CLIENT_SECRET: optionalString,
 });
@@ -101,6 +107,38 @@ export function isHiggsfieldMockForced(): boolean {
   return flag === "1" || flag === "true" || flag === "yes";
 }
 
+export type LlmGatewayConfig = {
+  /** Base URL including the version path, e.g. https://example.com/v1. */
+  baseUrl: string;
+  apiKey: string;
+  /** Default model id; Settings can override it. */
+  model: string | null;
+  /** Shown in Settings, e.g. the gateway's brand name. */
+  name: string;
+  /** Output token cap sent to the gateway. */
+  maxTokens: number;
+};
+
+/**
+ * An OpenAI-compatible gateway for the director brain (chat completions,
+ * Bearer key). Null unless both the base URL and the key are set; the URL must
+ * be https (the key travels with every request).
+ */
+export function llmGatewayConfig(): LlmGatewayConfig | null {
+  const env = serverEnv();
+  const baseUrl = env.LLM_GATEWAY_BASE_URL?.replace(/\/+$/, "");
+  if (!baseUrl || !env.LLM_GATEWAY_API_KEY) return null;
+  if (!/^https:\/\//i.test(baseUrl)) return null;
+  const maxTokens = Number.parseInt(env.LLM_GATEWAY_MAX_TOKENS ?? "", 10);
+  return {
+    baseUrl,
+    apiKey: env.LLM_GATEWAY_API_KEY,
+    model: env.LLM_GATEWAY_MODEL ?? null,
+    name: env.LLM_GATEWAY_NAME ?? "Gateway",
+    maxTokens: Number.isFinite(maxTokens) && maxTokens >= 1024 ? maxTokens : 16_000,
+  };
+}
+
 export type KeyStatus = {
   supabase: boolean;
   supabaseServiceRole: boolean;
@@ -109,6 +147,7 @@ export type KeyStatus = {
   higgsfieldWebhook: boolean;
   anthropic: boolean;
   gemini: boolean;
+  gateway: boolean;
   googleDrive: boolean;
   ownerEmail: boolean;
 };
@@ -125,6 +164,7 @@ export function keyStatus(): KeyStatus {
     higgsfieldWebhook: Boolean(env.HIGGSFIELD_WEBHOOK_SECRET && env.APP_URL),
     anthropic: Boolean(env.ANTHROPIC_API_KEY),
     gemini: Boolean(env.GEMINI_API_KEY),
+    gateway: llmGatewayConfig() !== null,
     googleDrive: Boolean(env.GOOGLE_DRIVE_CLIENT_ID && env.GOOGLE_DRIVE_CLIENT_SECRET),
     ownerEmail: Boolean(env.APP_OWNER_EMAIL),
   };

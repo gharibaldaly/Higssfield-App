@@ -90,11 +90,7 @@ export async function analyzeProduct(
     ),
   );
 
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const dna = await brain.analyzeGarment({
     product: {
       name: product.name,

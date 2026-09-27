@@ -49,9 +49,10 @@ import type { DriveSettings } from "@/lib/settings/service";
 import { cn } from "@/lib/utils";
 
 type SettingsData = {
-  llmProvider: "claude" | "gemini";
+  llmProvider: "claude" | "gemini" | "gateway";
   claudeModel: string | null;
   geminiModel: string | null;
+  gatewayModel: string | null;
   catalogueStyle: CatalogueStyle;
   defaultImageModel: string | null;
   defaultVideoModel: string | null;
@@ -86,10 +87,12 @@ export function SettingsView({
   imageModels,
   videoModels,
   costs,
+  gateway,
 }: {
   settings: SettingsData;
   brain: { provider: string; model: string };
-  defaults: { claude: string; gemini: string };
+  defaults: { claude: string; gemini: string; gateway: string };
+  gateway: GatewayInfo;
   keys: KeyStatus;
   providerMode: "higgsfield" | "mock";
   imageModels: ModelOption[];
@@ -98,7 +101,13 @@ export function SettingsView({
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <BrainCard settings={settings} brain={brain} defaults={defaults} keys={keys} />
+      <BrainCard
+        settings={settings}
+        brain={brain}
+        defaults={defaults}
+        keys={keys}
+        gateway={gateway}
+      />
       <CatalogueStyleCard style={settings.catalogueStyle} />
       <ModelsCard
         settings={settings}
@@ -116,22 +125,31 @@ export function SettingsView({
   );
 }
 
+/** The OpenAI-compatible gateway, when configured: its name and the models it lists. */
+type GatewayInfo = { name: string | null; models: string[] };
+
+const BRAIN_PROVIDERS = ["claude", "gemini", "gateway"] as const;
+
 function BrainCard({
   settings,
   brain,
   defaults,
   keys,
+  gateway,
 }: {
   settings: SettingsData;
   brain: { provider: string; model: string };
-  defaults: { claude: string; gemini: string };
+  defaults: { claude: string; gemini: string; gateway: string };
   keys: KeyStatus;
+  gateway: GatewayInfo;
 }) {
   const t = useTranslations("settings.brain");
   const { pending, save } = useSave();
   const [provider, setProvider] = useState(settings.llmProvider);
   const [claudeModel, setClaudeModel] = useState(settings.claudeModel ?? "");
   const [geminiModel, setGeminiModel] = useState(settings.geminiModel ?? "");
+  const [gatewayModel, setGatewayModel] = useState(settings.gatewayModel ?? "");
+  const configured = { claude: keys.anthropic, gemini: keys.gemini, gateway: keys.gateway };
   return (
     <Card>
       <CardHeader>
@@ -143,34 +161,32 @@ function BrainCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <RadioGroup.Root
-          className="grid grid-cols-2 gap-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
           aria-label={t("provider")}
           value={provider}
           onValueChange={(value) => setProvider(value as typeof provider)}
         >
-          {(["claude", "gemini"] as const).map((option) => (
+          {BRAIN_PROVIDERS.map((option) => (
             <RadioGroup.Item
               key={option}
               value={option}
               className="rounded-(--radius-control) border border-border p-4 text-start transition-[border-color,background-color] outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=checked]:border-primary data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
             >
-              <span className="block font-heading text-lg">{t(`providers.${option}`)}</span>
-              <span
-                className={cn(
-                  "text-xs",
-                  (option === "claude" ? keys.anthropic : keys.gemini)
-                    ? "text-success"
-                    : "text-warning",
-                )}
-              >
-                {(option === "claude" ? keys.anthropic : keys.gemini)
-                  ? t("keyConfigured")
-                  : t("keyMissing")}
+              <span className="block font-heading text-lg">
+                {option === "gateway" && gateway.name ? gateway.name : t(`providers.${option}`)}
+              </span>
+              {option === "gateway" && gateway.name ? (
+                <span className="block text-xs text-muted-foreground">
+                  {t("providers.gateway")}
+                </span>
+              ) : null}
+              <span className={cn("text-xs", configured[option] ? "text-success" : "text-warning")}>
+                {configured[option] ? t("keyConfigured") : t("keyMissing")}
               </span>
             </RadioGroup.Item>
           ))}
         </RadioGroup.Root>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="claude-model">{t("claudeModel")}</Label>
             <Input
@@ -191,7 +207,29 @@ function BrainCard({
               onChange={(event) => setGeminiModel(event.target.value)}
             />
           </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="gateway-model">{t("gatewayModel")}</Label>
+            <Input
+              id="gateway-model"
+              dir="ltr"
+              list={gateway.models.length > 0 ? "gateway-models" : undefined}
+              value={gatewayModel}
+              placeholder={defaults.gateway}
+              aria-describedby="gateway-model-hint"
+              onChange={(event) => setGatewayModel(event.target.value)}
+            />
+            {gateway.models.length > 0 ? (
+              <datalist id="gateway-models">
+                {gateway.models.map((id) => (
+                  <option key={id} value={id} />
+                ))}
+              </datalist>
+            ) : null}
+          </div>
         </div>
+        <p id="gateway-model-hint" className="text-xs text-muted-foreground">
+          {keys.gateway ? t("gatewayHint") : t("gatewayMissing")}
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <Button
             disabled={pending}
@@ -200,6 +238,7 @@ function BrainCard({
                 llmProvider: provider,
                 claudeModel: claudeModel.trim() || null,
                 geminiModel: geminiModel.trim() || null,
+                gatewayModel: gatewayModel.trim() || null,
               })
             }
           >
@@ -481,6 +520,7 @@ function KeysCard({ keys }: { keys: KeyStatus }) {
     [t("webhook"), keys.higgsfieldWebhook],
     ["Anthropic (Claude)", keys.anthropic],
     ["Google Gemini", keys.gemini],
+    [t("gateway"), keys.gateway],
     ["Google Drive", keys.googleDrive],
     [t("ownerEmail"), keys.ownerEmail],
   ];

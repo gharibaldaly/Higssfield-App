@@ -22,6 +22,7 @@ import { toLlmImage } from "@/lib/images/process";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import type { LlmImage } from "@/lib/providers/llm/types";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject } from "@/lib/storage/objects";
 import type {
   GhostBatchItemRow,
@@ -197,7 +198,7 @@ async function classifyItemPhotos(
       ),
     ),
   );
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const result = await brain.classifyPhotos({
     product: {
       name: product.name,

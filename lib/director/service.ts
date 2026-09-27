@@ -26,6 +26,7 @@ import { getDirectorBrain } from "@/lib/providers/llm";
 import { getPieces, getProduct } from "@/lib/products/service";
 import { listCrops } from "@/lib/sheet/service";
 import { getOwnerSettings, type OwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import type {
   AdProjectRow,
   DirectorPresetRow,
@@ -317,7 +318,7 @@ export async function planShots(
   const { model } = resolveVideoModel(registry, settings, project.videoParsed.modelId);
   const capabilities = capabilitiesOf(model);
 
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const plan = await brain.planAd({
     brief: project.brief,
     product: {
@@ -508,7 +509,7 @@ export async function generateShot(
       : shot.preview_frame_first && !shot.preview_approved
         ? "preview"
         : "video";
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const shotInput = {
     purpose: shot.purpose,
     detailShown: shot.detail_shown,

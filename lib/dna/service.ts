@@ -14,6 +14,7 @@ import { PROMPTS, templateVersion } from "@/lib/prompts";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import type { LlmImage } from "@/lib/providers/llm/types";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject } from "@/lib/storage/objects";
 import type { GarmentDnaRow, Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -90,7 +91,7 @@ export async function analyzeProduct(
     ),
   );
 
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const dna = await brain.analyzeGarment({
     product: {
       name: product.name,

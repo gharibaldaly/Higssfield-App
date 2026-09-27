@@ -18,6 +18,16 @@ export type LlmImage = {
   caption: string;
 };
 
+/** Short-lived HTTPS links to brain images; `release` deletes the copies behind them. */
+export type HostedImages = { urls: string[]; release: () => Promise<void> };
+
+/**
+ * Puts brain images behind short-lived links. Some gateways count inline image
+ * data as text, so a dozen photos overflow the model's context; links keep the
+ * request small.
+ */
+export type LlmImageHost = (images: LlmImage[]) => Promise<HostedImages>;
+
 export type ProductBrief = {
   name: string;
   productLine: ProductLine;

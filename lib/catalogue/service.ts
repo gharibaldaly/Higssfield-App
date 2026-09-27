@@ -29,6 +29,7 @@ import { getDirectorBrain, type DirectorBrain } from "@/lib/providers/llm";
 import type { GhostView, ProductBrief } from "@/lib/providers/llm/types";
 import { getPhotos, getPieces, getProduct } from "@/lib/products/service";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject } from "@/lib/storage/objects";
 import type {
   CatalogueJobRow,
@@ -219,7 +220,7 @@ async function loadJobContext(
     approvedFront,
     model,
     mode,
-    brain: getDirectorBrain(settings),
+    brain: getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) }),
   };
 }
 

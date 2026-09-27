@@ -3,6 +3,7 @@
 import {
   Bot,
   CheckCircle2,
+  ChevronDown,
   Cloud,
   Coins,
   KeyRound,
@@ -20,7 +21,7 @@ import { toast } from "sonner";
 
 import { CustomModelsEditor } from "@/components/settings/custom-models-editor";
 import { PasswordCard } from "@/components/settings/password-card";
-import { ModelCapabilitiesSummary } from "@/components/generation/model-picker";
+import { ModelCapabilitiesSummary, ModelSelectItems } from "@/components/generation/model-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ import {
   type CatalogueStyle,
 } from "@/lib/domain/catalogue-style";
 import type { KeyStatus } from "@/lib/env";
+import { groupByFamily } from "@/lib/providers/higgsfield/model-groups";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 import type { CostSummary } from "@/lib/settings/costs";
 import type { DriveSettings } from "@/lib/settings/service";
@@ -392,15 +394,7 @@ function ModelsCard({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__auto">{t("auto")}</SelectItem>
-                  {models.map((model) => (
-                    <SelectItem
-                      key={model.id}
-                      value={model.id}
-                      disabled={model.disabledReason !== null}
-                    >
-                      {model.label}
-                    </SelectItem>
-                  ))}
+                  <ModelSelectItems models={models} />
                 </SelectContent>
               </Select>
             </div>
@@ -418,26 +412,58 @@ function ModelsCard({
             {t("save")}
           </Button>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {[...imageModels, ...videoModels].map((model) => (
-            <div key={model.id} className="rounded-(--radius-control) border border-border p-4">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium">{model.label}</p>
-                  <p className="font-mono text-xs text-muted-foreground" dir="ltr">
-                    {model.id}
-                  </p>
-                </div>
-                <Badge variant="outline">{t(`kinds.${model.kind}`)}</Badge>
+        <div className="flex flex-col gap-3">
+          {groupByFamily([...imageModels, ...videoModels]).map(({ family, models }) => (
+            <details
+              key={family ?? "__other"}
+              className="group rounded-(--radius-control) border border-border"
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-(--radius-control) p-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 flex-1 basis-60 flex-col gap-1">
+                  <span className="font-medium">{family ?? t("otherModels")}</span>
+                  {family && models[0]?.description ? (
+                    <span className="text-xs text-muted-foreground">
+                      {/* Docs descriptions are English: isolate them so RTL keeps their punctuation. */}
+                      <bdi>{models[0].description}</bdi>
+                    </span>
+                  ) : null}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge variant="outline">{t(`kinds.${models[0]!.kind}`)}</Badge>
+                  <Badge variant="muted">{t("workflows", { count: models.length })}</Badge>
+                  <ChevronDown
+                    className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+                    aria-hidden
+                  />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-border p-4 md:grid-cols-2 xl:grid-cols-3">
+                {models.map((model) => (
+                  <div
+                    key={model.id}
+                    className="rounded-(--radius-control) border border-border p-4"
+                  >
+                    <div className="mb-2">
+                      <p className="font-medium">{model.label}</p>
+                      <p className="font-mono text-xs text-muted-foreground" dir="ltr">
+                        {model.id}
+                      </p>
+                    </div>
+                    {!family && model.description ? (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        <bdi>{model.description}</bdi>
+                      </p>
+                    ) : null}
+                    <ModelCapabilitiesSummary model={model} />
+                    {model.sourceNote ? (
+                      <p className="mt-2 text-xs break-words text-muted-foreground" dir="ltr">
+                        {model.sourceNote}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
               </div>
-              {model.description ? (
-                <p className="mb-2 text-xs text-muted-foreground">{model.description}</p>
-              ) : null}
-              <ModelCapabilitiesSummary model={model} />
-              {model.sourceNote ? (
-                <p className="mt-2 text-xs text-muted-foreground">{model.sourceNote}</p>
-              ) : null}
-            </div>
+            </details>
           ))}
         </div>
         <CustomModelsEditor initialJson={settings.customModelsJson} />

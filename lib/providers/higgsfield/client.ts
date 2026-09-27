@@ -3,29 +3,38 @@ import "server-only";
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors";
-import { fetchWithTimeout, RETRYABLE_STATUS, withRetry } from "@/lib/http/retry";
+import {
+  failedBeforeSending,
+  fetchWithTimeout,
+  RETRYABLE_STATUS,
+  withRetry,
+} from "@/lib/http/retry";
 import type {
   ImageVideoProvider,
-  ModelSpec,
+  ProviderEstimate,
   ProviderState,
   ProviderStatus,
+  StatusContext,
   SubmitContext,
+  SubmitTarget,
 } from "@/lib/providers/higgsfield/types";
 
 /**
- * Higgsfield HTTP client.
- *
- * Transport details come from Higgsfield's official SDKs (@higgsfield/client
- * 0.2.6 v2 client and higgsfield-client 0.2.0 for Python):
- *   - base URL        https://api.higgsfield.ai
- *   - auth header     Authorization: Key KEY_ID:KEY_SECRET
- *   - submit          POST /{model endpoint}   body = model arguments
- *                     optional ?hf_webhook=<url>
- *   - status          GET  /requests/{request_id}/status
- *   - cancel          POST /requests/{request_id}/cancel
- *   - upload URL      POST /files/generate-upload-url {content_type}
- *   - statuses        queued | in_progress | completed | failed | nsfw | canceled
- *   - results         images: [{url}] and/or video: {url}
+ * Higgsfield HTTP client, following the official API docs (docs.higgsfield.ai,
+ * API 2.0.0: requests, polling, webhooks, file uploads, errors, rate limits):
+ *   - base URL   https://api.higgsfield.ai
+ *   - auth       Authorization: Key {api_key_id}:{api_key_secret}
+ *   - submit     POST /{model endpoint}, body = the model's JSON parameters,
+ *                optional ?hf_webhook=<https url>; answers
+ *                { status, request_id, status_url, cancel_url }
+ *   - status     GET the status_url from the submit (/requests/{id}/status)
+ *   - cancel     POST /requests/{id}/cancel: 202, or 400 once processing started
+ *   - estimate   POST /estimate/{model endpoint} with the same body → { credits, usd }
+ *   - upload     POST /files/generate-upload-url {content_type}, then PUT with upload_headers
+ *   - statuses   queued | in_progress | completed | failed | nsfw | canceled
+ *   - results    images: [{url}] or video: {url}, kept for at least seven days
+ *   - errors     FastAPI {detail}; every response carries X-Correlation-ID
+ * Each model's endpoint and parameters come from that model's own docs page.
  */
 
 export const DEFAULT_HIGGSFIELD_BASE_URL = "https://api.higgsfield.ai";
@@ -71,7 +80,7 @@ const COST_KEYS: [string, "usd" | "credits"][] = [
   ["credits", "credits"],
 ];
 
-/** The SDK types do not document a cost field; record one only if present. */
+/** The documented status response has no cost field; record one only if present. */
 export function extractCost(raw: Record<string, unknown>): ProviderState["cost"] {
   for (const [key, unit] of COST_KEYS) {
     const value = raw[key];
@@ -113,6 +122,20 @@ export function toProviderState(raw: RawRequestState): ProviderState {
   };
 }
 
+function decimal(value: unknown): number | null {
+  const amount =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+/** Reads an estimate response ({ credits: "1.500", usd: "0.094" }). */
+export function parseEstimate(payload: unknown): ProviderEstimate | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { usd, credits } = payload as Record<string, unknown>;
+  const estimate = { usd: decimal(usd), credits: decimal(credits) };
+  return estimate.usd === null && estimate.credits === null ? null : estimate;
+}
+
 /** FastAPI-style `detail` can be a string or a list of {loc, msg}. */
 function detailMessage(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
@@ -135,6 +158,10 @@ function detailMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
+/** The docs report the account's concurrency limit as a 400 with this message. */
+const CONCURRENCY_LIMIT = /concurrent requests/i;
+
+/** Maps an error response to a user-facing error, per the docs' error table. */
 export async function higgsfieldError(response: Response): Promise<AppError> {
   let payload: unknown = null;
   try {
@@ -143,46 +170,78 @@ export async function higgsfieldError(response: Response): Promise<AppError> {
     // Non-JSON error body.
   }
   const detail = detailMessage(payload);
-  switch (response.status) {
+  const status = response.status;
+  const reference = response.headers.get("x-correlation-id") ?? undefined;
+  const base = { detail, status, reference };
+  switch (status) {
     case 400:
+      // Only the message tells the concurrency limit apart from invalid input.
+      if (detail && CONCURRENCY_LIMIT.test(detail)) {
+        return new AppError(
+          "provider_busy",
+          "Higgsfield is already running as many requests as this account allows.",
+          { ...base, retryable: true },
+        );
+      }
+      return new AppError("provider_bad_input", "Higgsfield rejected the request.", base);
     case 422:
-      return new AppError("provider_bad_input", "Higgsfield rejected the request parameters.", {
-        detail,
-      });
+      return new AppError(
+        "provider_bad_input",
+        "Higgsfield rejected the request parameters.",
+        base,
+      );
     case 401:
       return new AppError(
         "provider_auth",
         "Higgsfield rejected the API key. Check HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET.",
+        { status, reference },
       );
     case 402:
     case 403:
       return new AppError(
         "provider_credits",
-        "Not enough Higgsfield credits (or no access to this model).",
-        { detail },
+        "Not enough Higgsfield credits. Top up at console.higgsfield.ai.",
+        base,
       );
     case 404:
-      return new AppError("not_found", "Higgsfield does not know this endpoint or request.", {
-        detail,
+      return new AppError(
+        "not_found",
+        "Higgsfield has no such model or request for this account.",
+        base,
+      );
+    case 423:
+      return new AppError("provider_unavailable", "This Higgsfield model is temporarily blocked.", {
+        ...base,
+        retryable: true,
       });
     case 429:
-      return new AppError(
-        "provider_rate_limit",
-        "Higgsfield is rate limiting requests. Try again shortly.",
-        {
-          retryable: true,
-        },
-      );
-    default:
+      return new AppError("provider_busy", "Higgsfield is rate limiting requests.", {
+        ...base,
+        retryable: true,
+      });
+    case 503:
       return new AppError(
         "provider_unavailable",
-        `Higgsfield is unavailable (HTTP ${response.status}).`,
-        {
-          retryable: RETRYABLE_STATUS.has(response.status),
-          detail,
-        },
+        "This Higgsfield model is disabled or not ready yet.",
+        { ...base, retryable: true },
       );
+    default:
+      return new AppError("provider_unavailable", `Higgsfield is unavailable (HTTP ${status}).`, {
+        ...base,
+        retryable: RETRYABLE_STATUS.has(status),
+      });
   }
+}
+
+/**
+ * Submits are billable and take no idempotency key, so one is sent again only
+ * when it certainly never started: a 500 (the docs' retryable server error) or
+ * a failure before the request left. Never after a timeout or a dropped
+ * connection, which Higgsfield may already have accepted.
+ */
+export function shouldResubmit(error: unknown): boolean {
+  if (error instanceof AppError && error.status === 500) return true;
+  return failedBeforeSending(error);
 }
 
 export type HiggsfieldClientOptions = {
@@ -223,89 +282,136 @@ export class HiggsfieldClient implements ImageVideoProvider {
     path: string,
     body: unknown,
     retryOn: (error: unknown) => boolean,
-  ): Promise<unknown> {
+    timeoutMs = this.timeoutMs,
+  ): Promise<{ payload: unknown; correlationId: string | null }> {
     return withRetry(
       async () => {
         const response = await fetchWithTimeout(this.url(path), {
           method,
           headers: this.headers(),
           body: body === undefined ? undefined : JSON.stringify(body),
-          timeoutMs: this.timeoutMs,
+          timeoutMs,
           cache: "no-store",
         });
         if (!response.ok) throw await higgsfieldError(response);
+        const correlationId = response.headers.get("x-correlation-id");
         const text = await response.text();
-        return text ? (JSON.parse(text) as unknown) : null;
+        try {
+          return { payload: text ? (JSON.parse(text) as unknown) : null, correlationId };
+        } catch {
+          throw new AppError("provider_unavailable", "Unexpected response from Higgsfield.", {
+            reference: correlationId ?? undefined,
+          });
+        }
       },
       { retries: this.retries, baseDelayMs: 1000, maxDelayMs: 15_000, shouldRetry: retryOn },
     );
   }
 
+  /** A URL Higgsfield returned, used only if it points at the API (the key goes with it). */
+  private apiUrl(candidate: string | null | undefined): string | null {
+    if (!candidate) return null;
+    try {
+      return new URL(candidate).origin === new URL(this.baseUrl).origin ? candidate : null;
+    } catch {
+      return null;
+    }
+  }
+
   async submit(
-    spec: ModelSpec,
+    target: SubmitTarget,
     body: Record<string, unknown>,
     context: SubmitContext,
   ): Promise<ProviderState> {
-    let path = spec.endpoint;
+    let path = target.endpoint;
     if (context.webhookUrl) {
       path += `${path.includes("?") ? "&" : "?"}hf_webhook=${encodeURIComponent(context.webhookUrl)}`;
     }
-    // Submits are billable: retry only when the request clearly never landed
-    // (rate limit, gateway errors, connection failures) — not after a timeout.
-    const payload = await this.request("POST", path, body, (error) => {
-      if (error instanceof AppError) {
-        return (
-          error.code === "provider_rate_limit" ||
-          (error.code === "provider_unavailable" && error.retryable)
-        );
-      }
-      return error instanceof TypeError;
-    });
-    return this.parseState(payload);
+    const { payload, correlationId } = await this.request("POST", path, body, shouldResubmit);
+    return { ...this.parseState(payload), correlationId };
   }
 
-  async getStatus(requestId: string): Promise<ProviderState> {
-    const payload = await this.request(
-      "GET",
-      `/requests/${encodeURIComponent(requestId)}/status`,
-      undefined,
-      (error) => (error instanceof AppError ? error.retryable : true),
+  /**
+   * The docs' estimate endpoint: the same body posted to /estimate/{endpoint}
+   * returns { credits, usd } as decimal strings. Nothing is generated or charged.
+   */
+  async estimate(
+    target: SubmitTarget,
+    body: Record<string, unknown>,
+  ): Promise<ProviderEstimate | null> {
+    const { payload } = await this.request(
+      "POST",
+      `/estimate/${target.endpoint.replace(/^\/+/, "")}`,
+      body,
+      () => false,
+      15_000,
+    );
+    return parseEstimate(payload);
+  }
+
+  async getStatus(
+    requestId: string,
+    context?: Pick<StatusContext, "statusUrl">,
+  ): Promise<ProviderState> {
+    const path =
+      this.apiUrl(context?.statusUrl) ?? `/requests/${encodeURIComponent(requestId)}/status`;
+    const { payload } = await this.request("GET", path, undefined, (error) =>
+      error instanceof AppError ? error.retryable : true,
     );
     return this.parseState(payload);
   }
 
   async cancel(requestId: string): Promise<void> {
-    await this.request(
-      "POST",
-      `/requests/${encodeURIComponent(requestId)}/cancel`,
-      undefined,
-      () => false,
-    );
+    try {
+      await this.request(
+        "POST",
+        `/requests/${encodeURIComponent(requestId)}/cancel`,
+        undefined,
+        () => false,
+      );
+    } catch (error) {
+      if (error instanceof AppError && error.status === 400) {
+        throw new AppError(
+          "conflict",
+          "Higgsfield has already started this request, so it can no longer be canceled.",
+          { status: 400, reference: error.reference },
+        );
+      }
+      throw error;
+    }
   }
 
-  /** Pre-signed upload (official SDK: POST /files/generate-upload-url then PUT). */
+  /** Presigned upload (docs: POST /files/generate-upload-url, then PUT with its headers). */
   async uploadFile(data: Uint8Array, contentType: string): Promise<string> {
-    const payload = (await this.request(
+    const { payload } = await this.request(
       "POST",
       "/files/generate-upload-url",
       { content_type: contentType },
       () => false,
-    )) as {
+    );
+    const upload = payload as {
       public_url?: string;
       upload_url?: string;
       upload_headers?: Record<string, string>;
     } | null;
-    if (!payload?.public_url || !payload.upload_url) {
+    if (!upload?.public_url || !upload.upload_url) {
       throw new AppError("provider_unavailable", "Higgsfield did not return an upload URL.");
     }
-    const response = await fetchWithTimeout(payload.upload_url, {
+    // The presigned URL carries its own authorisation: never send the API key there.
+    const response = await fetchWithTimeout(upload.upload_url, {
       method: "PUT",
-      headers: payload.upload_headers ?? { "Content-Type": contentType },
+      headers: upload.upload_headers ?? { "Content-Type": contentType },
       body: data as BodyInit,
       timeoutMs: this.timeoutMs * 2,
     });
-    if (!response.ok) throw await higgsfieldError(response);
-    return payload.public_url;
+    if (!response.ok) {
+      throw new AppError(
+        "provider_unavailable",
+        `Uploading to Higgsfield storage failed (HTTP ${response.status}).`,
+        { status: response.status },
+      );
+    }
+    return upload.public_url;
   }
 
   private parseState(payload: unknown): ProviderState {

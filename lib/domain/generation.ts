@@ -38,6 +38,30 @@ export const CATALOGUE_PURPOSES: readonly GenerationPurpose[] = [
   "colorway",
 ];
 
+/**
+ * Why a generation is still waiting to be sent to Higgsfield (see
+ * lib/generations/waiting.ts): the account's concurrency limit, missing
+ * credits, a paused model, or a server error.
+ */
+export const WAIT_REASONS = ["capacity", "credits", "model", "server"] as const;
+export type WaitReason = (typeof WAIT_REASONS)[number];
+
+export type WaitingNote = { reason: WaitReason; since: string; message: string | null };
+
+/** Reads the `_waiting` note stored in a generation's params, if any. */
+export function waitingNoteOf(params: GenerationRow["params"]): WaitingNote | null {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return null;
+  const note = params._waiting;
+  if (!note || typeof note !== "object" || Array.isArray(note)) return null;
+  const reason = WAIT_REASONS.find((candidate) => candidate === note.reason);
+  if (!reason) return null;
+  return {
+    reason,
+    since: typeof note.since === "string" ? note.since : new Date(0).toISOString(),
+    message: typeof note.message === "string" ? note.message : null,
+  };
+}
+
 /** Serializable view of a generation for client components. */
 export type GenerationView = {
   id: string;
@@ -61,6 +85,8 @@ export type GenerationView = {
   costUnit: GenerationRow["cost_unit"];
   /** Catalogue images: false when the background is not the flat catalogue colour. */
   backgroundOk: boolean | null;
+  /** Set while the request waits for Higgsfield to take it. */
+  waitingReason: WaitReason | null;
 };
 
 /** Reads the finishing report stored with a catalogue result (see finishCatalogueImage). */
@@ -93,5 +119,9 @@ export function toGenerationView(row: GenerationRow, url: string | null): Genera
     cost: row.cost,
     costUnit: row.cost_unit,
     backgroundOk: finishBackgroundOk(row.params),
+    waitingReason:
+      row.status === "queued" && !row.provider_request_id
+        ? (waitingNoteOf(row.params)?.reason ?? null)
+        : null,
   };
 }

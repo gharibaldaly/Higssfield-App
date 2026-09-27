@@ -64,6 +64,7 @@ Every variable is documented in [`.env.example`](./.env.example).
 | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`)                                                     | for real output   | Higgsfield credentials (`KEY_ID:KEY_SECRET`); mock provider without them |
 | `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`                                                               | for real analysis | Director brain; mock brain without them                                  |
 | `SUPABASE_SERVICE_ROLE_KEY`, `HIGGSFIELD_WEBHOOK_SECRET`                                             | optional          | Completion webhooks (the app polls without them)                         |
+| `HIGGSFIELD_MAX_CONCURRENT`                                                                          | recommended       | Requests the Higgsfield account may run at once (console; default 4)     |
 | `ANTHROPIC_MODEL`, `GEMINI_MODEL`, `HIGGSFIELD_BASE_URL`, `HIGGSFIELD_MODELS_URL`, `HIGGSFIELD_MOCK` | optional          | Overrides                                                                |
 | `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`                                               | Phase 2           | Google Drive mirror                                                      |
 
@@ -104,23 +105,41 @@ pnpm dev                     # http://localhost:3000
 
 ## Higgsfield integration
 
-- The client in `lib/providers/higgsfield/` follows the official `@higgsfield/client` SDK:
-  `https://api.higgsfield.ai`, `Authorization: Key KEY_ID:KEY_SECRET`, submit with
-  `POST /{model endpoint}`, poll `GET /requests/{id}/status`, cancel
-  `POST /requests/{id}/cancel`. The public docs site was unreachable from the build sandbox; see
-  the Decisions log in `CLAUDE.md` for what is verified and what still needs confirming.
-- **Model registry**: built-in models confirmed by the SDK, plus an optional remote catalogue
-  (`HIGGSFIELD_MODELS_URL`) and **custom models** added as JSON in Settings, so new models need
-  no redeploy. Each model declares its modes, aspect ratios, resolutions, durations and
-  reference-image count, and the UI only offers valid options.
-- Results are copied into Supabase Storage as soon as they complete. Provider URLs expire.
-  Front, back and colourway images are trimmed to the garment and re-padded with the catalogue
-  margin on the catalogue background, so every product sits the same way in the grid.
-- Cost or credits are recorded per generation when the API returns them.
-- Ghost images from photos need an **image-edit model** (one that keeps the garment from the
-  reference photo). The built-in list has none confirmed yet: add the edit endpoint from the
-  Higgsfield docs as a custom model in Settings (mode `image-to-image`, reference images as a URL
-  list) and pick it for the batch.
+- The client in `lib/providers/higgsfield/` follows the official API docs (docs.higgsfield.ai,
+  API 2.0.0): `https://api.higgsfield.ai`, `Authorization: Key KEY_ID:KEY_SECRET`, submit with
+  `POST /{model endpoint}`, then poll the `status_url` it returns (`/requests/{id}/status`).
+  Statuses are `queued`, `in_progress`, `completed`, `failed`, `nsfw` and `canceled`; failed and
+  nsfw requests are not charged. See the Decisions log in `CLAUDE.md` for what is verified and
+  what still needs confirming.
+- **Concurrency**: each account may have only so many requests queued or running at once (the
+  limit is shown in the Higgsfield console). Set it in `HIGGSFIELD_MAX_CONCURRENT` (default 4).
+  Requests beyond it, and requests Higgsfield turns away for a while (full, out of credits, model
+  paused, server error), wait in the queue and are sent automatically when there is room; their
+  tiles say why they wait. A submit is never repeated after a timeout, because Higgsfield may
+  already have accepted it.
+- **Model registry**: every image and video workflow documented on docs.higgsfield.ai that the
+  studio can feed (68 today: 15 image, 53 video), grouped by family in every picker. Each model
+  declares its modes, aspect ratios, resolutions, durations and reference-image count, and the UI
+  only offers valid options. Defaults: **Grok Image 2.0** for ghost images, sheets and preview
+  frames, **Kling 3.0 Pro image-to-video** for ad shots; change them in Settings. Custom models
+  (JSON in Settings) and an optional remote catalogue (`HIGGSFIELD_MODELS_URL`) still work.
+- **Refreshing the models**: `node scripts/higgsfield/sync-models.mjs` re-reads the model pages
+  into `lib/providers/higgsfield/docs/workflows.json` (needs access to docs.higgsfield.ai; behind
+  a proxy prefix it with `NODE_USE_ENV_PROXY=1`). Review the diff, run the tests and deploy.
+- Results are copied into Supabase Storage as soon as they complete (Higgsfield keeps them for at
+  least seven days). Front, back and colourway images are trimmed to the garment and re-padded
+  with the catalogue margin on the catalogue background, so every product sits the same way in
+  the grid.
+- **Cost**: each submit also asks Higgsfield's estimate endpoint (`POST /estimate/{endpoint}`)
+  what the request costs, and the dollar figure is stored with the generation (Settings → Cost
+  summary). Failed, filtered and canceled requests count as free.
+- Every error shown in the studio ends with Higgsfield's reference id (`[ref …]`); give it to
+  Higgsfield support together with the request.
+- Ghost images from photos use an **image-edit model** that takes the photos as references:
+  Grok Image 2.0 (up to 10 references, 2K), Marketing Studio Image (up to 16, 4K) and Qwen Image
+  3 Edit (up to 3). Prompt rewriting is switched off on every model that has the option, so the
+  model receives the exact product lock; native audio is off on video models, because ads are cut
+  to music in the montage.
 
 ## Ghost batches (from photos)
 

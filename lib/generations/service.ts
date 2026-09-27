@@ -2,24 +2,40 @@ import "server-only";
 
 import {
   CATALOGUE_PURPOSES,
+  isPendingStatus,
   isTerminalStatus,
+  waitingNoteOf,
   type GenerationPurpose,
+  type WaitingNote,
+  type WaitReason,
 } from "@/lib/domain/generation";
 import { parseCatalogueStyle } from "@/lib/domain/catalogue-style";
+import { higgsfieldMaxConcurrent } from "@/lib/env";
 import { AppError, toUserMessage } from "@/lib/errors";
+import {
+  MAX_WAIT_MS,
+  pollIntervalMs,
+  providerBodyFrom,
+  WAIT_RETRY_MS,
+  waitReasonOf,
+} from "@/lib/generations/waiting";
 import { webhookUrlFor } from "@/lib/generations/webhook";
 import { settleLinkedRecords } from "@/lib/generations/side-effects";
 import { fetchWithTimeout } from "@/lib/http/retry";
 import { finishCatalogueImage, probeImage, type CatalogueCanvas } from "@/lib/images/process";
 import { activeProviderMode, getProvider } from "@/lib/providers/higgsfield";
 import { buildProviderInput, redactBody } from "@/lib/providers/higgsfield/registry";
-import type { GenerationMode, ModelSpec, ProviderState } from "@/lib/providers/higgsfield/types";
+import type {
+  GenerationMode,
+  ModelSpec,
+  ProviderState,
+  SubmitTarget,
+} from "@/lib/providers/higgsfield/types";
 import { downloadObject, signPaths, uploadObject } from "@/lib/storage/objects";
 import { PROVIDER_REFERENCE_TTL_S, storagePaths } from "@/lib/storage/paths";
 import type { GenerationRow, Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
-const POLL_THROTTLE_MS = 3000;
 const STALE_SUBMIT_MS = 2 * 60 * 1000;
 const MAX_PENDING_MS = 45 * 60 * 1000;
 const MAX_RESULT_BYTES = 250 * 1024 * 1024;
@@ -55,7 +71,9 @@ export type SubmitGenerationInput = {
 /**
  * Creates the generation row, then submits it to the provider. The row is
  * always returned — on provider errors it comes back with status "failed" and
- * a user-facing error, so the UI can show it next to its siblings.
+ * a user-facing error, so the UI can show it next to its siblings. When
+ * Higgsfield has no room (the account's concurrency limit) or turns the request
+ * away for a while, the row waits in the queue and a later poll sends it.
  */
 export async function submitGeneration(
   supabase: TypedSupabaseClient,
@@ -92,11 +110,17 @@ export async function submitGeneration(
   const redactions = new Map(
     input.referencePaths.map((path) => [signed.get(path)!, `storage:${path}`] as const),
   );
+  const now = new Date().toISOString();
+  const waitForRoom = providerMode === "higgsfield" && !(await hasProviderRoom(supabase));
+  const waiting: WaitingNote | null = waitForRoom
+    ? { reason: "capacity", since: now, message: null }
+    : null;
   const params = {
     ...redactBody(built.body, redactions),
     _applied: built.applied,
     _warnings: built.warnings,
     ...(input.meta ? { _meta: input.meta } : {}),
+    ...(waiting ? { _waiting: waiting } : {}),
   };
 
   const links = input.links ?? {};
@@ -122,27 +146,67 @@ export async function submitGeneration(
       shot_id: links.shotId ?? null,
       parent_id: links.parentId ?? null,
       duration_s: built.applied.durationS,
+      // A row being sent counts against the account's limit straight away.
+      submitted_at: waiting ? null : now,
+      last_polled_at: waiting ? now : null,
     })
     .select("*")
     .single();
   if (error || !row) {
     throw new AppError("unknown", "Could not record the generation.", { detail: error?.message });
   }
+  if (waiting) return row;
+  return sendToProvider(supabase, row, input.model, built.body);
+}
 
+/**
+ * Sends a recorded generation to its provider. A rejection that leaves no
+ * request behind (see waitReasonOf) puts the row in the waiting room; any
+ * other error fails it.
+ */
+async function sendToProvider(
+  supabase: TypedSupabaseClient,
+  row: GenerationRow,
+  target: SubmitTarget,
+  body: Record<string, unknown>,
+): Promise<GenerationRow> {
+  const provider = getProvider(row.provider);
+  // The price estimate takes the same body and never blocks the submit.
+  const estimating = provider.estimate
+    ? provider.estimate(target, body).catch((error: unknown) => {
+        console.warn("Higgsfield estimate failed", row.id, toUserMessage(error));
+        return null;
+      })
+    : Promise.resolve(null);
   try {
-    const provider = getProvider(providerMode);
-    const state = await provider.submit(input.model, built.body, {
+    const state = await provider.submit(target, body, {
       generationId: row.id,
-      webhookUrl: providerMode === "higgsfield" ? webhookUrlFor(row.id) : null,
+      webhookUrl: row.provider === "higgsfield" ? webhookUrlFor(row.id) : null,
     });
+    const estimate = await estimating;
+    const cost = state.cost
+      ? { cost: state.cost.amount, cost_unit: state.cost.unit }
+      : estimate?.usd != null
+        ? { cost: estimate.usd, cost_unit: "usd" as const }
+        : estimate?.credits != null
+          ? { cost: estimate.credits, cost_unit: "credits" as const }
+          : {};
     return await updateRow(supabase, row.id, {
       provider_request_id: state.requestId,
       provider_status_url: state.statusUrl,
       status: state.status === "completed" ? "in_progress" : state.status,
       submitted_at: new Date().toISOString(),
-      ...(state.cost ? { cost: state.cost.amount, cost_unit: state.cost.unit } : {}),
+      poll_attempts: 0,
+      params: patchParams(row.params, {
+        _waiting: undefined,
+        _correlationId: state.correlationId ?? undefined,
+        _estimate: estimate ?? undefined,
+      }),
+      ...cost,
     });
   } catch (submitError) {
+    const reason = row.provider === "higgsfield" ? waitReasonOf(submitError) : null;
+    if (reason) return markWaiting(supabase, row, reason, submitError);
     const failed = await updateRow(supabase, row.id, {
       status: "failed",
       error: toUserMessage(submitError),
@@ -151,6 +215,134 @@ export async function submitGeneration(
     await settleLinkedRecords(supabase, failed);
     return failed;
   }
+}
+
+/** Puts a row back in the waiting room, keeping the time it first started waiting. */
+async function markWaiting(
+  supabase: TypedSupabaseClient,
+  row: GenerationRow,
+  reason: WaitReason,
+  cause: unknown,
+): Promise<GenerationRow> {
+  const now = new Date().toISOString();
+  const note: WaitingNote = {
+    reason,
+    since: waitingNoteOf(row.params)?.since ?? now,
+    message: toUserMessage(cause),
+  };
+  return updateRow(supabase, row.id, {
+    status: "queued",
+    submitted_at: null,
+    last_polled_at: now,
+    params: patchParams(row.params, { _waiting: note }),
+  });
+}
+
+/**
+ * Requests open at Higgsfield: accepted and not settled yet, or being sent
+ * right now (claimed, no request id yet). Oldest first.
+ */
+async function openProviderRequests(
+  supabase: TypedSupabaseClient,
+  limit: number,
+): Promise<GenerationRow[]> {
+  const { data } = await supabase
+    .from("generations")
+    .select("*")
+    .eq("provider", "higgsfield")
+    .in("status", ["queued", "in_progress"])
+    .or("provider_request_id.not.is.null,submitted_at.not.is.null")
+    .order("submitted_at", { ascending: true })
+    .limit(limit);
+  return data ?? [];
+}
+
+/**
+ * True while fewer requests are open than the account allows. With `settle`,
+ * the oldest open requests are polled first, so one that finished (or was cut
+ * off mid-submit) while nobody had its page open does not hold a slot.
+ */
+async function hasProviderRoom(
+  supabase: TypedSupabaseClient,
+  options: { settle?: boolean } = {},
+): Promise<boolean> {
+  const limit = higgsfieldMaxConcurrent();
+  const open = await openProviderRequests(supabase, limit + 8);
+  if (open.length < limit) return true;
+  if (!options.settle) return false;
+  const polled = await refreshGenerations(supabase, open.slice(0, 8), 4);
+  const freed = polled.filter((row) => !isPendingStatus(row.status)).length;
+  return open.length - freed < limit;
+}
+
+/**
+ * Sends a waiting row when its rest is over and the account has room. The
+ * row is claimed first (submitted_at), so two polls never send it twice.
+ */
+async function submitWaiting(
+  supabase: TypedSupabaseClient,
+  row: GenerationRow,
+  waiting: WaitingNote,
+): Promise<GenerationRow> {
+  const now = Date.now();
+  if (now - Date.parse(waiting.since) > MAX_WAIT_MS) {
+    const failed = await updateRow(supabase, row.id, {
+      status: "failed",
+      error: `Higgsfield did not take this request within 6 hours. ${waiting.message ?? ""}`.trim(),
+      completed_at: new Date(now).toISOString(),
+      params: patchParams(row.params, { _waiting: undefined }),
+    });
+    await settleLinkedRecords(supabase, failed);
+    return failed;
+  }
+  if (row.last_polled_at && now - Date.parse(row.last_polled_at) < WAIT_RETRY_MS[waiting.reason]) {
+    return row;
+  }
+  // Keys removed or mock mode forced: keep waiting until Higgsfield is back.
+  if (activeProviderMode() !== "higgsfield") return row;
+  if (!(await hasProviderRoom(supabase, { settle: true }))) {
+    await supabase
+      .from("generations")
+      .update({ last_polled_at: new Date(now).toISOString() })
+      .eq("id", row.id);
+    return row;
+  }
+
+  const { data: claimed } = await supabase
+    .from("generations")
+    .update({
+      submitted_at: new Date(now).toISOString(),
+      last_polled_at: new Date(now).toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("status", "queued")
+    .is("provider_request_id", null)
+    .is("submitted_at", null)
+    .select("*")
+    .maybeSingle();
+  if (!claimed) return row;
+
+  let body: Record<string, unknown>;
+  try {
+    const signed = await signPaths(supabase, claimed.reference_paths, {
+      expiresIn: PROVIDER_REFERENCE_TTL_S,
+    });
+    body = providerBodyFrom(claimed.params, (path) => signed.get(path));
+  } catch (error) {
+    const failed = await updateRow(supabase, claimed.id, {
+      status: "failed",
+      error: toUserMessage(error),
+      completed_at: new Date().toISOString(),
+    });
+    await settleLinkedRecords(supabase, failed);
+    return failed;
+  }
+  return sendToProvider(
+    supabase,
+    claimed,
+    { endpoint: claimed.endpoint, kind: claimed.kind },
+    body,
+  );
 }
 
 async function updateRow(
@@ -298,6 +490,16 @@ function paramsObject(params: Json): Record<string, Json | undefined> {
   return params && typeof params === "object" && !Array.isArray(params) ? params : {};
 }
 
+/** Sets (or, with undefined, removes) the app's own keys in a generation's params. */
+function patchParams(params: Json, patch: Record<string, Json | undefined>): Json {
+  const next = { ...paramsObject(params) };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+  }
+  return next;
+}
+
 /**
  * Polls the provider for one generation and settles it when finished.
  * Safe to call from many places at once: a conditional update "claims" the
@@ -311,12 +513,16 @@ export async function refreshGeneration(
   if (isTerminalStatus(row.status)) return row;
 
   const now = Date.now();
-  const createdAt = Date.parse(row.created_at);
   if (!row.provider_request_id) {
-    if (now - createdAt > STALE_SUBMIT_MS) {
+    const waiting = waitingNoteOf(row.params);
+    if (waiting && !row.submitted_at && row.provider === "higgsfield") {
+      return submitWaiting(supabase, row, waiting);
+    }
+    // Sent (or being sent) but never confirmed: the run was cut off mid-submit.
+    if (now - Date.parse(row.submitted_at ?? row.created_at) > STALE_SUBMIT_MS) {
       const failed = await updateRow(supabase, row.id, {
         status: "failed",
-        error: "The request never reached the provider. Regenerate to try again.",
+        error: "The request was cut off before the provider confirmed it. Regenerate to try again.",
         completed_at: new Date().toISOString(),
       });
       await settleLinkedRecords(supabase, failed);
@@ -325,14 +531,12 @@ export async function refreshGeneration(
     return row;
   }
 
-  if (
-    !options.force &&
-    row.last_polled_at &&
-    now - Date.parse(row.last_polled_at) < POLL_THROTTLE_MS
-  ) {
+  // The docs' polling cadence: 2 s at first, easing out to 10 s.
+  const interval = pollIntervalMs(row.poll_attempts);
+  if (!options.force && row.last_polled_at && now - Date.parse(row.last_polled_at) < interval) {
     return row;
   }
-  const threshold = new Date(now - POLL_THROTTLE_MS).toISOString();
+  const threshold = new Date(now - interval).toISOString();
   const claimQuery = supabase
     .from("generations")
     .update({ last_polled_at: new Date(now).toISOString(), poll_attempts: row.poll_attempts + 1 })
@@ -351,6 +555,7 @@ export async function refreshGeneration(
     const provider = getProvider(claimed.provider);
     const state = await provider.getStatus(claimed.provider_request_id!, {
       generationId: claimed.id,
+      statusUrl: claimed.provider_status_url,
       submittedAt: claimed.submitted_at,
       kind: claimed.kind,
       params: (claimed.params ?? {}) as Record<string, unknown>,
@@ -370,6 +575,8 @@ export async function refreshGeneration(
         status: state.status,
         error: failureMessage(state),
         completed_at: new Date().toISOString(),
+        // Failed, filtered and canceled requests are not charged (docs: Billing and retention).
+        ...(claimed.cost !== null ? { cost: 0 } : {}),
       });
     } else if (now - Date.parse(claimed.submitted_at ?? claimed.created_at) > MAX_PENDING_MS) {
       settled = await updateRow(supabase, claimed.id, {

@@ -9,6 +9,8 @@ import type {
 export type ModelOption = {
   id: string;
   label: string;
+  /** Model family for grouping, e.g. "Kling 3.0"; null for mock and custom models without one. */
+  family: string | null;
   kind: "image" | "video";
   description: string | null;
   source: ModelSpec["source"];
@@ -29,6 +31,7 @@ export function toModelOptions(
     .map((spec) => ({
       id: spec.id,
       label: spec.label,
+      family: spec.family ?? null,
       kind: spec.kind,
       description: spec.description ?? null,
       source: spec.source,

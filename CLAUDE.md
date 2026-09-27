@@ -240,3 +240,57 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A local lab page (not committed) rendered the intake and the board in ar/en × dark/light and on a phone, with no console errors and no horizontal overflow.
   - Not yet run end to end on the preview: the Vercel connector now points at another team, and Supabase and Vercel hosts are blocked from this sandbox.
 
+
+### 2026-09-27 — Higgsfield API docs
+- **Source:** docs.higgsfield.ai is still blocked from the sandbox (403), so the owner pasted the pages: Requests and lifecycle, Polling, Webhooks, File uploads, Errors and retries, Rate limits, the API reference (OpenAPI 2.0.0: get request status, cancel a queued request), How the API works, the video model index, and screenshots of the console catalogue. They confirm what the SDK gave:
+  - base URL and `Authorization: Key {api_key_id}:{api_key_secret}`;
+  - a submit answers `{ status, request_id, status_url, cancel_url }`, and the docs say to use those URLs rather than build them;
+  - results in `images[].url` / `video.url`, kept for at least seven days;
+  - cancel answers 202, or 400 once processing started;
+  - uploads are a presigned PUT with every `upload_headers` entry, then `public_url` goes in the model's input field.
+- **Errors** (`higgsfieldError`): FastAPI `{detail}`. 400 invalid input or the concurrency limit, 401 credentials, 403 insufficient credits, 404 model or request not found for the account, 422 validation, 423 model blocked for now, 500 retry with backoff, 503 model disabled or not ready. Failed and nsfw requests are not charged.
+  - The concurrency limit is only recognisable by its message ("Maximum number of concurrent requests (N) has been reached"). The docs warn against parsing messages for permanent decisions; here the only decision is to wait, and if the wording changes the request fails like bad input.
+  - Every response carries `X-Correlation-ID`: it is stored as `params._correlationId` on submit and appended to errors as `[ref …]` for support.
+- **No duplicate submits:** submissions take no idempotency key, so a submit is sent again only after a 500 or a failure before the request left (DNS, refused connection). Never after a timeout, a dropped connection, a 502 or a 504, which Higgsfield may already have accepted.
+- **Waiting room** (`lib/generations/waiting.ts`, `lib/generations/service.ts`):
+  - `HIGGSFIELD_MAX_CONCURRENT` holds the account's limit (shown in the console; default 4, the docs' example). A request counts as open once it is being sent until it settles.
+  - A new request beyond the limit, or one Higgsfield turns away without creating a request (busy 400 or 429, 403, 423, 500, 503), stays `queued` with no request id and a `_waiting` note (`reason`, `since`, `message`) in its params. The stored body is re-signed from its `storage:` markers when it is finally sent.
+  - Polls send a waiting row when its rest is over (capacity 5 s, credits 60 s, paused model or server error 30 s) and there is room. The row is claimed through `submitted_at` first, so two polls never send it twice. It fails after six hours of waiting.
+  - When the account looks full, the oldest open requests are polled first, so one that finished (or was cut off mid-submit) while nobody had its page open frees its slot.
+  - Ghost batches may hold twice the account limit (at least 4), so the next model's prompts are written while earlier images wait. Tiles say why a request waits (`generation.waiting.*`).
+  - Tested against an in-memory Supabase stand-in (`tests/stubs/fake-supabase.ts`) and a fake Higgsfield with its own limit, including two polls racing for the same row (mutation-checked).
+- **Polling:** the stored `status_url` is used when it points at the API's own origin (the key goes with it); otherwise the path is built. The cadence follows the docs: 2 s at first, ×1.5 per poll, up to 10 s.
+- **Webhook:** deliveries are unsigned `{ request_id, status: completed | failed | nsfw, error, payload }`. Higgsfield retries network failures and 5xx for two hours, gives up on 4xx, wants an answer within ten seconds and may deliver twice.
+  - The route checks our URL signature, the envelope and the request id, answers at once, and settles in `after()`, still from the status endpoint rather than the payload.
+  - It answers 503 while the submit has not stored the request id yet, so Higgsfield delivers again.
+- **Cost:** the documented status response has no cost field. `extractCost` stays for an undocumented one; the Billing and retention page has not been read yet.
+- **TODO (models):** the model pages are not in yet.
+  - The console catalogue (2026-09-27) lists these image models: Marketing Studio Image, Grok Imagine 2.0, Soul 2, Ideogram 4.0, Recraft 4.1, Soul Standard, Qwen Image 3 and Z-Image Turbo, plus the workflows Product shots, Graphic ads and Marketplace design. The video index lists 22 families (Kling, Seedance, Wan, Cinema Studio, MiniMax…).
+  - None of the SDK-era built-in endpoints (Soul v1, Flux Kontext, Seedream 4, DoP, Speak) appears there, so they may be retired.
+  - Candidate edit models for ghost images: Grok Imagine 2.0 ("precise edits while preserving image details") and Marketing Studio Image (edits from text and image inputs, 1K–4K).
+  - Register them from their own docs pages (or `/docs/openapi.json`), and give the ads an image-to-video or reference-to-video model in place of DoP.
+
+### 2026-09-27 — Models from the Higgsfield docs
+- **Source:** the owner allowed `docs.higgsfield.ai` in the environment's network settings (Custom access), so the model pages were read directly. The docs list 35 model families and 82 workflows. `/docs/openapi.json` only holds 8 paths and is "supplementary", so each workflow's own page is the source: endpoint, usage notes, the complete JSON input schema and the output field.
+- **Snapshot:** `scripts/higgsfield/sync-models.mjs` reads the image and video indexes, every family page and every workflow page into `lib/providers/higgsfield/docs/workflows.json` (kept out of Prettier). `docs-catalog.ts` turns it into model specs when the registry loads. Run the script again to pick up new models, review the diff and deploy. This is the "single config file" the registry rule allows, since the API has no listing endpoint.
+- **Registry:** 68 models (15 image, 53 video), each with `source: "docs"` and a `family` for grouping.
+  - Left out: 14 workflows that need a source video (Genjutsu, Kling motion control, video edit / extend / reference, Wan 2.6 reference) and Soul ID, which trains a character rather than generating.
+  - The SDK-era built-ins (Soul v1 `/v1/text2image/soul`, Flux Kontext, Seedream 4, DoP, Speak) are gone. The docs no longer list them and say not to substitute silently. A job saved with a removed model (or with a mock model, once a key is set) fails with "Model … is not available"; queue it again with a current model.
+- **Conversion rules:**
+  - References come from `image_urls`, else `image_url`, else `first_frame_url`. A reference is required when the schema says so, when `minItems` ≥ 1, or when the notes say so (Wan 2.7 reference-to-video).
+  - The maximum is `maxItems` or a limit stated in the notes (HappyHorse 9, Wan 2.7 5). With neither, the studio sends at most 4 (Kling O3 / Omni image reference) and says so in the source note. Anything above 16 is capped at 16.
+  - Modes follow the output kind and whether references are required.
+  - Durations come from enums or integer ranges. Resolution tiers are sorted (480p < 720p < 1k < 1080p < 2k < 4k), so "highest" means the top tier.
+  - Prompt limits come from `maxLength` or the notes: Kling 3.0, O3 and Omni 2,500; Kling 3.0 Turbo text-to-video 3,072; MiniMax H3 7,000. Negative prompts are trimmed to their `maxLength` (PixVerse 2,048).
+  - MiniMax H3 image-to-video drops `aspect_ratio`, because the output follows the keyframe. Grok Imagine Video in reference mode keeps only 480p and 720p.
+- **House switches:** every model that has them gets `enhance_prompt`, `prompt_extend`, `enable_thinking` and `prompt_optimizer` set to false, so it receives the exact PRODUCT LOCK the brain wrote. Qwen Image 3 enables both of its rewriting switches by default. Native audio is off (`generate_audio: false`, Kling `sound: "off"`), because ad shots are cut to music in the montage.
+  - Left at their defaults: Marketing Studio `quality` (high) and `moderation` (auto), Kling O3 / Omni `mode`, Ideogram `image_weight`. Soul's `image_reference_url` only guides prompt enhancement, so Soul is text-to-image here.
+- **Defaults** (`FAMILY_ORDER`; the first model that supports a mode is its default, and Settings defaults still win):
+  - **Grok Image 2.0** for ghost images, sheets and preview frames: "generate and edit images with up to ten image references"; the console card says "precise edits while preserving image details".
+  - Marketing Studio Image (16 references, 4K) and Qwen Image 3 Edit follow, to compare on real products with the fidelity scores.
+  - **Kling 3.0 Pro image-to-video** for ad shots. It takes 3–15 s but no aspect ratio (framing follows the frame), so exact 9:16 still comes from "preview frame first", or from a model with `aspect_ratio` such as Seedance 2.0 reference-to-video.
+- **Cost:** the Billing page documents `POST /estimate/{endpoint}` with the submit body, returning `{ credits, usd }`.
+  - The estimate runs alongside each submit and never blocks it. `usd` goes to `generations.cost` and both values to `params._estimate`.
+  - Failed, nsfw and canceled requests are set to 0, since the docs say they are not charged. The studio's own 45-minute give-up keeps the estimate, because Higgsfield may still finish the request.
+- **UI:** pickers group models by family (`ModelSelectItems`), and Settings lists families as collapsible sections with each workflow's capabilities and docs path.
+- **Resolved:** the Phase 1 and 2026-09-27 TODOs about model endpoints, parameters and cost. `api.higgsfield.ai` is still not reachable from the sandbox, so no request was sent live. The first real run should be one or two models, with Grok and Marketing Studio compared in the review.

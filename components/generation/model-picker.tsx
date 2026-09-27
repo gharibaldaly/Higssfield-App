@@ -7,11 +7,40 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { groupByFamily } from "@/lib/providers/higgsfield/model-groups";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
+
+/** Select options grouped by model family (a flat list when no model has one). */
+export function ModelSelectItems({
+  models,
+  incompatibleLabel,
+}: {
+  models: ModelOption[];
+  incompatibleLabel?: string;
+}) {
+  return groupByFamily(models).map(({ family, models: members }) => {
+    const items = members.map((model) => (
+      <SelectItem key={model.id} value={model.id} disabled={model.disabledReason !== null}>
+        {model.label}
+        {model.disabledReason && incompatibleLabel ? ` — ${incompatibleLabel}` : ""}
+      </SelectItem>
+    ));
+    return family ? (
+      <SelectGroup key={family}>
+        <SelectLabel>{family}</SelectLabel>
+        {items}
+      </SelectGroup>
+    ) : (
+      <SelectGroup key="__ungrouped">{items}</SelectGroup>
+    );
+  });
+}
 
 export function ModelPicker({
   models,
@@ -40,12 +69,7 @@ export function ModelPicker({
           <SelectValue placeholder={t("choose")} />
         </SelectTrigger>
         <SelectContent>
-          {models.map((model) => (
-            <SelectItem key={model.id} value={model.id} disabled={model.disabledReason !== null}>
-              {model.label}
-              {model.disabledReason ? ` — ${t("incompatible")}` : ""}
-            </SelectItem>
-          ))}
+          <ModelSelectItems models={models} incompatibleLabel={t("incompatible")} />
         </SelectContent>
       </Select>
       {selected ? <ModelCapabilitiesSummary model={selected} /> : null}

@@ -6,7 +6,8 @@ import type { LlmGatewayConfig } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { fetchWithTimeout, withRetry } from "@/lib/http/retry";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
-import type { StructuredRequest } from "@/lib/providers/llm/types";
+import type { LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
+import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-check";
 
 /**
  * Director brain through an OpenAI-compatible gateway: POST
@@ -16,6 +17,10 @@ import type { StructuredRequest } from "@/lib/providers/llm/types";
  *
  * Gateways differ in what they accept, so the brain adapts and remembers what
  * worked for each model:
+ * - photos: short-lived links when an image host is given (some gateways count
+ *   inline image data as text, so a dozen photos overflow the context), else
+ *   inline data URLs. Before its first photos, a model must name two colours
+ *   of a test image through the chosen route (see vision-check.ts);
  * - JSON: `response_format` json_schema, else json_object, else the schema in
  *   the prompt (the answer is still validated with Zod either way);
  * - output cap: `max_tokens`, or `max_completion_tokens` when the gateway asks
@@ -33,6 +38,28 @@ type Learned = {
 
 /** What each gateway model accepted, so later calls skip the failed attempts. */
 const learned = new Map<string, Learned>();
+
+type ImageTransport = "url" | "data";
+
+type ImageRoute = {
+  transport: ImageTransport;
+  at: number;
+  /** Why links failed the vision check, when the photos go inline instead. */
+  linkProblem?: string;
+};
+
+/** The route through which each gateway model read the test image. */
+const imageRoutes = new Map<string, ImageRoute>();
+const pendingRoutes = new Map<string, Promise<ImageRoute>>();
+const VISION_CHECK_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** Wording gateways use when a request is longer than the model's context. */
+const CONTEXT_OVERFLOW =
+  /context length|context window|maximum context|too many tokens|reduce the length|context_length_exceeded|prompt is too long/i;
+
+function isOverflow(error: AppError): boolean {
+  return error.status === 413 || CONTEXT_OVERFLOW.test(error.detail ?? "");
+}
 
 type ChatMessageContent = string | { type?: string; text?: string }[] | null | undefined;
 
@@ -140,6 +167,13 @@ export async function gatewayError(
       retryable: true,
     });
   }
+  if (status === 413 || CONTEXT_OVERFLOW.test(detail ?? "")) {
+    return new AppError(
+      "provider_bad_input",
+      `The request is longer than ${model} at ${name} accepts. Choose a model with a larger context in Settings.`,
+      base,
+    );
+  }
   return new AppError("provider_bad_input", `${name} rejected the request.`, base);
 }
 
@@ -150,14 +184,16 @@ export class GatewayBrain extends TemplateBrain {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly tokenCap: number;
+  private readonly imageHost: LlmImageHost | null;
 
-  constructor(config: LlmGatewayConfig & { model: string }) {
+  constructor(config: LlmGatewayConfig & { model: string }, imageHost?: LlmImageHost) {
     super();
     this.model = config.model;
     this.name = config.name;
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
     this.tokenCap = config.maxTokens;
+    this.imageHost = imageHost ?? null;
   }
 
   private get key(): string {
@@ -191,20 +227,24 @@ export class GatewayBrain extends TemplateBrain {
     );
   }
 
-  private body(request: StructuredRequest<unknown>, settings: Learned): Record<string, unknown> {
+  private body(
+    request: StructuredRequest<unknown>,
+    settings: Learned,
+    imageUrls: string[] | null,
+  ): Record<string, unknown> {
     const schema = gatewayJsonSchema(request.schema);
     const hint =
       settings.mode === "json_schema"
         ? ""
         : `\n\nRespond with JSON only, matching this JSON Schema:\n${JSON.stringify(schema)}`;
     const content: unknown[] = [];
-    for (const image of request.images) {
+    request.images.forEach((image, index) => {
       content.push({ type: "text", text: image.caption });
       content.push({
         type: "image_url",
-        image_url: { url: `data:${image.mimeType};base64,${image.base64}` },
+        image_url: { url: imageUrls?.[index] ?? `data:${image.mimeType};base64,${image.base64}` },
       });
-    }
+    });
     content.push({ type: "text", text: request.user + hint });
     const cap = Math.min(request.maxTokens, settings.maxTokens ?? this.tokenCap);
     return {
@@ -231,8 +271,12 @@ export class GatewayBrain extends TemplateBrain {
     };
   }
 
-  private async complete(request: StructuredRequest<unknown>, settings: Learned): Promise<string> {
-    const payload = await this.post(this.body(request, settings));
+  private async complete(
+    request: StructuredRequest<unknown>,
+    settings: Learned,
+    imageUrls: string[] | null,
+  ): Promise<string> {
+    const payload = await this.post(this.body(request, settings, imageUrls));
     const choice = payload.choices?.[0];
     if (!choice?.message) throw new AppError("llm_output", `${this.name} returned no answer.`);
     if (choice.message.refusal) {
@@ -261,9 +305,11 @@ export class GatewayBrain extends TemplateBrain {
   /**
    * Adjusts what is sent after a rejected request: the output cap field or
    * size when the error names it, otherwise the next JSON mode. Null when
-   * there is nothing left to try.
+   * there is nothing left to try, or when no JSON mode can help (a request
+   * longer than the context, an image the gateway could not take).
    */
   private adapt(settings: Learned, error: AppError): Learned | null {
+    if (isOverflow(error)) return null;
     const detail = (error.detail ?? "").toLowerCase();
     if (settings.tokenField === "max_tokens" && detail.includes("max_completion_tokens")) {
       return { ...settings, tokenField: "max_completion_tokens" };
@@ -272,48 +318,138 @@ export class GatewayBrain extends TemplateBrain {
     if (/max_(completion_)?tokens/.test(detail) && cap > 4096) {
       return { ...settings, maxTokens: Math.max(4096, Math.floor(cap / 2)) };
     }
+    if (!/response_format|json/.test(detail) && /image|download|fetch|url/.test(detail)) {
+      return null;
+    }
     const next = JSON_MODES[JSON_MODES.indexOf(settings.mode) + 1];
     return next ? { ...settings, mode: next } : null;
   }
 
   protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
-    let settings: Learned = learned.get(this.key) ?? {
-      mode: "json_schema",
-      tokenField: "max_tokens",
-      maxTokens: null,
-    };
-    let text: string | null = null;
-    for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
+    if (request.images.length === 0) return this.ask(request, null);
+    const route = await this.imageRoute();
+    try {
+      return await this.ask(request, route.transport);
+    } catch (error) {
+      if (!route.linkProblem || !(error instanceof AppError) || !isOverflow(error)) throw error;
+      // The overflow comes from inline photos; the links are the real problem.
+      throw new AppError(
+        error.code,
+        `${error.message} The photos went inline because ${this.name} could not use links: ${route.linkProblem}`,
+        { detail: error.detail, status: error.status },
+      );
+    }
+  }
+
+  /**
+   * How this model gets photos, checked once and remembered for a few hours.
+   * Concurrent first calls share one check.
+   */
+  private imageRoute(): Promise<ImageRoute> {
+    const key = `${this.key}|${this.imageHost ? "links" : "inline"}`;
+    const known = imageRoutes.get(key);
+    if (known && Date.now() - known.at < VISION_CHECK_TTL_MS) return Promise.resolve(known);
+    let pending = pendingRoutes.get(key);
+    if (!pending) {
+      pending = this.checkImageRoutes()
+        .then((route) => {
+          imageRoutes.set(key, route);
+          return route;
+        })
+        .finally(() => pendingRoutes.delete(key));
+      pendingRoutes.set(key, pending);
+    }
+    return pending;
+  }
+
+  /**
+   * Sends a test image by link (when an image host is available), then
+   * inline, and keeps the first route through which the model names its
+   * colours (see vision-check.ts).
+   */
+  private async checkImageRoutes(): Promise<ImageRoute> {
+    const routes: ImageTransport[] = this.imageHost ? ["url", "data"] : ["data"];
+    let problem: string | undefined;
+    for (const transport of routes) {
+      const test = await createVisionTest();
       try {
-        text = await this.complete(request, settings);
+        const answer = await this.ask(test.request, transport);
+        if (passesVisionTest(answer, test.expected)) {
+          return { transport, at: Date.now(), linkProblem: problem };
+        }
+        problem = `the model named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`;
       } catch (error) {
-        const next =
-          error instanceof AppError && error.code === "provider_bad_input"
-            ? this.adapt(settings, error)
-            : null;
-        if (!next) throw error;
-        settings = next;
+        // Only a refused image or a garbled answer says something about images;
+        // a key, balance, quota or outage problem is reported as it is.
+        if (
+          !(error instanceof AppError) ||
+          !["provider_bad_input", "llm_output"].includes(error.code)
+        ) {
+          throw error;
+        }
+        problem = error.detail ?? error.message;
+      }
+      if (transport === "url") {
+        console.warn(
+          `${this.name} ${this.model}: photo links failed the vision check (${problem})`,
+        );
       }
     }
-    if (text === null) throw new AppError("llm_output", `${this.name} returned no answer.`);
-    learned.set(this.key, settings);
+    throw new AppError(
+      "provider_bad_input",
+      `${this.model} at ${this.name} could not read a test image, so it cannot see the garment photos. Choose a model marked Vision in Settings.`,
+      { detail: problem?.slice(0, 200) },
+    );
+  }
 
-    let json: unknown;
+  /** One structured call, with the photos sent the given way (links are deleted afterwards). */
+  private async ask<T>(
+    request: StructuredRequest<T>,
+    transport: ImageTransport | null,
+  ): Promise<T> {
+    const hosted =
+      transport === "url" && this.imageHost ? await this.imageHost(request.images) : null;
     try {
-      json = extractJson(text);
-    } catch {
-      throw new AppError("llm_output", `${this.name} returned invalid JSON.`);
+      let settings: Learned = learned.get(this.key) ?? {
+        mode: "json_schema",
+        tokenField: "max_tokens",
+        maxTokens: null,
+      };
+      let text: string | null = null;
+      for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
+        try {
+          text = await this.complete(request, settings, hosted?.urls ?? null);
+        } catch (error) {
+          const next =
+            error instanceof AppError && error.code === "provider_bad_input"
+              ? this.adapt(settings, error)
+              : null;
+          if (!next) throw error;
+          settings = next;
+        }
+      }
+      if (text === null) throw new AppError("llm_output", `${this.name} returned no answer.`);
+      learned.set(this.key, settings);
+
+      let json: unknown;
+      try {
+        json = extractJson(text);
+      } catch {
+        throw new AppError("llm_output", `${this.name} returned invalid JSON.`);
+      }
+      const parsed = request.schema.safeParse(json);
+      if (!parsed.success) {
+        throw new AppError("llm_output", "The model returned output in an unexpected shape.", {
+          detail: parsed.error.issues
+            .slice(0, 5)
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("; "),
+        });
+      }
+      return parsed.data;
+    } finally {
+      await hosted?.release().catch(() => undefined);
     }
-    const parsed = request.schema.safeParse(json);
-    if (!parsed.success) {
-      throw new AppError("llm_output", "The model returned output in an unexpected shape.", {
-        detail: parsed.error.issues
-          .slice(0, 5)
-          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-          .join("; "),
-      });
-    }
-    return parsed.data;
   }
 }
 

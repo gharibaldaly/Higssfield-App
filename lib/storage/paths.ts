@@ -31,6 +31,8 @@ export const storagePaths = {
     `${ownerId}/products/${productId}/sheets/${sheetId}/crops/${cropId}.png`,
   generation: (ownerId: string, generationId: string, mimeType: string) =>
     `${ownerId}/generations/${generationId}.${extensionFor(mimeType)}`,
+  /** Temporary copies of brain images, deleted once the gateway has answered. */
+  brainLinks: (ownerId: string, callId: string) => `${ownerId}/tmp/brain/${callId}`,
 };
 
 /** True when a storage path belongs to the given owner's folder. */

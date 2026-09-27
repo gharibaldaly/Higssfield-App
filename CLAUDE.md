@@ -300,7 +300,7 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
 - **Risk accepted by the owner:** every brain request (garment photos, DNA, prompts) goes to the gateway operator, and availability depends on that provider. The provider's public web app bundle includes admin tooling for creating and pooling accounts on other AI services and for reading recent customer messages. The owner was told and chose to go ahead. The integration is generic (any OpenAI-compatible base URL), so switching providers is an env change.
 - **Settings:** migration `20260927120928_llm_gateway` widens `settings.llm_provider` to `claude | gemini | gateway` and adds `gateway_model`. The brain card shows the gateway (named by `LLM_GATEWAY_NAME`) with its key status. Its model field suggests the ids from the gateway's `GET /models`, fetched server-side, cached for 10 minutes and empty on failure.
 - **Selection:** the chosen provider comes first, then the next configured one (Claude, Gemini, gateway), then the mock. A gateway needs a model id (Settings or `LLM_GATEWAY_MODEL`); without one it is skipped. The base URL must be https, because the key travels with every request.
-- **Requests** (`lib/providers/llm/gateway.ts`): `POST {base}/chat/completions` with `Authorization: Bearer`, a system message, and a user message whose photos are `image_url` data-URL parts after their captions. No temperature is sent (some models reject it).
+- **Requests** (`lib/providers/llm/gateway.ts`): `POST {base}/chat/completions` with `Authorization: Bearer`, a system message, and a user message whose photos are `image_url` parts after their captions (links since the next entry, data URLs as the fallback). No temperature is sent (some models reject it).
 - **Adapting to the gateway,** remembered per base URL and model:
   - JSON: `response_format` json_schema (non-strict), else json_object, else the schema in the prompt. Answers are always parsed leniently (fences or prose around the object) and validated with Zod, with the shared repair retry.
   - Output cap: `max_tokens` is capped at `LLM_GATEWAY_MAX_TOKENS` (16,000 by default; the brain's own caps assume thinking models). The cap moves to `max_completion_tokens` when the error names it, and halves (down to 4,096) when the model's limit is lower.
@@ -312,3 +312,16 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - 5xx: retried once.
   - A refusal or `content_filter` answer: neutral-wording advice.
   - `finish_reason: "length"`: the answer ran out of space.
+
+### 2026-09-27 — Gateway photos by link, and a vision check
+- **Why:** the first real DNA analysis through VyceAI failed with "This model's maximum context length is 270,000 tokens. However, your request resulted in 1,417,769 tokens." The gateway counts inline images (base64 data URLs) as text: the product's 12 photos at 1,568 px came to about 1.4 million tokens, where Claude counts about 1,600 per image.
+- **Links:** every brain call site passes an image host (`storageImageHost(supabase, ownerId)`, `lib/storage/brain-links.ts`).
+  - The gateway brain copies the images it already resized to `{owner}/tmp/brain/{uuid}/`, sends 15-minute signed URLs, and deletes the copies once the answer is in (and after a failed upload).
+  - A function cut off mid-call can leave copies behind.
+  - Claude and Gemini keep sending inline data, which their APIs count correctly.
+- **Vision check** (`lib/providers/llm/vision-check.ts`): a gateway can take an image and never show it to the model, and the brain would then write garment specs from the captions.
+  - Before a model's first photos, it gets a 256 px test image of four squares in random colours out of six, and must name the top-left and bottom-right colours. A blind model guesses both about 3% of the time.
+  - Links are tried first, then inline. The first route that passes is remembered for 6 hours per server instance, keyed by base URL, model and whether links are available. Concurrent first calls share one check.
+  - A model that fails both routes is refused ("choose a model marked Vision"). Key, balance, quota and outage errors surface as they are.
+- **Errors:** a context-length error (400 or 413 with the usual wording) gets its own message and no longer cycles through the JSON modes; neither does an error about an image. If the links failed the check and the inline photos then overflow, the message says why the links failed.
+- **Note:** the 270,000-token limit reported for `claude-sonnet-4-6` is not Claude Sonnet 4.6's (1M tokens); VyceAI's site gives 270K for GPT 6 Astra. The vision check proves that the model reads images, not which model answers.

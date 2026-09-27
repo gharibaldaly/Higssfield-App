@@ -8,6 +8,7 @@ import { getGeneration } from "@/lib/generations/queries";
 import { toLlmImage } from "@/lib/images/process";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject } from "@/lib/storage/objects";
 import type { Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -59,7 +60,7 @@ export async function reviewGenerationFidelity(
     await downloadObject(supabase, generation.storage_path),
     "Generated result",
   );
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const review = await brain.reviewFidelity({
     dna: dna.dna,
     context: CONTEXT[generation.purpose],

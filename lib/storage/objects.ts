@@ -42,11 +42,12 @@ export async function uploadObject(
   path: string,
   data: Buffer | Uint8Array,
   contentType: string,
+  options: { cacheControl?: string } = {},
 ): Promise<void> {
   const { error } = await supabase.storage.from(STUDIO_BUCKET).upload(path, data, {
     contentType,
     upsert: true,
-    cacheControl: "31536000",
+    cacheControl: options.cacheControl ?? "31536000",
   });
   if (error) {
     throw new AppError("provider_unavailable", "Could not save the file to Supabase Storage.", {

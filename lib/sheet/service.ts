@@ -22,6 +22,7 @@ import {
   type SheetLayout,
 } from "@/lib/sheet/layout";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject, removeObjects, uploadObject } from "@/lib/storage/objects";
 import { storagePaths } from "@/lib/storage/paths";
 import type { Json, ProductSheetRow, ReferenceCropRow } from "@/lib/supabase/database.types";
@@ -111,7 +112,7 @@ export async function generateSheet(
       ),
   );
 
-  const brain = getDirectorBrain(settings);
+  const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const built = await brain.buildProductSheetPrompt({
     product: {
       name: product.name,

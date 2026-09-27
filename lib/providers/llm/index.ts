@@ -5,7 +5,7 @@ import { ClaudeBrain, DEFAULT_CLAUDE_MODEL } from "@/lib/providers/llm/claude";
 import { GatewayBrain } from "@/lib/providers/llm/gateway";
 import { DEFAULT_GEMINI_MODEL, GeminiBrain } from "@/lib/providers/llm/gemini";
 import { MockBrain } from "@/lib/providers/llm/mock";
-import type { DirectorBrain } from "@/lib/providers/llm/types";
+import type { DirectorBrain, LlmImageHost } from "@/lib/providers/llm/types";
 
 /** The brain part of the owner's settings. */
 export type BrainPreferences = {
@@ -15,13 +15,21 @@ export type BrainPreferences = {
   gatewayModel?: string | null;
 };
 
+export type BrainOptions = {
+  /** Links for photos, which a gateway brain sends instead of inline image data. */
+  imageHost?: LlmImageHost;
+};
+
 /**
  * Picks the director brain from Settings. If the chosen provider is not
  * configured, the next configured one is used (Claude, Gemini, then the
  * gateway); with none at all, the mock brain keeps the app usable.
  * `brain.provider` tells the UI which one answered.
  */
-export function getDirectorBrain(preferences: BrainPreferences): DirectorBrain {
+export function getDirectorBrain(
+  preferences: BrainPreferences,
+  options: BrainOptions = {},
+): DirectorBrain {
   const env = serverEnv();
   const claudeModel =
     preferences.claudeModel?.trim() || env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_MODEL;
@@ -38,7 +46,7 @@ export function getDirectorBrain(preferences: BrainPreferences): DirectorBrain {
     : null;
   const gateway =
     gatewayConfig && gatewayModel
-      ? () => new GatewayBrain({ ...gatewayConfig, model: gatewayModel })
+      ? () => new GatewayBrain({ ...gatewayConfig, model: gatewayModel }, options.imageHost)
       : null;
 
   const ordered = {

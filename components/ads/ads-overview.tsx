@@ -1,0 +1,330 @@
+"use client";
+
+import { Clapperboard, Film, Loader2, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useFormatter, useNow, useTranslations } from "next-intl";
+import type * as React from "react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+
+import { useConfirm } from "@/components/common/confirm-dialog";
+import { EmptyState } from "@/components/common/empty-state";
+import { SectionTitle } from "@/components/common/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  createAdProjectAction,
+  deletePresetAction,
+  resetPresetAction,
+} from "@/lib/actions/director";
+
+type ProjectSummary = {
+  id: string;
+  name: string;
+  productName: string;
+  presetName: string | null;
+  status: "draft" | "planned" | "generating" | "review" | "done";
+  shotCount: number;
+  readyCount: number;
+  createdAt: string;
+};
+
+type PresetSummary = { id: string; name: string; description: string | null; isBuiltin: boolean };
+
+export function AdsOverview({
+  projects,
+  products,
+  presets,
+}: {
+  projects: ProjectSummary[];
+  products: { id: string; name: string; ready: boolean }[];
+  presets: PresetSummary[];
+}) {
+  const t = useTranslations("ads");
+  const confirm = useConfirm();
+  const format = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const readyProducts = products.filter((product) => product.ready);
+
+  return (
+    <div className="flex flex-col gap-10">
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle>{t("projects")}</SectionTitle>
+          <Button onClick={() => setOpen(true)} disabled={readyProducts.length === 0}>
+            <Plus aria-hidden />
+            {t("new")}
+          </Button>
+        </div>
+        {readyProducts.length === 0 ? (
+          <p className="text-sm text-warning">{t("needSheet")}</p>
+        ) : null}
+        {projects.length === 0 ? (
+          <EmptyState
+            icon={Clapperboard}
+            title={t("empty.title")}
+            description={t("empty.description")}
+            steps={[t("empty.step1"), t("empty.step2"), t("empty.step3")]}
+          />
+        ) : (
+          <ul className="fx-stagger grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project, index) => (
+              <li key={project.id} style={{ "--i": index } as React.CSSProperties}>
+                {/* Each ad is a film slate; the clapper lifts on hover. */}
+                <Link href={`/ads/${project.id}`} className="group block rounded-(--radius-panel)">
+                  <article className="h-full overflow-hidden rounded-(--radius-panel) surface">
+                    <div
+                      aria-hidden
+                      className="h-7 origin-bottom-left bg-[repeating-linear-gradient(-55deg,var(--foreground)_0_16px,transparent_16px_32px)] opacity-85 transition-transform duration-500 ease-(--ease-spring) group-hover:-rotate-3 rtl:origin-bottom-right rtl:group-hover:rotate-3"
+                    />
+                    <div className="border-y border-border-strong px-5 py-4">
+                      <h3 className="font-heading text-2xl leading-tight">{project.name}</h3>
+                    </div>
+                    <dl className="grid grid-cols-2 text-sm [&>div]:border-border [&>div]:px-5 [&>div]:py-3 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-e">
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("product")}</dt>
+                        <dd className="mt-1 truncate">{project.productName}</dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.status")}</dt>
+                        <dd className="mt-1">
+                          <Badge
+                            variant={
+                              project.status === "review" || project.status === "done"
+                                ? "success"
+                                : "muted"
+                            }
+                          >
+                            {t(`status.${project.status}`)}
+                          </Badge>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.shots")}</dt>
+                        <dd className="mt-1 font-mono" dir="ltr">
+                          {project.readyCount}/{project.shotCount}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="hud text-muted-foreground">{t("slate.created")}</dt>
+                        <dd className="mt-1 truncate">
+                          {format.relativeTime(new Date(project.createdAt), now)}
+                        </dd>
+                      </div>
+                    </dl>
+                    {project.presetName ? (
+                      <p className="flex items-center gap-2 border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                        <Film className="size-3.5" aria-hidden />
+                        {project.presetName}
+                      </p>
+                    ) : null}
+                  </article>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>{t("presets.title")}</SectionTitle>
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("presets.hint")}</p>
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {presets.map((preset) => (
+            <li key={preset.id}>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle as="h3" className="flex items-center gap-2 text-lg">
+                    <Sparkles className="size-4 text-accent-ink" aria-hidden />
+                    {preset.name}
+                  </CardTitle>
+                  <CardDescription>{preset.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {preset.isBuiltin ? (
+                    <>
+                      <Badge variant="accent">{t("presets.builtin")}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pending}
+                        onClick={async () => {
+                          const confirmed = await confirm({
+                            title: t("presets.confirmReset"),
+                            confirmLabel: t("presets.resetAction"),
+                          });
+                          if (!confirmed) return;
+                          startTransition(async () => {
+                            const result = await resetPresetAction(preset.id);
+                            if (!result.ok) toast.error(result.error);
+                            else toast.success(t("presets.reset"));
+                            router.refresh();
+                          });
+                        }}
+                      >
+                        <RotateCcw aria-hidden />
+                        {t("presets.resetAction")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      disabled={pending}
+                      onClick={async () => {
+                        const confirmed = await confirm({
+                          title: t("presets.confirmDelete"),
+                          confirmLabel: t("presets.delete"),
+                          destructive: true,
+                        });
+                        if (!confirmed) return;
+                        startTransition(async () => {
+                          const result = await deletePresetAction(preset.id);
+                          if (!result.ok) toast.error(result.error);
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <Trash2 aria-hidden />
+                      {t("presets.delete")}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <NewAdDialog open={open} onOpenChange={setOpen} products={readyProducts} presets={presets} />
+    </div>
+  );
+}
+
+function NewAdDialog({
+  open,
+  onOpenChange,
+  products,
+  presets,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  products: { id: string; name: string }[];
+  presets: PresetSummary[];
+}) {
+  const t = useTranslations("ads");
+  const router = useRouter();
+  const [productId, setProductId] = useState<string | undefined>(products[0]?.id);
+  const [presetId, setPresetId] = useState<string | undefined>(
+    presets.find((preset) => preset.isBuiltin)?.id ?? presets[0]?.id,
+  );
+  const [name, setName] = useState("");
+  const [brief, setBrief] = useState("");
+  const [pending, startTransition] = useTransition();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("new")}</DialogTitle>
+          <DialogDescription>{t("newHint")}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label>{t("product")}</Label>
+            <Select value={productId} onValueChange={setProductId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("chooseProduct")} />
+              </SelectTrigger>
+              <SelectContent>
+                {products.map((product) => (
+                  <SelectItem key={product.id} value={product.id}>
+                    {product.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ad-name">{t("name")}</Label>
+            <Input
+              id="ad-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("namePlaceholder")}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>{t("preset")}</Label>
+            <Select value={presetId} onValueChange={setPresetId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ad-brief">{t("brief")}</Label>
+            <Textarea
+              id="ad-brief"
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder={t("briefPlaceholder")}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={pending || !productId || !name.trim()}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await createAdProjectAction({
+                  productId,
+                  name,
+                  presetId: presetId ?? null,
+                  brief,
+                });
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                router.push(`/ads/${result.data.id}`);
+              })
+            }
+          >
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Plus aria-hidden />}
+            {t("create")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

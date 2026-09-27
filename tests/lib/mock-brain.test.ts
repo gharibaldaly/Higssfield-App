@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { adPlanSchema } from "@/lib/domain/ad-plan";
+import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
 import { garmentDnaSchema } from "@/lib/domain/garment-dna";
 import { sheetPlanSchema } from "@/lib/domain/sheet";
 import { findForbiddenWords } from "@/lib/prompts/wording";
@@ -61,21 +62,23 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
       product: PRODUCT,
       dna: ROBE_SET_DNA,
       view: "macro",
-      styleDescription: "Catalogue background #F7F3EE, soft daylight",
+      style: { ...DEFAULT_CATALOGUE_STYLE, background: "#F7F3EE" },
       detail: {
         label: "Lace V neckline",
         description: "Lace edging on the V",
         pieceName: "Slip dress",
       },
       colorway: null,
-      referenceCaptions: [],
+      references: [],
+      referenceMode: "text",
       note: "Show the mannequin-free drape",
-      promptBudget: 4000,
+      promptBudget: 6000,
     });
     expectLockedPrompt(built.prompt);
     expect(built.prompt).toContain('Piece 2 "Slip dress"');
     expect(built.prompt).not.toContain('Piece 1 "Robe"');
-    expect(built.prompt).toContain("Catalogue background #F7F3EE");
+    expect(built.prompt).toContain("seamless solid #F7F3EE background");
+    expect(built.prompt).toContain("no background colour other than #F7F3EE");
     expect(findForbiddenWords(built.negativePrompt)).toEqual([]);
   });
 
@@ -84,12 +87,13 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
       product: PRODUCT,
       dna: ROBE_SET_DNA,
       view: "colorway",
-      styleDescription: "",
+      style: DEFAULT_CATALOGUE_STYLE,
       detail: null,
       colorway: { name: "Wine", hex: "#4d0011" },
-      referenceCaptions: [],
+      references: [],
+      referenceMode: "edit",
       note: null,
-      promptBudget: 4000,
+      promptBudget: 6000,
     });
     expectLockedPrompt(built.prompt);
     expect(built.prompt).toContain("recolour the whole piece to Wine #4D0011");

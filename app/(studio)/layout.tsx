@@ -1,10 +1,12 @@
 import { getTranslations } from "next-intl/server";
 
 import { SatinBackground } from "@/components/fx/satin-background";
+import { GhostBatchRunner } from "@/components/ghost-batch/batch-runner";
 import { Masthead } from "@/components/layout/masthead";
 import { SideRails } from "@/components/layout/side-rails";
 import { requireOwner } from "@/lib/auth/owner";
 import { keyStatus } from "@/lib/env";
+import { hasRunningGhostBatch } from "@/lib/ghost-batches/runner";
 import { getEffects, getTheme } from "@/lib/preferences";
 import { ensureOwnerDefaults } from "@/lib/settings/service";
 
@@ -12,7 +14,12 @@ export default async function StudioLayout({ children }: { children: React.React
   const owner = await requireOwner();
   await ensureOwnerDefaults(owner.supabase, owner.user.id);
   const status = keyStatus();
-  const [theme, effects, t] = await Promise.all([getTheme(), getEffects(), getTranslations("nav")]);
+  const [theme, effects, t, batchRunning] = await Promise.all([
+    getTheme(),
+    getEffects(),
+    getTranslations("nav"),
+    hasRunningGhostBatch(owner.supabase),
+  ]);
   return (
     <div className="relative min-h-dvh">
       <a
@@ -37,6 +44,7 @@ export default async function StudioLayout({ children }: { children: React.React
       >
         {children}
       </main>
+      <GhostBatchRunner active={batchRunning} />
     </div>
   );
 }

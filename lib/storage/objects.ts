@@ -71,3 +71,21 @@ export async function removeObjects(supabase: TypedSupabaseClient, paths: string
   const { error } = await supabase.storage.from(STUDIO_BUCKET).remove(paths);
   if (error) console.warn("Storage cleanup failed", error.message);
 }
+
+/**
+ * Removes every file directly inside a folder (no recursion). Used to clear
+ * uploads that never got a database row, e.g. after an interrupted upload.
+ */
+export async function removeFolderFiles(
+  supabase: TypedSupabaseClient,
+  folder: string,
+): Promise<void> {
+  const { data, error } = await supabase.storage.from(STUDIO_BUCKET).list(folder, { limit: 1000 });
+  if (error) {
+    console.warn("Storage listing failed", folder, error.message);
+    return;
+  }
+  // Folders come back as entries without an id; only files are removed.
+  const files = (data ?? []).filter((entry) => entry.id).map((entry) => `${folder}/${entry.name}`);
+  await removeObjects(supabase, files);
+}

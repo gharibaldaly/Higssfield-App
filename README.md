@@ -9,13 +9,13 @@ Project rules, architecture and the decisions log live in [`CLAUDE.md`](./CLAUDE
 
 ## What Phase 1 includes
 
-| Module                 | What it does                                                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Product intake         | Products (SECRET / HOURS / VOWS, 1–3 pieces), phone photos per piece and view, Garment DNA drafted by the director brain and approved by the owner, colourways from swatch photos or an eyedropper.                             |
-| Product Sheet          | 16:9 sheet generated after DNA approval. After approval the app auto-crops isolated references (front, back, six details, pieces/swatch cards), with a crop editor.                                                             |
-| Ghost Mannequin Studio | Front & back, two macro close-ups and colourways; single product or batch queue; every result opens in a compare view (original vs result slider) with Approve / Regenerate / Regenerate with note.                             |
-| Ads Director           | Director Board with every control from the brief, the editable "Dr. Secret Cinematic" preset, saved presets, LLM shot planning and per-shot image-to-video generation from isolated references, with an optional preview frame. |
-| Library & Settings     | All generations with filters, favourites and downloads; LLM switch, catalogue style, default and custom models, provider key status, account password, cost summary.                                                            |
+| Module                 | What it does                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product intake         | Products (SECRET / HOURS / VOWS, 1–3 pieces), phone photos per piece and view, Garment DNA drafted by the director brain and approved by the owner, colourways from swatch photos or an eyedropper.                                                                                                                                                                                           |
+| Product Sheet          | 16:9 sheet generated after DNA approval. After approval the app auto-crops isolated references (front, back, six details, pieces/swatch cards), with a crop editor.                                                                                                                                                                                                                           |
+| Ghost Mannequin Studio | **From photos** (default): drop the photos of 30+ models at once; the studio groups them, writes each Garment DNA and renders front, back and two close-ups model by model, then colours once fronts are approved. **From products**: the same jobs for existing products. Every result opens in a compare view (original vs result slider) with Approve / Regenerate / Regenerate with note. |
+| Ads Director           | Director Board with every control from the brief, the editable "Dr. Secret Cinematic" preset, saved presets, LLM shot planning and per-shot image-to-video generation from isolated references, with an optional preview frame.                                                                                                                                                               |
+| Library & Settings     | All generations with filters, favourites and downloads; LLM switch, catalogue style, default and custom models, provider key status, account password, cost summary.                                                                                                                                                                                                                          |
 
 Every generation prompt carries the **PRODUCT LOCK** and **STRICT NEGATIVES** blocks, built by code
 from the approved DNA, and uses neutral garment wording.
@@ -114,7 +114,25 @@ pnpm dev                     # http://localhost:3000
   no redeploy. Each model declares its modes, aspect ratios, resolutions, durations and
   reference-image count, and the UI only offers valid options.
 - Results are copied into Supabase Storage as soon as they complete. Provider URLs expire.
+  Front, back and colourway images are trimmed to the garment and re-padded with the catalogue
+  margin on the catalogue background, so every product sits the same way in the grid.
 - Cost or credits are recorded per generation when the API returns them.
+- Ghost images from photos need an **image-edit model** (one that keeps the garment from the
+  reference photo). The built-in list has none confirmed yet: add the edit endpoint from the
+  Higgsfield docs as a custom model in Settings (mode `image-to-image`, reference images as a URL
+  list) and pick it for the batch.
+
+## Ghost batches (from photos)
+
+- One folder per model is the easiest way in; the folder name becomes the model name. Colour
+  swatches go in a `colours` folder or carry "colour"/"لون" in their name. Without folders the
+  studio groups by file name, or in order (N photos per model) for camera names like `IMG_2231`.
+- Each model becomes a one-piece product, so its DNA, colourways and images also appear under
+  Products and can be used for sheets and ads.
+- The work runs **while a studio tab is open**: the browser calls
+  `POST /api/ghost-batches/advance` in a loop and the server does one step per call (sort the
+  photos, write and approve the DNA, write prompts and submit, settle results, render colours,
+  check fidelity). Close the tab and it continues next time the studio is open.
 
 ## Project layout
 
@@ -122,7 +140,7 @@ pnpm dev                     # http://localhost:3000
 app/                 routes (App Router): studio pages, login, setup, API routes
 components/          UI: design system (ui/), layout, and one folder per module
 lib/                 server logic: domain schemas, providers, prompts, services, actions
-lib/prompts/v1/      versioned prompt templates for the director brain
+lib/prompts/v1, v2/  versioned prompt templates for the director brain
 supabase/migrations  database schema, RLS and storage policies
 messages/            en.json / ar.json (next-intl)
 tests/               Vitest suites for lib code
@@ -146,3 +164,6 @@ The `render_jobs` table is already in the schema.
 3. **المفاتيح**: من غير مفاتيح Higgsfield وClaude/Gemini التطبيق بيشتغل بنتائج تجريبية (Mock).
    لما تضيفها في Vercel وتعمل Redeploy، النتائج الحقيقية بتشتغل على طول.
 4. بعد أول دخول غيّر كلمة المرور من **الإعدادات → كلمة مرور الحساب**.
+5. **صفحة الجوست من الصور**: اسحب مجلد فيه مجلد لكل موديل (اسم المجلد = اسم الموديل)، وعينات الألوان
+   في مجلد «ألوان». الاستوديو يشتغل على الموديلات واحد واحد (أمام، خلف، كلوز)، وبعد ما توافق على الأمام
+   يعمل الألوان. الشغل بيمشي طول ما فيه تبويب من الاستوديو مفتوح.

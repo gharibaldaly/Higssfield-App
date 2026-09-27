@@ -59,7 +59,17 @@ export type GenerationView = {
   review: unknown;
   cost: number | null;
   costUnit: GenerationRow["cost_unit"];
+  /** Catalogue images: false when the background is not the flat catalogue colour. */
+  backgroundOk: boolean | null;
 };
+
+/** Reads the finishing report stored with a catalogue result (see finishCatalogueImage). */
+export function finishBackgroundOk(params: GenerationRow["params"]): boolean | null {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return null;
+  const finish = params._finish;
+  if (!finish || typeof finish !== "object" || Array.isArray(finish)) return null;
+  return typeof finish.backgroundOk === "boolean" ? finish.backgroundOk : null;
+}
 
 export function toGenerationView(row: GenerationRow, url: string | null): GenerationView {
   return {
@@ -82,5 +92,6 @@ export function toGenerationView(row: GenerationRow, url: string | null): Genera
     review: row.review,
     cost: row.cost,
     costUnit: row.cost_unit,
+    backgroundOk: finishBackgroundOk(row.params),
   };
 }

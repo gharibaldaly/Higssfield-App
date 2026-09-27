@@ -19,13 +19,14 @@ export const catalogueStyleSchema = z.object({
 
 export type CatalogueStyle = z.infer<typeof catalogueStyleSchema>;
 
+/** Pure white, shadowless catalogue look (the owner's choice since 2026-09-27). */
 export const DEFAULT_CATALOGUE_STYLE: CatalogueStyle = {
-  background: "#F7F3EE",
+  background: "#FFFFFF",
   aspectRatio: "4:5",
   paddingPercent: 8,
-  shadow: "soft",
+  shadow: "none",
   lighting:
-    "soft, even, diffused studio light from the front-left; true-to-life colour; no harsh highlights",
+    "soft, even, high-key studio light from the front and both sides; neutral daylight white balance; true-to-life colour; no harsh highlights",
 };
 
 export function parseCatalogueStyle(value: unknown): CatalogueStyle {

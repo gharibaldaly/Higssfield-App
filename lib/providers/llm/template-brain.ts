@@ -2,6 +2,10 @@ import { adPlanSchema, type AdPlan } from "@/lib/domain/ad-plan";
 import { fidelityReviewSchema, type FidelityReview } from "@/lib/domain/fidelity";
 import { garmentDnaSchema, normalizeGarmentDna, type GarmentDna } from "@/lib/domain/garment-dna";
 import {
+  photoClassificationSchema,
+  type PhotoClassification,
+} from "@/lib/domain/photo-classification";
+import {
   enforceSheetRules,
   SHEET_DESIGN,
   sheetPlanSchema,
@@ -13,13 +17,16 @@ import {
   NEGATIVE_PROMPT_TERMS,
   type LockView,
 } from "@/lib/prompts/blocks";
+import { buildHouseStyle, GHOST_NEGATIVE_TERMS, ghostNegatives } from "@/lib/prompts/house-style";
 import { PROMPTS, templateVersion } from "@/lib/prompts";
 import type {
   AnalyzeGarmentInput,
   BuiltPrompt,
   BuiltSheetPrompt,
+  ClassifyPhotosInput,
   DirectorBrain,
   GhostPromptInput,
+  GhostScenePrompt,
   LlmProviderId,
   PlanAdInput,
   ReviewFidelityInput,
@@ -28,7 +35,7 @@ import type {
   ShotPromptInput,
   StructuredRequest,
 } from "@/lib/providers/llm/types";
-import { scenePromptSchema } from "@/lib/providers/llm/types";
+import { ghostScenePromptSchema, scenePromptSchema } from "@/lib/providers/llm/types";
 import { neutralizeWording } from "@/lib/prompts/wording";
 import { computeSheetLayout, describeLayout } from "@/lib/sheet/layout";
 
@@ -44,6 +51,28 @@ function negativePrompt(extra: string[]): string {
   return neutralizeWording(
     extras.length > 0 ? `${NEGATIVE_PROMPT_TERMS}, ${extras.join(", ")}` : NEGATIVE_PROMPT_TERMS,
   );
+}
+
+function cleanList(items: string[], max: number): string[] {
+  return items
+    .map((item) => item.trim().replace(/[.;]+$/, ""))
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+/** Instruction, then the "keep exactly" and "clean up" checklists written for this image. */
+export function composeGhostScene(scene: GhostScenePrompt): string {
+  const keep = cleanList(scene.mustKeep, 8);
+  const cleanUp = cleanList(scene.cleanUp, 5);
+  return [
+    scene.instruction.trim(),
+    keep.length > 0 ? `KEEP EXACTLY — ${keep.join("; ")}.` : null,
+    cleanUp.length > 0
+      ? `LEAVE OUT (photo artefacts only, never design details) — ${cleanUp.join("; ")}.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
@@ -102,15 +131,28 @@ export abstract class TemplateBrain implements DirectorBrain {
     });
   }
 
-  protected askGhostScene(input: GhostPromptInput): Promise<ScenePrompt> {
+  protected askGhostScene(input: GhostPromptInput): Promise<GhostScenePrompt> {
     const template = PROMPTS.ghost;
     return this.structured({
       name: "ghost_scene",
       system: template.system,
       user: template.render(input),
-      images: [],
-      schema: scenePromptSchema,
-      maxTokens: 12_000,
+      images: input.references,
+      schema: ghostScenePromptSchema,
+      maxTokens: 16_000,
+    });
+  }
+
+  protected askPhotoViews(input: ClassifyPhotosInput): Promise<PhotoClassification> {
+    const template = PROMPTS.classifyPhotos;
+    if (input.photos.length === 0) return Promise.resolve({ photos: [] });
+    return this.structured({
+      name: "photo_views",
+      system: template.system,
+      user: template.render(input),
+      images: input.photos,
+      schema: photoClassificationSchema,
+      maxTokens: 8_000,
     });
   }
 
@@ -152,6 +194,21 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   // --- Public interface -----------------------------------------------------
 
+  async classifyPhotos(input: ClassifyPhotosInput): Promise<PhotoClassification> {
+    const result = await this.askPhotoViews(input);
+    // One entry per photo, in range, first answer wins.
+    const seen = new Set<number>();
+    return {
+      photos: result.photos.filter((photo) => {
+        if (photo.index < 1 || photo.index > input.photos.length || seen.has(photo.index)) {
+          return false;
+        }
+        seen.add(photo.index);
+        return true;
+      }),
+    };
+  }
+
   async analyzeGarment(input: AnalyzeGarmentInput): Promise<GarmentDna> {
     const dna = await this.askGarmentDna(input);
     return normalizeGarmentDna(dna, input.product.pieces);
@@ -186,23 +243,24 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   async buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt> {
     const scene = await this.askGhostScene(input);
+    const sceneText = composeGhostScene(scene);
     const detailPiece = input.detail
       ? input.dna.pieces.find((piece) => piece.pieceName === input.detail?.pieceName)
       : undefined;
     const prompt = composeGenerationPrompt({
-      scene: scene.scene,
+      scene: sceneText,
       dna: input.dna,
       view: GHOST_LOCK_VIEW[input.view],
       piecePositions: detailPiece ? [detailPiece.position] : undefined,
-      style: input.styleDescription,
-      extraNegatives: scene.extraNegatives,
+      style: buildHouseStyle(input.style, input.view),
+      extraNegatives: [...ghostNegatives(input.style, input.view), ...scene.extraNegatives],
       colorOverride: input.colorway,
       maxChars: input.promptBudget,
     });
     return {
       prompt,
-      negativePrompt: negativePrompt(scene.extraNegatives),
-      scene: scene.scene,
+      negativePrompt: negativePrompt([...GHOST_NEGATIVE_TERMS, ...scene.extraNegatives]),
+      scene: sceneText,
       rationale: scene.rationale,
       promptVersion: templateVersion(PROMPTS.ghost),
     };

@@ -54,6 +54,8 @@ Three job types, each clearly separated in the UI:
 - **Colourways** → the approved front image re-rendered in each colourway; only the colour changes, every construction detail identical.
 Rules: consistent background, lighting and framing across the whole catalogue (store as a "catalogue style" setting: background colour, aspect ratio default 4:5, padding, shadow). Batch mode: queue multiple products and their colourways in one go; also single-product mode. Every result goes through the compare view (original vs result, slider) with Approve / Regenerate / Regenerate with note.
 
+**Batch from photos** (the Ghost page's default view, added 2026-09-27 at the owner's request): the owner drops the photos of many models (30 or more) without creating products first. The studio works through them one by one: stage 1 is front, back and two close-ups for every model; stage 2 renders the colours once the owner approves the fronts. White background, one house style for every image, and prompts that keep every detail of the model. The product-based studio stays under "From products".
+
 ### C. Product Sheet
 Generated after DNA approval; this is the reference used by the ad module. Layout system (landscape 16:9, highest available resolution):
 - Warm off-white background `#FAF8F5`, white rounded cards with soft shadows, charcoal headings `#1A1A1A`, grey body text `#666666`, thin gold accent rules.
@@ -197,3 +199,44 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A timing probe showed the pour holds until the next page arrives and then drains at once; calm mode navigates instantly.
   - The sticky masthead stayed at top 0 in every frame of a glide. Screenshots taken mid-glide can show it offset; that is a capture artifact.
   - axe flagged only the light-theme rails, whose difference-blended white text it measures as 1.23:1. The rails now use the muted ink there, and a re-check of 16 pages across all four combinations found no violations.
+
+### 2026-09-27 — Ghost batches from photos
+- **Why:** the owner asked for the Ghost page to work straight from uploaded photos: 30+ models in one go, handled one by one (front, back and close-ups for all, then colours after approval), with prompts that keep every detail, a clean image and one look on a white background.
+- **Data:** `ghost_batches` (model, catalogue style snapshot, options, `colours_requested_at`) and `ghost_batch_items` (phase, lease, meta), both with owner RLS (migration `20260927080548_ghost_batches`). Each model becomes a one-piece product, so the existing DNA, colourway, job and generation pipeline runs unchanged and the models show up under Products. A batch's catalogue jobs carry its id in the existing `catalogue_jobs.batch_id`.
+- **Intake** (`lib/ghost-batches/intake.ts`, pure and tested):
+  - Grouping: one folder per model first, then file names ("DS1024_front", "DS1024 lace" → DS1024), then camera names (IMG_…) in order, N photos per model.
+  - Roles come from English and Arabic keywords (front/أمام, back/خلف, detail/تفاصيل, colour/لون); untagged photos default to front → back → details.
+  - Photos upload straight to Storage model by model; each model is handed to the runner as soon as its photos are registered, so work starts while the rest upload. Swatch colours are the median of the swatch's centre.
+- **Photo sorting:** a new brain method, `classifyPhotos` (template `classify-photos@1.0.0`, 1024 px images). It re-sorts only the photos tagged by order, labels every photo (better close-up references) and puts the clearest photo of each view first, since that one becomes the reference. If sorting fails, the order tags stand.
+- **DNA:** by default a batch approves a DNA draft that passes `dnaCompletenessIssues`; the "review each DNA" option (or an incomplete draft) holds the model in `dna_review`, and it continues on its own once the owner approves the DNA.
+- **Runner:** there is no server cron (Vercel Hobby) and no service-role key in Vercel, so the browser drives the work. `GhostBatchRunner` is mounted in the studio layout and calls `POST /api/ghost-batches/advance` (`maxDuration` 300) in a loop while any studio tab is open. Each call does one unit of work, decided by the pure `planNextStep` (`lib/ghost-batches/plan.ts`):
+  1. settle finished generations;
+  2. run the next queued job in model order;
+  3. queue stage one after a DNA approval;
+  4. analyse the next model, at most two models ahead;
+  5. queue colours;
+  6. check fidelity.
+  - At most 8 generations per batch sit at the provider at once.
+  - Analyses hold a 6-minute lease; after two cut-off attempts the model fails.
+  - Jobs still "working" after 6 minutes settle from what they submitted, or fail with a retry.
+  - Colours are queued three per job, so writing their prompts fits one function run.
+  - Running with the laptop closed needs `SUPABASE_SERVICE_ROLE_KEY` plus a scheduler (e.g. Supabase pg_cron + pg_net calling a secret-protected route). Not built yet.
+- **Colours:** "Start colours" sets `colours_requested_at`. From then on, every model with an approved front gets a colour job for each colour that no earlier job covered, including fronts approved and colours added later.
+- **Prompts v2** (`lib/prompts/v2/ghost.ts`, `ghost@2.0.0`; v1 removed, it lives in git history):
+  - The director brain now sees the same isolated reference photos as the image model.
+  - It returns an instruction (edit mode or text mode), a "keep exactly" checklist of 4–8 checkable details for the view, and a "leave out" list of handling artefacts only (hanger, room, creases, lint), never design details.
+  - Code appends a fixed HOUSE STYLE block built from the catalogue style (`lib/prompts/house-style.ts`): background, invisible display form, camera, light, framing, shadow, pressed finish and realism. It is identical for every product, which is what keeps the catalogue in "one spirit".
+  - Code also appends ghost-only negatives (hanger, room, tinted background, changed length or straps), then the PRODUCT LOCK and STRICT NEGATIVES as before.
+- **White catalogue:** the default catalogue style is now pure white `#FFFFFF`, no shadow and high-key light. The migration switches owner settings that still held the untouched seeded style; a customised style is left alone.
+- **Image finishing** (`finishCatalogueImage`):
+  - Front, back and colourway results are trimmed to the garment (flat edge colour, threshold 12, trim refused if it would keep under 15% of a side) and re-padded to the catalogue margin and aspect ratio, so all products line up. Close-ups are only padded.
+  - Padding uses the image's own edge colour, so a near-white background never shows a seam.
+  - A background that is not flat or not the catalogue colour is flagged (`params._finish.backgroundOk`) on the tile and in the compare view.
+  - Garment pixels are never resampled; transparent cut-outs are flattened onto the catalogue background.
+- **Review:** with the fidelity option (default on), the runner checks every finished image against its references once the provider work is done, and the score shows on each tile. "Review N images" walks every finished image in the compare view (approve moves to the next image), and the checker's findings can be turned into the regeneration note in one click.
+- **TODO (Higgsfield):** ghost images from photos need a multi-reference image-edit model; Soul's single `image_reference` is not an editor. The docs are still blocked from the sandbox (403), and the SDKs (`@higgsfield/client` 0.2.6, `higgsfield-client` 0.2.0) list no edit endpoint. Once the docs are reachable, register the edit model in `models.ts`; until then the owner can add it as a custom model in Settings.
+- **Verification:**
+  - Typecheck, lint, format and 149 unit tests pass, including grouping, planning, framing and prompt tests.
+  - A local lab page (not committed) rendered the intake and the board in ar/en × dark/light and on a phone, with no console errors and no horizontal overflow.
+  - Not yet run end to end on the preview: the Vercel connector now points at another team, and Supabase and Vercel hosts are blocked from this sandbox.
+

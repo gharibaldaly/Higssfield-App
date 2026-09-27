@@ -2,18 +2,33 @@ import "server-only";
 
 import sharp from "sharp";
 
+import {
+  BACKGROUND_TOLERANCE,
+  colourDistance,
+  edgeColourStats,
+  framedCanvas,
+  hexToRgb,
+  medianColour,
+  parseAspectRatio,
+  rgbToHex,
+} from "@/lib/images/framing";
 import type { LlmImage } from "@/lib/providers/llm/types";
 import type { NormalizedRect } from "@/lib/sheet/layout";
 
 /** Claude and Gemini both work best with ≤1568 px on the long edge. */
 const LLM_LONG_EDGE = 1568;
 
-export async function toLlmImage(buffer: Buffer, caption: string): Promise<LlmImage> {
+export async function toLlmImage(
+  buffer: Buffer,
+  caption: string,
+  options: { longEdge?: number } = {},
+): Promise<LlmImage> {
+  const longEdge = options.longEdge ?? LLM_LONG_EDGE;
   const data = await sharp(buffer)
     .rotate()
     .resize({
-      width: LLM_LONG_EDGE,
-      height: LLM_LONG_EDGE,
+      width: longEdge,
+      height: longEdge,
       fit: "inside",
       withoutEnlargement: true,
     })
@@ -65,12 +80,6 @@ export async function cropRegions(
   );
 }
 
-function parseAspect(aspect: string): number | null {
-  const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(aspect);
-  if (!match) return null;
-  return Number(match[1]) / Number(match[2]);
-}
-
 /**
  * Pads an image to the catalogue aspect ratio with the catalogue background
  * colour. Never scales or recompresses the garment pixels beyond PNG encoding.
@@ -79,7 +88,7 @@ export async function fitToCanvas(
   buffer: Buffer,
   options: { aspectRatio: string; background: string },
 ): Promise<{ data: Buffer; width: number; height: number; changed: boolean }> {
-  const target = parseAspect(options.aspectRatio);
+  const target = parseAspectRatio(options.aspectRatio);
   const meta = await sharp(buffer).metadata();
   if (!target || !meta.width || !meta.height) {
     return { data: buffer, width: meta.width ?? 0, height: meta.height ?? 0, changed: false };
@@ -105,4 +114,135 @@ export async function fitToCanvas(
     .png()
     .toBuffer();
   return { data, width, height, changed: true };
+}
+
+export type CatalogueCanvas = {
+  aspectRatio: string;
+  background: string;
+  paddingPercent: number;
+  /** Trim to the garment and re-pad with uniform margins (front, back and colourways). */
+  reframe: boolean;
+};
+
+export type CatalogueFinish = {
+  data: Buffer;
+  width: number;
+  height: number;
+  changed: boolean;
+  reframed: boolean;
+  /** The flat colour around the image edge, or null when the edge is not one colour. */
+  edgeColour: string | null;
+  /** True when the edge is one flat colour matching the catalogue background. */
+  backgroundOk: boolean;
+};
+
+/** A trim that keeps less than this share of either side most likely ate a pale garment. */
+const MIN_TRIM_SHARE = 0.15;
+
+/**
+ * Finishes a catalogue result without resampling the garment:
+ * - reads the colour around the edge (does the background match the catalogue?);
+ * - for front, back and colourway images, trims the flat background away and
+ *   re-pads the garment with the catalogue margin, so every product sits at
+ *   the same scale in the grid;
+ * - pads to the catalogue aspect ratio with the image's own edge colour, so a
+ *   near-white background never shows a seam.
+ * Trimmed rows and columns only ever hold pixels within the trim threshold of
+ * the background colour.
+ */
+export async function finishCatalogueImage(
+  buffer: Buffer,
+  canvas: CatalogueCanvas,
+): Promise<CatalogueFinish> {
+  let source = buffer;
+  let changed = false;
+  const meta = await sharp(source).metadata();
+  if (!meta.width || !meta.height) {
+    return {
+      data: buffer,
+      width: meta.width ?? 0,
+      height: meta.height ?? 0,
+      changed: false,
+      reframed: false,
+      edgeColour: null,
+      backgroundOk: false,
+    };
+  }
+  // Transparent pixels (some models return cut-outs) sit on the catalogue background.
+  if (meta.hasAlpha && !(await sharp(source).stats()).isOpaque) {
+    source = await sharp(source).flatten({ background: canvas.background }).png().toBuffer();
+    changed = true;
+  }
+
+  const sample = await sharp(source)
+    .resize({ width: 256, height: 256, fit: "inside", withoutEnlargement: true })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const stats = edgeColourStats(sample.data, sample.info.width, sample.info.height);
+  const uniform = stats.uniformity >= 0.96;
+  const target = hexToRgb(canvas.background) ?? [255, 255, 255];
+  const edgeColour = uniform ? rgbToHex(stats.colour) : null;
+  const backgroundOk = uniform && colourDistance(stats.colour, target) <= BACKGROUND_TOLERANCE;
+  const fill = edgeColour ?? canvas.background;
+  const aspect = parseAspectRatio(canvas.aspectRatio);
+
+  if (canvas.reframe && uniform && aspect) {
+    try {
+      const trimmed = await sharp(source)
+        .trim({ background: fill, threshold: 12 })
+        .png()
+        .toBuffer({ resolveWithObject: true });
+      const { width, height } = trimmed.info;
+      const plausible =
+        width >= meta.width * MIN_TRIM_SHARE && height >= meta.height * MIN_TRIM_SHARE;
+      if (plausible) {
+        const frame = framedCanvas({ width, height }, aspect, canvas.paddingPercent);
+        const data = await sharp(trimmed.data)
+          .extend({
+            top: frame.top,
+            bottom: frame.height - height - frame.top,
+            left: frame.left,
+            right: frame.width - width - frame.left,
+            background: fill,
+          })
+          .png()
+          .toBuffer();
+        return {
+          data,
+          width: frame.width,
+          height: frame.height,
+          changed: true,
+          reframed: true,
+          edgeColour,
+          backgroundOk,
+        };
+      }
+    } catch {
+      // Nothing to trim (or an unreadable edge): fall back to plain padding.
+    }
+  }
+
+  const fitted = await fitToCanvas(source, { aspectRatio: canvas.aspectRatio, background: fill });
+  return {
+    data: fitted.data,
+    width: fitted.width,
+    height: fitted.height,
+    changed: changed || fitted.changed,
+    reframed: false,
+    edgeColour,
+    backgroundOk,
+  };
+}
+
+/** The fabric colour of a swatch photo: the median of its centre, as #RRGGBB. */
+export async function sampleSwatchColour(buffer: Buffer): Promise<string> {
+  const { data } = await sharp(buffer)
+    .rotate()
+    .resize({ width: 160, height: 160, fit: "cover", position: "centre" })
+    .extract({ left: 40, top: 40, width: 80, height: 80 })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return rgbToHex(medianColour(data));
 }

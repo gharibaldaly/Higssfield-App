@@ -1,11 +1,14 @@
 import type { AdPlan, PlannedShot } from "@/lib/domain/ad-plan";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import { DEFAULT_CHEST_PANEL, sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
+import type { PhotoClassification } from "@/lib/domain/photo-classification";
 import type { SheetPlan } from "@/lib/domain/sheet";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type {
   AnalyzeGarmentInput,
+  ClassifyPhotosInput,
   GhostPromptInput,
+  GhostScenePrompt,
   PlanAdInput,
   ReviewFidelityInput,
   ScenePrompt,
@@ -115,18 +118,42 @@ export class MockBrain extends TemplateBrain {
     };
   }
 
-  protected override async askGhostScene(input: GhostPromptInput): Promise<ScenePrompt> {
-    const scenes: Record<GhostPromptInput["view"], string> = {
-      front:
-        "Straight-on front view of the garment on an invisible display form, centred, full length visible, natural drape.",
-      back: "Straight-on back view on the same invisible display form, identical framing to the front image.",
-      macro: `Advertising macro close-up of ${input.detail?.label ?? "the signature detail"}, crisp micro-texture, gentle fall-off.`,
-      colorway: `Same front image re-rendered in ${input.colorway?.name ?? "the new colour"}, identical in every construction detail.`,
-    };
+  /** Photos in upload order: first front, second back, the rest details. */
+  protected override async askPhotoViews(input: ClassifyPhotosInput): Promise<PhotoClassification> {
     return {
-      scene: [scenes[input.view], input.note ? `Owner note: ${input.note}` : ""]
+      photos: input.photos.map((photo, index) => ({
+        index: index + 1,
+        view: index === 0 ? "front" : index === 1 ? "back" : "detail",
+        label: index === 0 ? "full front" : index === 1 ? "full back" : `detail ${index - 1}`,
+        clarity: 3,
+      })),
+    };
+  }
+
+  protected override async askGhostScene(input: GhostPromptInput): Promise<GhostScenePrompt> {
+    const source =
+      input.referenceMode === "edit"
+        ? "Recreate the exact garment from the reference photo as a catalogue photograph"
+        : "Photograph the garment described below";
+    const instructions: Record<GhostPromptInput["view"], string> = {
+      front: `${source}: straight-on front view on an invisible display form, centred, full length visible, natural drape.`,
+      back: `${source}: straight-on back view on the same invisible display form, identical framing to the front image.`,
+      macro: `${source}: advertising macro close-up of ${input.detail?.label ?? "the signature detail"}, crisp micro-texture, gentle fall-off.`,
+      colorway: `Re-render the approved front image in ${input.colorway?.name ?? "the new colour"}, identical in every construction detail.`,
+    };
+    const piece = input.dna.pieces[0];
+    return {
+      instruction: [instructions[input.view], input.note ? `Owner note: ${input.note}` : ""]
         .filter(Boolean)
         .join(" "),
+      mustKeep: [
+        ...(piece?.doNotAlter ?? []).slice(0, 3),
+        ...(piece?.frontConstruction ?? [])
+          .filter((step) => step.detail.trim())
+          .slice(0, 3)
+          .map((step) => `${step.zone}: ${step.detail}`),
+      ],
+      cleanUp: input.referenceMode === "edit" ? ["the hanger", "the room behind the garment"] : [],
       extraNegatives: [],
       rationale: MOCK_NOTE,
     };

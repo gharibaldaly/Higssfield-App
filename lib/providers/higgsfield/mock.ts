@@ -14,7 +14,7 @@ import type {
  * Mock image/video provider so the whole app works before Higgsfield
  * credentials exist (and in tests). Requests "complete" after a few seconds;
  * the result is a placeholder render built from the first isolated reference
- * image on the catalogue background. Videos are returned as still frames.
+ * image on a white canvas. Videos are returned as still frames.
  */
 
 const QUEUE_MS = 1500;
@@ -34,12 +34,14 @@ export async function renderPlaceholder(options: {
   reference: Buffer | null;
   accent: string;
   longEdge?: number;
+  /** Videos get an accent bar along the bottom edge; stills stay on a clean white edge. */
+  edgeBar?: boolean;
 }): Promise<Buffer> {
   const longEdge = options.longEdge ?? 1280;
   const width = Math.round(options.ratio >= 1 ? longEdge : longEdge * options.ratio);
   const height = Math.round(options.ratio >= 1 ? longEdge / options.ratio : longEdge);
   const base = sharp({
-    create: { width, height, channels: 3, background: "#F7F3EE" },
+    create: { width, height, channels: 3, background: "#FFFFFF" },
   });
   const layers: OverlayOptions[] = [];
   if (options.reference) {
@@ -61,9 +63,9 @@ export async function renderPlaceholder(options: {
   const badge = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
       <rect x="${width - 150}" y="24" width="126" height="40" rx="20" fill="${options.accent}" fill-opacity="0.85"/>
-      <circle cx="${width - 126}" cy="44" r="7" fill="#F7F3EE"/>
-      <rect x="${width - 110}" y="38" width="70" height="12" rx="6" fill="#F7F3EE" fill-opacity="0.9"/>
-      <rect x="0" y="${height - 10}" width="${width}" height="10" fill="${options.accent}" fill-opacity="0.6"/>
+      <circle cx="${width - 126}" cy="44" r="7" fill="#FFFFFF"/>
+      <rect x="${width - 110}" y="38" width="70" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.9"/>
+      ${options.edgeBar ? `<rect x="0" y="${height - 10}" width="${width}" height="10" fill="${options.accent}" fill-opacity="0.6"/>` : ""}
     </svg>`,
   );
   layers.push({ input: badge, top: 0, left: 0 });
@@ -113,6 +115,7 @@ export class MockProvider implements ImageVideoProvider {
       ratio,
       reference,
       accent: context.kind === "video" ? "#4D0011" : "#C9A66B",
+      edgeBar: context.kind === "video",
     });
     return {
       ...base,

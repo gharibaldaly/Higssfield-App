@@ -259,6 +259,29 @@ export type RenderJobRow = Timestamps & {
   finished_at: string | null;
 };
 
+export type GhostBatchRow = Timestamps & {
+  id: string;
+  owner_id: string;
+  name: string;
+  status: "running" | "paused";
+  model_id: string;
+  style: Json;
+  options: Json;
+  colours_requested_at: string | null;
+};
+
+export type GhostBatchItemRow = Timestamps & {
+  id: string;
+  owner_id: string;
+  batch_id: string;
+  product_id: string;
+  position: number;
+  phase: "uploading" | "pending" | "analyzing" | "dna_review" | "generating" | "review" | "failed";
+  error: string | null;
+  claimed_at: string | null;
+  meta: Json;
+};
+
 export type SettingsRow = Timestamps & {
   owner_id: string;
   llm_provider: "claude" | "gemini";
@@ -451,6 +474,19 @@ export type Database = {
         | "claimed_at"
         | "finished_at",
         [Rel<"render_jobs_ad_project_id_fkey", ["ad_project_id"], "ad_projects">]
+      >;
+      ghost_batches: Table<
+        GhostBatchRow,
+        OwnedDefaults | "status" | "options" | "colours_requested_at",
+        []
+      >;
+      ghost_batch_items: Table<
+        GhostBatchItemRow,
+        OwnedDefaults | "phase" | "error" | "claimed_at" | "meta",
+        [
+          Rel<"ghost_batch_items_batch_id_fkey", ["batch_id"], "ghost_batches">,
+          Rel<"ghost_batch_items_product_id_fkey", ["product_id"], "products">,
+        ]
       >;
       settings: Table<
         SettingsRow,

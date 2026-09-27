@@ -1,5 +1,6 @@
 import "server-only";
 
+import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
 import { garmentDnaSchema, sellingDetails } from "@/lib/domain/garment-dna";
 import type { GenerationView } from "@/lib/domain/generation";
 import { latestBySlot } from "@/lib/generations/side-effects";
@@ -47,6 +48,26 @@ function slotLabelOf(row: GenerationRow): string | null {
 
 const SLOT_ORDER = (slot: string) =>
   slot === "front" ? 0 : slot === "back" ? 1 : slot.startsWith("macro") ? 2 : 3;
+
+/** Latest output per slot of one job's generations, in catalogue order. */
+export function outputsFor(
+  jobGenerations: GenerationRow[],
+  views: Map<string, GenerationView>,
+  beforeUrls: Map<string, string>,
+): GhostOutput[] {
+  const latest = [...latestBySlot(jobGenerations).values()].sort(
+    (a, b) =>
+      SLOT_ORDER(a.slot ?? "") - SLOT_ORDER(b.slot ?? "") ||
+      (a.slot ?? "").localeCompare(b.slot ?? ""),
+  );
+  return latest.map((row) => ({
+    slot: row.slot ?? row.id,
+    slotLabel: slotLabelOf(row),
+    generation: views.get(row.id)!,
+    beforeUrl: row.reference_paths[0] ? (beforeUrls.get(row.reference_paths[0]) ?? null) : null,
+    attempts: jobGenerations.filter((candidate) => candidate.slot === row.slot).length,
+  }));
+}
 
 export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
   products: GhostProduct[];
@@ -106,11 +127,6 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
 
   const ghostJobs: GhostJob[] = jobRows.map((job) => {
     const jobGenerations = rows.filter((row) => row.catalogue_job_id === job.id);
-    const latest = [...latestBySlot(jobGenerations).values()].sort(
-      (a, b) =>
-        SLOT_ORDER(a.slot ?? "") - SLOT_ORDER(b.slot ?? "") ||
-        (a.slot ?? "").localeCompare(b.slot ?? ""),
-    );
     const style = job.style as { background?: string } | null;
     return {
       id: job.id,
@@ -121,14 +137,11 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
       status: job.status,
       error: job.error,
       createdAt: job.created_at,
-      background: typeof style?.background === "string" ? style.background : "#F7F3EE",
-      outputs: latest.map((row) => ({
-        slot: row.slot ?? row.id,
-        slotLabel: slotLabelOf(row),
-        generation: views.get(row.id)!,
-        beforeUrl: row.reference_paths[0] ? (beforeUrls.get(row.reference_paths[0]) ?? null) : null,
-        attempts: jobGenerations.filter((candidate) => candidate.slot === row.slot).length,
-      })),
+      background:
+        typeof style?.background === "string"
+          ? style.background
+          : DEFAULT_CATALOGUE_STYLE.background,
+      outputs: outputsFor(jobGenerations, views, beforeUrls),
     };
   });
 

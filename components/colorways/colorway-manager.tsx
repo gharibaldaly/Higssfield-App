@@ -203,7 +203,7 @@ function ColorwayCard({ colorway, productId }: { colorway: ColorwayView; product
   );
 }
 
-function AddColorwayDialog({
+export function AddColorwayDialog({
   open,
   onOpenChange,
   ownerId,

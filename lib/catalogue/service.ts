@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { detailReferences, viewReferences, type PhotoRef } from "@/lib/catalogue/references";
-import { describeCatalogueStyle, parseCatalogueStyle } from "@/lib/domain/catalogue-style";
+import { parseCatalogueStyle, type CatalogueStyle } from "@/lib/domain/catalogue-style";
 import { sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
 import type { GenerationPurpose } from "@/lib/domain/generation";
 import { approvedDna } from "@/lib/dna/service";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/generations/queries";
 import { latestBySlot } from "@/lib/generations/side-effects";
 import { submitGeneration } from "@/lib/generations/service";
+import { toLlmImage } from "@/lib/images/process";
 import { activeProviderMode } from "@/lib/providers/higgsfield";
 import { highestResolution } from "@/lib/providers/higgsfield/registry";
 import type { GenerationMode, ModelSpec } from "@/lib/providers/higgsfield/types";
@@ -28,6 +29,7 @@ import { getDirectorBrain, type DirectorBrain } from "@/lib/providers/llm";
 import type { GhostView, ProductBrief } from "@/lib/providers/llm/types";
 import { getPhotos, getPieces, getProduct } from "@/lib/products/service";
 import { getOwnerSettings } from "@/lib/settings/service";
+import { downloadObject } from "@/lib/storage/objects";
 import type {
   CatalogueJobRow,
   ColorwayRow,
@@ -79,11 +81,15 @@ type JobContext = {
   brain: DirectorBrain;
 };
 
-/** Queue jobs for one or many products. Products that are not ready are skipped with a reason. */
+/**
+ * Queue jobs for one or many products. Products that are not ready are skipped
+ * with a reason. Ghost batches pass their own id and catalogue style snapshot.
+ */
 export async function queueCatalogueJobs(
   supabase: TypedSupabaseClient,
   ownerId: string,
   input: QueueJobsInput,
+  overrides: { batchId?: string; style?: CatalogueStyle } = {},
 ): Promise<{
   jobs: CatalogueJobRow[];
   skipped: { productId: string; jobType: CatalogueJobType; reason: string }[];
@@ -96,7 +102,8 @@ export async function queueCatalogueJobs(
     requestedId: input.modelId,
     defaultId: settings.defaultImageModel,
   });
-  const batchId = crypto.randomUUID();
+  const batchId = overrides.batchId ?? crypto.randomUUID();
+  const style = overrides.style ?? settings.catalogueStyle;
   const rows: {
     batch_id: string;
     product_id: string;
@@ -146,7 +153,7 @@ export async function queueCatalogueJobs(
         job_type: jobType,
         model_id: model.id,
         options: options as Json,
-        style: settings.catalogueStyle as unknown as Json,
+        style: style as unknown as Json,
       });
     }
   }
@@ -360,18 +367,24 @@ async function generateSlot(
   if (plan.missingReason && (wantsReferences || plan.purpose === "colorway")) {
     return recordFailedGeneration(supabase, { ...base, prompt: "" }, plan.missingReason);
   }
-  const style = parseCatalogueStyle(context.job.style);
+  const style: CatalogueStyle = parseCatalogueStyle(context.job.style);
   try {
+    // The director brain looks at the same isolated photos while it writes,
+    // even when the image model itself only receives text.
+    const references = await Promise.all(
+      plan.references.map(async (reference) =>
+        toLlmImage(await downloadObject(supabase, reference.path), reference.caption),
+      ),
+    );
     const built = await context.brain.buildGhostPrompt({
       product: context.product,
       dna: context.dna,
       view: plan.view,
-      styleDescription: describeCatalogueStyle(style),
+      style,
       detail: plan.detail,
       colorway: plan.colorway ? { name: plan.colorway.name, hex: plan.colorway.hex } : null,
-      referenceCaptions: wantsReferences
-        ? plan.references.map((reference) => reference.caption)
-        : [],
+      references,
+      referenceMode: wantsReferences ? "edit" : "text",
       note: options.note ?? null,
       promptBudget: promptBudget(context.model),
     });

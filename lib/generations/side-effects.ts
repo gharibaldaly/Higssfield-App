@@ -25,7 +25,10 @@ export function catalogueJobStatusFor(
   return "review";
 }
 
-async function settleCatalogueJob(supabase: TypedSupabaseClient, jobId: string): Promise<void> {
+export async function settleCatalogueJob(
+  supabase: TypedSupabaseClient,
+  jobId: string,
+): Promise<void> {
   const { data: job } = await supabase
     .from("catalogue_jobs")
     .select("id, status")

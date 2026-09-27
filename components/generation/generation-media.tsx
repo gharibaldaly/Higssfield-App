@@ -17,8 +17,9 @@ function progressFor(view: GenerationView, now: Date): number {
   if (!view.submittedAt) return 4;
   const elapsed = now.getTime() - Date.parse(view.submittedAt);
   const expected = EXPECTED_MS[view.kind];
-  // Ease towards 92% so the bar never claims to be done before it is.
-  return Math.min(92, 8 + (elapsed / expected) * 84);
+  // Ease towards 92% so the bar never claims to be done before it is (and never below the
+  // start, if the browser's clock runs behind the server's).
+  return Math.max(4, Math.min(92, 8 + (elapsed / expected) * 84));
 }
 
 export function isStillImage(view: Pick<GenerationView, "mimeType">): boolean {

@@ -10,7 +10,7 @@ import { AppError, toUserMessage } from "@/lib/errors";
 import { webhookUrlFor } from "@/lib/generations/webhook";
 import { settleLinkedRecords } from "@/lib/generations/side-effects";
 import { fetchWithTimeout } from "@/lib/http/retry";
-import { fitToCanvas, probeImage } from "@/lib/images/process";
+import { finishCatalogueImage, probeImage, type CatalogueCanvas } from "@/lib/images/process";
 import { activeProviderMode, getProvider } from "@/lib/providers/higgsfield";
 import { buildProviderInput, redactBody } from "@/lib/providers/higgsfield/registry";
 import type { GenerationMode, ModelSpec, ProviderState } from "@/lib/providers/higgsfield/types";
@@ -206,7 +206,7 @@ async function downloadResult(url: string): Promise<{ data: Buffer; mimeType: st
 async function catalogueCanvasFor(
   supabase: TypedSupabaseClient,
   row: GenerationRow,
-): Promise<{ aspectRatio: string; background: string } | null> {
+): Promise<CatalogueCanvas | null> {
   if (!CATALOGUE_PURPOSES.includes(row.purpose) || !row.catalogue_job_id) return null;
   const { data } = await supabase
     .from("catalogue_jobs")
@@ -215,7 +215,13 @@ async function catalogueCanvasFor(
     .maybeSingle();
   if (!data) return null;
   const style = parseCatalogueStyle(data.style);
-  return { aspectRatio: style.aspectRatio, background: style.background };
+  return {
+    aspectRatio: style.aspectRatio,
+    background: style.background,
+    paddingPercent: style.paddingPercent,
+    // Close-ups fill the frame on purpose; only whole-garment views are reframed.
+    reframe: row.purpose !== "macro",
+  };
 }
 
 /**
@@ -247,6 +253,7 @@ async function finalizeCompleted(
 
   let width: number | null = null;
   let height: number | null = null;
+  let finish: Record<string, Json> | null = null;
   const image = await probeImage(data);
   if (image) {
     mimeType = image.mimeType;
@@ -254,12 +261,17 @@ async function finalizeCompleted(
     height = image.height;
     const canvas = await catalogueCanvasFor(supabase, row);
     if (canvas) {
-      const fitted = await fitToCanvas(data, canvas);
-      if (fitted.changed) {
-        data = fitted.data;
+      const finished = await finishCatalogueImage(data, canvas);
+      finish = {
+        reframed: finished.reframed,
+        edgeColour: finished.edgeColour,
+        backgroundOk: finished.backgroundOk,
+      };
+      if (finished.changed) {
+        data = finished.data;
         mimeType = "image/png";
-        width = fitted.width;
-        height = fitted.height;
+        width = finished.width;
+        height = finished.height;
       }
     }
   } else if (!mimeType || !mimeType.startsWith("video/")) {
@@ -277,8 +289,13 @@ async function finalizeCompleted(
     provider_result_url: state.resultUrls[0] ?? null,
     completed_at: new Date().toISOString(),
     error: null,
+    ...(finish ? { params: { ...paramsObject(row.params), _finish: finish } } : {}),
     ...(state.cost ? { cost: state.cost.amount, cost_unit: state.cost.unit } : {}),
   });
+}
+
+function paramsObject(params: Json): Record<string, Json | undefined> {
+  return params && typeof params === "object" && !Array.isArray(params) ? params : {};
 }
 
 /**

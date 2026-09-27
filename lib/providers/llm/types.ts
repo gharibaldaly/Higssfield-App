@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 import type { AdPlan } from "@/lib/domain/ad-plan";
+import type { CatalogueStyle } from "@/lib/domain/catalogue-style";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import type { GarmentDna } from "@/lib/domain/garment-dna";
+import type { PhotoClassification } from "@/lib/domain/photo-classification";
 import type { ProductLine } from "@/lib/domain/product";
 import type { SheetPlan } from "@/lib/domain/sheet";
 import type { SheetCropKind, SheetLayout } from "@/lib/sheet/layout";
@@ -49,12 +51,21 @@ export type GhostPromptInput = {
   product: ProductBrief;
   dna: GarmentDna;
   view: GhostView;
-  styleDescription: string;
+  /** The catalogue look; the house style block is built from it by code. */
+  style: CatalogueStyle;
   detail: { label: string; description: string; pieceName: string } | null;
   colorway: { name: string; hex: string } | null;
-  referenceCaptions: string[];
+  /** The isolated references for this image; the brain looks at them while writing. */
+  references: LlmImage[];
+  /** "edit": the image model receives the references too; "text": it only gets the prompt. */
+  referenceMode: "edit" | "text";
   note: string | null;
   promptBudget: number;
+};
+
+export type ClassifyPhotosInput = {
+  product: ProductBrief;
+  photos: LlmImage[];
 };
 
 export type BuiltPrompt = {
@@ -117,6 +128,8 @@ export type ReviewFidelityInput = {
 export interface DirectorBrain {
   readonly provider: LlmProviderId;
   readonly model: string;
+  /** Sorts unnamed phone photos into front / back / detail before the DNA is written. */
+  classifyPhotos(input: ClassifyPhotosInput): Promise<PhotoClassification>;
   analyzeGarment(input: AnalyzeGarmentInput): Promise<GarmentDna>;
   buildProductSheetPrompt(input: SheetPromptInput): Promise<BuiltSheetPrompt>;
   buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt>;
@@ -133,6 +146,21 @@ export const scenePromptSchema = z.object({
 });
 
 export type ScenePrompt = z.infer<typeof scenePromptSchema>;
+
+/** LLM output for ghost images (prompt v2): an instruction plus checklists. */
+export const ghostScenePromptSchema = z.object({
+  instruction: z.string().min(1).describe("2 to 5 imperative sentences for this exact image"),
+  mustKeep: z
+    .array(z.string())
+    .describe("4 to 8 concrete, checkable construction details visible in this view"),
+  cleanUp: z
+    .array(z.string())
+    .describe("0 to 5 handling or photography artefacts in the photos to leave out"),
+  extraNegatives: z.array(z.string()),
+  rationale: z.string(),
+});
+
+export type GhostScenePrompt = z.infer<typeof ghostScenePromptSchema>;
 
 export type StructuredRequest<T> = {
   /** Name used for logging and structured-output format names. */

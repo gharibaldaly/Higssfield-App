@@ -9,7 +9,7 @@ import type { ProductLine } from "@/lib/domain/product";
 import type { SheetPlan } from "@/lib/domain/sheet";
 import type { SheetCropKind, SheetLayout } from "@/lib/sheet/layout";
 
-export type LlmProviderId = "claude" | "gemini" | "mock";
+export type LlmProviderId = "claude" | "gemini" | "gateway" | "mock";
 
 export type LlmImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";

@@ -1244,12 +1244,16 @@
       "provider": "Provider",
       "providers": {
         "claude": "Claude (Anthropic)",
-        "gemini": "Gemini (Google)"
+        "gemini": "Gemini (Google)",
+        "gateway": "Gateway (OpenAI-compatible)"
       },
       "keyConfigured": "Key configured",
       "keyMissing": "Key missing",
       "claudeModel": "Claude model ID",
       "geminiModel": "Gemini model ID",
+      "gatewayModel": "Gateway model ID",
+      "gatewayHint": "Use a model that accepts images: the studio sends garment photos with most requests.",
+      "gatewayMissing": "Set LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY in Vercel to use a gateway.",
       "save": "Save",
       "active": "Active: {provider} · {model}"
     },
@@ -1302,6 +1306,7 @@
       "configured": "Configured",
       "missing": "Missing",
       "serviceRole": "Supabase service role (webhooks)",
+      "gateway": "LLM gateway",
       "webhook": "Higgsfield webhook (secret + APP_URL)",
       "ownerEmail": "Owner email lock"
     },

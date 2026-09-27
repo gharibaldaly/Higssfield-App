@@ -25,7 +25,7 @@ All image/video generation goes through the **Higgsfield API**. An LLM ("the dir
 ## Secrets
 - Never commit keys. Keep `.env.example` complete and up to date.
 - All provider calls (Higgsfield, Anthropic, Gemini, Google Drive) are **server-side only** (route handlers / server actions). Nothing secret reaches the client.
-- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `HIGGSFIELD_API_KEY` (plus secret/ID if their API requires it), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `APP_OWNER_EMAIL`.
+- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `HIGGSFIELD_API_KEY` (plus secret/ID if their API requires it), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `LLM_GATEWAY_BASE_URL` + `LLM_GATEWAY_API_KEY` + `LLM_GATEWAY_MODEL` (optional gateway brain), `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `APP_OWNER_EMAIL`.
 
 ## Higgsfield integration
 - **Read the official Higgsfield API documentation before writing the client.** Do not invent endpoints, params or model IDs. If the docs are unreachable from the sandbox, stop that part, write a clear TODO in the Decisions log, and build the adapter against a typed interface + mock so the rest of the app works.
@@ -35,7 +35,7 @@ All image/video generation goes through the **Higgsfield API**. An LLM ("the dir
 - Log cost/credits per generation into `generations.cost` when the API returns it.
 
 ## Director brain (LLM)
-- `lib/providers/llm/` with one interface (`analyzeGarment`, `buildProductSheetPrompt`, `buildGhostPrompt`, `planAd`, `buildShotPrompt`, `reviewFidelity`) and two implementations: **Claude (Anthropic API)** and **Gemini**. Switchable in Settings; default Claude.
+- `lib/providers/llm/` with one interface (`analyzeGarment`, `buildProductSheetPrompt`, `buildGhostPrompt`, `planAd`, `buildShotPrompt`, `reviewFidelity`) and two implementations: **Claude (Anthropic API)** and **Gemini**. Switchable in Settings; default Claude. At the owner's request (2026-09-27) a third option runs the brain through an **OpenAI-compatible gateway** the owner subscribes to (base URL, key and model in env/Settings).
 - All prompt templates live in `lib/prompts/` as versioned TypeScript files, not inline strings, so they can be tuned.
 - LLM outputs that feed the app are **JSON validated with Zod**.
 
@@ -294,3 +294,21 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Failed, nsfw and canceled requests are set to 0, since the docs say they are not charged. The studio's own 45-minute give-up keeps the estimate, because Higgsfield may still finish the request.
 - **UI:** pickers group models by family (`ModelSelectItems`), and Settings lists families as collapsible sections with each workflow's capabilities and docs path.
 - **Resolved:** the Phase 1 and 2026-09-27 TODOs about model endpoints, parameters and cost. `api.higgsfield.ai` is still not reachable from the sandbox, so no request was sent live. The first real run should be one or two models, with Grok and Marketing Studio compared in the review.
+
+### 2026-09-27 — Director brain through an OpenAI-compatible gateway
+- **Why:** the owner pays for VyceAI, an OpenAI-compatible API proxy that serves Claude, GPT, DeepSeek and other models under one key, and asked to run the director brain through it instead of separate Anthropic or Gemini keys.
+- **Risk accepted by the owner:** every brain request (garment photos, DNA, prompts) goes to the gateway operator, and availability depends on that provider. The provider's public web app bundle includes admin tooling for creating and pooling accounts on other AI services and for reading recent customer messages. The owner was told and chose to go ahead. The integration is generic (any OpenAI-compatible base URL), so switching providers is an env change.
+- **Settings:** migration `20260927120928_llm_gateway` widens `settings.llm_provider` to `claude | gemini | gateway` and adds `gateway_model`. The brain card shows the gateway (named by `LLM_GATEWAY_NAME`) with its key status. Its model field suggests the ids from the gateway's `GET /models`, fetched server-side, cached for 10 minutes and empty on failure.
+- **Selection:** the chosen provider comes first, then the next configured one (Claude, Gemini, gateway), then the mock. A gateway needs a model id (Settings or `LLM_GATEWAY_MODEL`); without one it is skipped. The base URL must be https, because the key travels with every request.
+- **Requests** (`lib/providers/llm/gateway.ts`): `POST {base}/chat/completions` with `Authorization: Bearer`, a system message, and a user message whose photos are `image_url` data-URL parts after their captions. No temperature is sent (some models reject it).
+- **Adapting to the gateway,** remembered per base URL and model:
+  - JSON: `response_format` json_schema (non-strict), else json_object, else the schema in the prompt. Answers are always parsed leniently (fences or prose around the object) and validated with Zod, with the shared repair retry.
+  - Output cap: `max_tokens` is capped at `LLM_GATEWAY_MAX_TOKENS` (16,000 by default; the brain's own caps assume thinking models). The cap moves to `max_completion_tokens` when the error names it, and halves (down to 4,096) when the model's limit is lower.
+- **Errors:**
+  - 401 / 403: key, plan or account verification.
+  - 402: balance.
+  - 404: unknown model id.
+  - 408 / 429: rate limit or daily quota; retried once.
+  - 5xx: retried once.
+  - A refusal or `content_filter` answer: neutral-wording advice.
+  - `finish_reason: "length"`: the answer ran out of space.

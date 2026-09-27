@@ -1244,12 +1244,16 @@
       "provider": "المزوّد",
       "providers": {
         "claude": "Claude (Anthropic)",
-        "gemini": "Gemini (Google)"
+        "gemini": "Gemini (Google)",
+        "gateway": "بوابة متوافقة مع OpenAI"
       },
       "keyConfigured": "المفتاح مُعدّ",
       "keyMissing": "المفتاح ناقص",
       "claudeModel": "معرّف موديل Claude",
       "geminiModel": "معرّف موديل Gemini",
+      "gatewayModel": "معرّف موديل البوابة",
+      "gatewayHint": "اختر موديلًا يقبل الصور، فالاستوديو يرسل صور القطع مع أغلب الطلبات.",
+      "gatewayMissing": "أضف LLM_GATEWAY_BASE_URL وLLM_GATEWAY_API_KEY في Vercel لاستخدام بوابة.",
       "save": "حفظ",
       "active": "النشط: {provider} · {model}"
     },
@@ -1302,6 +1306,7 @@
       "configured": "مُعدّ",
       "missing": "ناقص",
       "serviceRole": "Supabase service role (للـ webhooks)",
+      "gateway": "بوابة الـ LLM",
       "webhook": "Webhook لـ Higgsfield (السر + APP_URL)",
       "ownerEmail": "قفل بريد المالك"
     },

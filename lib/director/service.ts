@@ -317,11 +317,7 @@ export async function planShots(
   const { model } = resolveVideoModel(registry, settings, project.videoParsed.modelId);
   const capabilities = capabilitiesOf(model);
 
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const plan = await brain.planAd({
     brief: project.brief,
     product: {
@@ -512,11 +508,7 @@ export async function generateShot(
       : shot.preview_frame_first && !shot.preview_approved
         ? "preview"
         : "video";
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const shotInput = {
     purpose: shot.purpose,
     detailShown: shot.detail_shown,

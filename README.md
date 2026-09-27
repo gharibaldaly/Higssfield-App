@@ -63,6 +63,7 @@ Every variable is documented in [`.env.example`](./.env.example).
 | `APP_URL`                                                                                            | recommended       | Public URL of the deployment (webhook URLs)                              |
 | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`)                                                     | for real output   | Higgsfield credentials (`KEY_ID:KEY_SECRET`); mock provider without them |
 | `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`                                                               | for real analysis | Director brain; mock brain without them                                  |
+| `LLM_GATEWAY_BASE_URL`, `LLM_GATEWAY_API_KEY`, `LLM_GATEWAY_MODEL`, `LLM_GATEWAY_NAME`               | optional          | Director brain through an OpenAI-compatible gateway (Settings → Gateway) |
 | `SUPABASE_SERVICE_ROLE_KEY`, `HIGGSFIELD_WEBHOOK_SECRET`                                             | optional          | Completion webhooks (the app polls without them)                         |
 | `HIGGSFIELD_MAX_CONCURRENT`                                                                          | recommended       | Requests the Higgsfield account may run at once (console; default 4)     |
 | `ANTHROPIC_MODEL`, `GEMINI_MODEL`, `HIGGSFIELD_BASE_URL`, `HIGGSFIELD_MODELS_URL`, `HIGGSFIELD_MOCK` | optional          | Overrides                                                                |

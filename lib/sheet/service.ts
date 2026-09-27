@@ -111,11 +111,7 @@ export async function generateSheet(
       ),
   );
 
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const built = await brain.buildProductSheetPrompt({
     product: {
       name: product.name,

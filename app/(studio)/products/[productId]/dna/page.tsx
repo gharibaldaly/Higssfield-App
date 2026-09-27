@@ -37,11 +37,7 @@ export default async function DnaPage({
     getOwnerSettings(supabase, user.id),
   ]);
   if (!intake) notFound();
-  const brain = getDirectorBrain({
-    provider: settings.llmProvider,
-    claudeModel: settings.claudeModel,
-    geminiModel: settings.geminiModel,
-  });
+  const brain = getDirectorBrain(settings);
   const views: DnaVersionView[] = (versions.data ?? []).map((row) => {
     const parsed = garmentDnaSchema.safeParse(row.data);
     return {

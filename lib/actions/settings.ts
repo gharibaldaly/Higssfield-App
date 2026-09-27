@@ -12,9 +12,10 @@ import { driveSettingsSchema, updateOwnerSettings } from "@/lib/settings/service
 const modelIdField = z.string().trim().max(200).nullable();
 
 const settingsSchema = z.object({
-  llmProvider: z.enum(["claude", "gemini"]).optional(),
+  llmProvider: z.enum(["claude", "gemini", "gateway"]).optional(),
   claudeModel: modelIdField.optional(),
   geminiModel: modelIdField.optional(),
+  gatewayModel: modelIdField.optional(),
   catalogueStyle: catalogueStyleSchema.optional(),
   defaultImageModel: modelIdField.optional(),
   defaultVideoModel: modelIdField.optional(),
@@ -29,6 +30,7 @@ export async function updateSettingsAction(input: unknown): Promise<ActionResult
       ...parsed,
       claudeModel: parsed.claudeModel === "" ? null : parsed.claudeModel,
       geminiModel: parsed.geminiModel === "" ? null : parsed.geminiModel,
+      gatewayModel: parsed.gatewayModel === "" ? null : parsed.gatewayModel,
     });
     revalidatePath("/settings");
     return ok(undefined);

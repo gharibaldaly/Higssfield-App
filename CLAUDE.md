@@ -356,3 +356,15 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - When no route works, the error lists every route's result.
 - **Not verified live:** there is no VyceAI key in the sandbox, so the next analysis on production is the test. If every route fails, that model on VyceAI cannot see images, and the brain needs a Vision model or a direct key.
 
+### 2026-09-27 — Gemini brain: Google's error text and Flash fallbacks
+- **Why:** every route through VyceAI failed the image test for `claude-sonnet-4-6`: it named red / blue for three different images, the same guess each time. So the owner moved the brain to a free Gemini key. The first analysis failed with "Gemini is temporarily unavailable", a 5xx from Google after the SDK's own retries, and the message did not say which error.
+- **Errors:** mapped Gemini errors now carry Google's message and the HTTP status (`detail`, `status`). A 404 says the model is not offered to this key.
+- **Schema:** a 500 in schema mode is retried once with the schema in the prompt, as a 400 already was. Google's error reference lists 500 as an unexpected server error.
+- **Fallback models:** when the chosen model stays unavailable (5xx), the brain asks `gemini-3.7-flash`, then `gemini-3.5-flash`.
+  - Both are free-tier Flash models on the pricing page as of 2026-09-27; `gemini-flash-latest` points at 3.8 Flash.
+  - A fallback model that no longer exists is skipped. Key, quota and bad-request errors never switch models.
+  - If none answers, the error carries what each model said. The DNA row still records the chosen model, and an answer from a fallback is logged.
+- **Free tier** (Google's pricing and rate-limit pages, 2026-09-27):
+  - Flash models are free of charge, with per-project limits; the daily limit resets at midnight Pacific time.
+  - Free-tier content is used to improve Google's products. Enabling billing stops that; 3.8 Flash then costs $0.75 per million input tokens and $3.75 per million output tokens until the end of 2026.
+

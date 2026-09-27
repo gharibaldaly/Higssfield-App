@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@google/genai";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { adPlanSchema } from "@/lib/domain/ad-plan";
 import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
@@ -8,7 +9,7 @@ import { garmentDnaSchema } from "@/lib/domain/garment-dna";
 import { photoClassificationSchema } from "@/lib/domain/photo-classification";
 import { AppError } from "@/lib/errors";
 import { mapAnthropicError } from "@/lib/providers/llm/claude";
-import { geminiJsonSchema, mapGeminiError } from "@/lib/providers/llm/gemini";
+import { GeminiBrain, geminiJsonSchema, mapGeminiError } from "@/lib/providers/llm/gemini";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import { ghostScenePromptSchema, type StructuredRequest } from "@/lib/providers/llm/types";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
@@ -31,13 +32,21 @@ describe("Gemini structured output schema", () => {
 });
 
 describe("provider error mapping", () => {
-  it("maps Gemini API errors to user-facing codes", () => {
+  it("maps Gemini API errors to user-facing codes, with Google's own message", () => {
     const code = (status: number) =>
       (mapGeminiError(new ApiError({ message: "x", status })) as AppError).code;
     expect(code(401)).toBe("provider_auth");
+    expect(code(404)).toBe("not_found");
     expect(code(429)).toBe("provider_rate_limit");
     expect(code(503)).toBe("provider_unavailable");
     expect(code(400)).toBe("provider_bad_input");
+    const overloaded = mapGeminiError(
+      new ApiError({ message: "The model is overloaded. Please try again later.", status: 503 }),
+    ) as AppError;
+    expect(overloaded).toMatchObject({
+      status: 503,
+      detail: "The model is overloaded. Please try again later.",
+    });
   });
 
   it("maps Anthropic SDK errors to user-facing codes", () => {
@@ -222,5 +231,107 @@ describe("TemplateBrain", () => {
         photos: [],
       }),
     ).rejects.toMatchObject({ code: "validation" });
+  });
+});
+
+describe("Gemini brain", () => {
+  const answerSchema = z.object({ verdict: z.string() });
+  const request: StructuredRequest<{ verdict: string }> = {
+    name: "fidelity review",
+    system: "You check garments.",
+    user: "Compare the photos.",
+    images: [{ mimeType: "image/jpeg", base64: "QUJD", caption: "Front" }],
+    schema: answerSchema,
+    maxTokens: 8000,
+  };
+
+  class TestGemini extends GeminiBrain {
+    run<T>(structured: StructuredRequest<T>): Promise<T> {
+      return this.structured(structured);
+    }
+  }
+
+  type Call = { model: string; schema: boolean };
+  /** A Gemini stand-in: `reply` decides per call, from the model and whether a schema was sent. */
+  function gemini(reply: (call: Call) => unknown) {
+    const calls: Call[] = [];
+    const brain = new TestGemini("key", "gemini-flash-latest");
+    (brain as unknown as { ai: unknown }).ai = {
+      models: {
+        generateContent: async (params: {
+          model: string;
+          config?: { responseJsonSchema?: unknown };
+        }) => {
+          const call = { model: params.model, schema: Boolean(params.config?.responseJsonSchema) };
+          calls.push(call);
+          const outcome = reply(call);
+          if (outcome instanceof Error) throw outcome;
+          return { text: outcome, candidates: [{ finishReason: "STOP" }] };
+        },
+      },
+    };
+    return { brain, calls };
+  }
+
+  const overloaded = () => new ApiError({ message: "The model is overloaded.", status: 503 });
+
+  it("asks an earlier Flash model when the chosen one stays overloaded", async () => {
+    const { brain, calls } = gemini((call) =>
+      call.model === "gemini-flash-latest" ? overloaded() : '{"verdict":"ok"}',
+    );
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(calls).toEqual([
+      { model: "gemini-flash-latest", schema: true },
+      { model: "gemini-3.7-flash", schema: true },
+    ]);
+  });
+
+  it("retries a server failure with the schema in the prompt instead", async () => {
+    const { brain, calls } = gemini((call) =>
+      call.schema ? new ApiError({ message: "Internal error", status: 500 }) : '{"verdict":"ok"}',
+    );
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(calls).toEqual([
+      { model: "gemini-flash-latest", schema: true },
+      { model: "gemini-flash-latest", schema: false },
+    ]);
+  });
+
+  it("skips a fallback model that no longer exists", async () => {
+    const { brain, calls } = gemini((call) => {
+      if (call.model === "gemini-flash-latest") return overloaded();
+      if (call.model === "gemini-3.7-flash") {
+        return new ApiError({ message: "models/gemini-3.7-flash is not found", status: 404 });
+      }
+      return '{"verdict":"ok"}';
+    });
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(calls.map((call) => call.model)).toEqual([
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+      "gemini-3.5-flash",
+    ]);
+  });
+
+  it("reports what Google said when no Flash model answers", async () => {
+    const { brain } = gemini(() => overloaded());
+    await expect(brain.run(request)).rejects.toMatchObject({
+      code: "provider_unavailable",
+      status: 503,
+      detail: expect.stringMatching(
+        /^The model is overloaded\. · gemini-3\.7-flash: The model is overloaded\. · gemini-3\.5-flash:/,
+      ),
+    });
+  });
+
+  it("does not switch models for a key or quota problem", async () => {
+    const { brain, calls } = gemini(
+      () => new ApiError({ message: "Quota exceeded for requests per day", status: 429 }),
+    );
+    await expect(brain.run(request)).rejects.toMatchObject({
+      code: "provider_rate_limit",
+      detail: "Quota exceeded for requests per day",
+    });
+    expect(calls).toHaveLength(1);
   });
 });

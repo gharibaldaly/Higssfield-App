@@ -1280,7 +1280,8 @@
       "otherModels": "موديلات أخرى",
       "provider": {
         "higgsfield": "Higgsfield متصل",
-        "mock": "مزوّد تجريبي"
+        "mock": "مزوّد تجريبي",
+        "rejected": "Higgsfield رفض المفتاح"
       },
       "default": {
         "image": "موديل الصور الافتراضي",
@@ -1305,6 +1306,7 @@
       "hint": "الحالة فقط — القيم لا تُعرض أبدًا.",
       "configured": "مُعدّ",
       "missing": "ناقص",
+      "rejected": "مرفوض — راجع المفتاح في Vercel",
       "serviceRole": "Supabase service role (للـ webhooks)",
       "gateway": "بوابة الـ LLM",
       "webhook": "Webhook لـ Higgsfield (السر + APP_URL)",

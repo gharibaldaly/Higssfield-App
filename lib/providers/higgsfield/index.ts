@@ -3,7 +3,7 @@ import "server-only";
 import { higgsfieldCredentials, isHiggsfieldMockForced, serverEnv } from "@/lib/env";
 import { fetchWithTimeout } from "@/lib/http/retry";
 import { specsFromCatalog } from "@/lib/providers/higgsfield/catalog";
-import { HiggsfieldClient } from "@/lib/providers/higgsfield/client";
+import { type CredentialCheck, HiggsfieldClient } from "@/lib/providers/higgsfield/client";
 import { MockProvider } from "@/lib/providers/higgsfield/mock";
 import { buildRegistry } from "@/lib/providers/higgsfield/registry";
 import type { ImageVideoProvider, ModelSpec } from "@/lib/providers/higgsfield/types";
@@ -24,6 +24,27 @@ export function getProvider(mode: ProviderMode = activeProviderMode()): ImageVid
     keySecret: credentials.keySecret,
     baseUrl: serverEnv().HIGGSFIELD_BASE_URL,
   });
+}
+
+let acceptedKey: { keyId: string; at: number } | null = null;
+
+/**
+ * Whether Higgsfield accepts the configured key (null in mock mode). An
+ * accepted key is remembered for five minutes; a rejected one is asked again
+ * each time, so a fixed key shows up at once.
+ */
+export async function higgsfieldKeyCheck(): Promise<CredentialCheck | null> {
+  if (activeProviderMode() !== "higgsfield") return null;
+  const credentials = higgsfieldCredentials()!;
+  if (acceptedKey?.keyId === credentials.keyId && Date.now() - acceptedKey.at < 5 * 60 * 1000) {
+    return "accepted";
+  }
+  const result = await new HiggsfieldClient({
+    ...credentials,
+    baseUrl: serverEnv().HIGGSFIELD_BASE_URL,
+  }).checkCredentials();
+  acceptedKey = result === "accepted" ? { keyId: credentials.keyId, at: Date.now() } : null;
+  return result;
 }
 
 let catalogCache: { at: number; specs: ModelSpec[] } | null = null;
@@ -66,4 +87,5 @@ export async function getModelRegistry(customModels: unknown[] = []): Promise<Mo
 }
 
 export { buildProviderInput, capabilitiesOf, pickModel } from "@/lib/providers/higgsfield/registry";
+export type { CredentialCheck } from "@/lib/providers/higgsfield/client";
 export type { ModelSpec } from "@/lib/providers/higgsfield/types";

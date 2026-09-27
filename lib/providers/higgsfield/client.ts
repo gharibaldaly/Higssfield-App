@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors";
@@ -244,6 +246,9 @@ export function shouldResubmit(error: unknown): boolean {
   return failedBeforeSending(error);
 }
 
+/** What Higgsfield said about the configured key; "unknown" when it could not be asked. */
+export type CredentialCheck = "accepted" | "rejected" | "unknown";
+
 export type HiggsfieldClientOptions = {
   keyId: string;
   keySecret: string;
@@ -262,6 +267,26 @@ export class HiggsfieldClient implements ImageVideoProvider {
     this.baseUrl = (options.baseUrl ?? DEFAULT_HIGGSFIELD_BASE_URL).replace(/\/+$/, "");
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.retries = options.retries ?? 2;
+  }
+
+  /**
+   * Whether Higgsfield accepts these credentials, without generating anything:
+   * the status of a request id that does not exist answers 404 to a valid key
+   * and 401 to an invalid one (docs, Authentication and Errors).
+   */
+  async checkCredentials(): Promise<CredentialCheck> {
+    try {
+      const response = await fetchWithTimeout(this.url(`requests/${randomUUID()}/status`), {
+        method: "GET",
+        headers: this.headers(),
+        timeoutMs: 8000,
+        cache: "no-store",
+      });
+      if (response.status === 401) return "rejected";
+      return response.status < 500 ? "accepted" : "unknown";
+    } catch {
+      return "unknown";
+    }
   }
 
   private headers(): HeadersInit {

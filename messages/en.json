@@ -1280,7 +1280,8 @@
       "otherModels": "Other models",
       "provider": {
         "higgsfield": "Higgsfield connected",
-        "mock": "Mock provider"
+        "mock": "Mock provider",
+        "rejected": "Higgsfield rejected the key"
       },
       "default": {
         "image": "Default image model",
@@ -1305,6 +1306,7 @@
       "hint": "Status only — values are never displayed.",
       "configured": "Configured",
       "missing": "Missing",
+      "rejected": "Rejected — check the key in Vercel",
       "serviceRole": "Supabase service role (webhooks)",
       "gateway": "LLM gateway",
       "webhook": "Higgsfield webhook (secret + APP_URL)",

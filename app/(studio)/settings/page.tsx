@@ -7,7 +7,7 @@ import { requireOwner } from "@/lib/auth/owner";
 import { keyStatus, llmGatewayConfig } from "@/lib/env";
 import { ownerRegistry } from "@/lib/generations/models";
 import { toModelOptions } from "@/lib/providers/higgsfield/options";
-import { activeProviderMode } from "@/lib/providers/higgsfield";
+import { activeProviderMode, higgsfieldKeyCheck } from "@/lib/providers/higgsfield";
 import { DEFAULT_CLAUDE_MODEL, DEFAULT_GEMINI_MODEL, getDirectorBrain } from "@/lib/providers/llm";
 import { listGatewayModels } from "@/lib/providers/llm/gateway";
 import { loadCostSummary } from "@/lib/settings/costs";
@@ -28,7 +28,10 @@ export default async function SettingsPage() {
   const registry = await ownerRegistry(settings);
   const brain = getDirectorBrain(settings);
   const gateway = llmGatewayConfig();
-  const gatewayModels = gateway ? await listGatewayModels(gateway) : [];
+  const [gatewayModels, higgsfieldKey] = await Promise.all([
+    gateway ? listGatewayModels(gateway) : Promise.resolve([]),
+    higgsfieldKeyCheck(),
+  ]);
   return (
     <>
       <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} />
@@ -53,6 +56,7 @@ export default async function SettingsPage() {
         gateway={{ name: gateway?.name ?? null, models: gatewayModels }}
         keys={keyStatus()}
         providerMode={activeProviderMode()}
+        higgsfieldKey={higgsfieldKey}
         imageModels={toModelOptions(registry, "image", ["image-to-image", "text-to-image"])}
         videoModels={toModelOptions(registry, "video", ["image-to-video"])}
         costs={costs}

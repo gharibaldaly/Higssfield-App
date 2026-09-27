@@ -368,3 +368,13 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Flash models are free of charge, with per-project limits; the daily limit resets at midnight Pacific time.
   - Free-tier content is used to improve Google's products. Enabling billing stops that; 3.8 Flash then costs $0.75 per million input tokens and $3.75 per million output tokens until the end of 2026.
 
+### 2026-09-27 — Higgsfield key: tolerant parsing and a live check
+- **Why:** with the brain on Gemini, the first DNA was analysed and approved. The product sheet that followed then failed with "Higgsfield rejected the API key" (401), while Settings still showed "Higgsfield connected", because that badge only checked that the variables were set.
+- **Parsing** (`higgsfieldCredentials`):
+  - The combined `KEY_ID:KEY_SECRET` form in `HIGGSFIELD_API_KEY` now wins even when `HIGGSFIELD_API_SECRET` is also set. Before, the whole combined string was sent as the key ID. The API splits the header on the colon, so a key ID never holds one.
+  - Surrounding quotes and a leading `Key ` (copied from the header example) are dropped.
+- **Live check** (`HiggsfieldClient.checkCredentials`, `higgsfieldKeyCheck`):
+  - The check asks for the status of a random request id, which generates nothing and costs nothing. The docs' Authentication page says invalid credentials return 401, and a request the account does not have returns 404, so 401 means rejected and any other answer below 500 means accepted.
+  - Settings runs it on each visit: the models badge reads "Higgsfield rejected the key", and the keys card marks Higgsfield as rejected.
+  - An accepted key is remembered for five minutes per server instance; a rejected one is asked again each time, so a corrected key shows at once.
+

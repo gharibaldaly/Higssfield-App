@@ -170,12 +170,27 @@ async function sendToProvider(
   target: SubmitTarget,
   body: Record<string, unknown>,
 ): Promise<GenerationRow> {
+  const provider = getProvider(row.provider);
+  // The price estimate takes the same body and never blocks the submit.
+  const estimating = provider.estimate
+    ? provider.estimate(target, body).catch((error: unknown) => {
+        console.warn("Higgsfield estimate failed", row.id, toUserMessage(error));
+        return null;
+      })
+    : Promise.resolve(null);
   try {
-    const provider = getProvider(row.provider);
     const state = await provider.submit(target, body, {
       generationId: row.id,
       webhookUrl: row.provider === "higgsfield" ? webhookUrlFor(row.id) : null,
     });
+    const estimate = await estimating;
+    const cost = state.cost
+      ? { cost: state.cost.amount, cost_unit: state.cost.unit }
+      : estimate?.usd != null
+        ? { cost: estimate.usd, cost_unit: "usd" as const }
+        : estimate?.credits != null
+          ? { cost: estimate.credits, cost_unit: "credits" as const }
+          : {};
     return await updateRow(supabase, row.id, {
       provider_request_id: state.requestId,
       provider_status_url: state.statusUrl,
@@ -185,8 +200,9 @@ async function sendToProvider(
       params: patchParams(row.params, {
         _waiting: undefined,
         _correlationId: state.correlationId ?? undefined,
+        _estimate: estimate ?? undefined,
       }),
-      ...(state.cost ? { cost: state.cost.amount, cost_unit: state.cost.unit } : {}),
+      ...cost,
     });
   } catch (submitError) {
     const reason = row.provider === "higgsfield" ? waitReasonOf(submitError) : null;
@@ -559,6 +575,8 @@ export async function refreshGeneration(
         status: state.status,
         error: failureMessage(state),
         completed_at: new Date().toISOString(),
+        // Failed, filtered and canceled requests are not charged (docs: Billing and retention).
+        ...(claimed.cost !== null ? { cost: 0 } : {}),
       });
     } else if (now - Date.parse(claimed.submitted_at ?? claimed.created_at) > MAX_PENDING_MS) {
       settled = await updateRow(supabase, claimed.id, {

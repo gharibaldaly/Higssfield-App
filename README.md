@@ -117,23 +117,29 @@ pnpm dev                     # http://localhost:3000
   paused, server error), wait in the queue and are sent automatically when there is room; their
   tiles say why they wait. A submit is never repeated after a timeout, because Higgsfield may
   already have accepted it.
-- **Model registry**: built-in models, an optional remote catalogue (`HIGGSFIELD_MODELS_URL`)
-  and **custom models** added as JSON in Settings, so new models need no redeploy. Each model
+- **Model registry**: every image and video workflow documented on docs.higgsfield.ai that the
+  studio can feed (68 today: 15 image, 53 video), grouped by family in every picker. Each model
   declares its modes, aspect ratios, resolutions, durations and reference-image count, and the UI
-  only offers valid options. The built-in list still comes from the older SDK; the current
-  catalogue in the console lists different models, which are added from their own docs pages.
+  only offers valid options. Defaults: **Grok Image 2.0** for ghost images, sheets and preview
+  frames, **Kling 3.0 Pro image-to-video** for ad shots; change them in Settings. Custom models
+  (JSON in Settings) and an optional remote catalogue (`HIGGSFIELD_MODELS_URL`) still work.
+- **Refreshing the models**: `node scripts/higgsfield/sync-models.mjs` re-reads the model pages
+  into `lib/providers/higgsfield/docs/workflows.json` (needs access to docs.higgsfield.ai; behind
+  a proxy prefix it with `NODE_USE_ENV_PROXY=1`). Review the diff, run the tests and deploy.
 - Results are copied into Supabase Storage as soon as they complete (Higgsfield keeps them for at
   least seven days). Front, back and colourway images are trimmed to the garment and re-padded
   with the catalogue margin on the catalogue background, so every product sits the same way in
   the grid.
-- Cost or credits are recorded per generation when the API returns them (the documented status
-  response has no cost field).
+- **Cost**: each submit also asks Higgsfield's estimate endpoint (`POST /estimate/{endpoint}`)
+  what the request costs, and the dollar figure is stored with the generation (Settings → Cost
+  summary). Failed, filtered and canceled requests count as free.
 - Every error shown in the studio ends with Higgsfield's reference id (`[ref …]`); give it to
   Higgsfield support together with the request.
-- Ghost images from photos need an **image-edit model** (one that keeps the garment from the
-  reference photo). The built-in list has none confirmed yet: add the edit endpoint from the
-  Higgsfield docs as a custom model in Settings (mode `image-to-image`, reference images as a URL
-  list) and pick it for the batch.
+- Ghost images from photos use an **image-edit model** that takes the photos as references:
+  Grok Image 2.0 (up to 10 references, 2K), Marketing Studio Image (up to 16, 4K) and Qwen Image
+  3 Edit (up to 3). Prompt rewriting is switched off on every model that has the option, so the
+  model receives the exact product lock; native audio is off on video models, because ads are cut
+  to music in the montage.
 
 ## Ghost batches (from photos)
 

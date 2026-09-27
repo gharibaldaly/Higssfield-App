@@ -21,8 +21,16 @@ class FakeHiggsfield {
   /** Generation ids of every submit call, accepted or not. */
   attempts: string[] = [];
   rejectNext: AppError | null = null;
+  /** Generation ids whose request ends as failed at Higgsfield. */
+  failing = new Set<string>();
+  estimates = 0;
   private readonly open = new Set<string>();
   private readonly done = new Set<string>();
+
+  async estimate() {
+    this.estimates += 1;
+    return { usd: 0.04, credits: 0.64 };
+  }
 
   async submit(_target: unknown, _body: unknown, context: SubmitContext): Promise<ProviderState> {
     this.attempts.push(context.generationId);
@@ -48,6 +56,9 @@ class FakeHiggsfield {
 
   async getStatus(requestId: string): Promise<ProviderState> {
     if (!this.done.has(requestId)) return state(requestId, "in_progress");
+    if (this.failing.has(requestId.slice("req-".length))) {
+      return { ...state(requestId, "failed"), error: "Generation failed" };
+    }
     return {
       ...state(requestId, "completed"),
       resultKind: "image",
@@ -255,6 +266,22 @@ describe("the Higgsfield waiting room", () => {
     advance(31_000);
     await refreshGeneration(supabase, rowById(row.id));
     expect(provider.accepted).toEqual([row.id]);
+  });
+
+  it("records Higgsfield's estimate as the cost, and nothing for a failed request", async () => {
+    const good = await submit("a");
+    const bad = await submit("b");
+    expect(provider.estimates).toBe(2);
+    expect(rowById(good.id)).toMatchObject({ cost: 0.04, cost_unit: "usd" });
+    expect(rowById(good.id).params).toMatchObject({ _estimate: { usd: 0.04, credits: 0.64 } });
+
+    provider.failing.add(bad.id);
+    provider.finish(good.id);
+    provider.finish(bad.id);
+    advance(6_000);
+    await pollAll();
+    expect(rowById(good.id)).toMatchObject({ status: "completed", cost: 0.04 });
+    expect(rowById(bad.id)).toMatchObject({ status: "failed", cost: 0 });
   });
 
   it("fails a request Higgsfield rejected for good", async () => {

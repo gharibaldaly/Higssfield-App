@@ -19,6 +19,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
+import { ModelSelectItems } from "@/components/generation/model-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -348,15 +349,7 @@ export function ShotCard({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__default">{t("useProjectModel")}</SelectItem>
-                    {videoModels.map((model) => (
-                      <SelectItem
-                        key={model.id}
-                        value={model.id}
-                        disabled={model.disabledReason !== null}
-                      >
-                        {model.label}
-                      </SelectItem>
-                    ))}
+                    <ModelSelectItems models={videoModels} />
                   </SelectContent>
                 </Select>
               </label>

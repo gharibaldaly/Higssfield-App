@@ -6,13 +6,14 @@ import {
   extractCost,
   HiggsfieldClient,
   normalizeStatus,
+  parseEstimate,
   toProviderState,
 } from "@/lib/providers/higgsfield/client";
 import { BUILTIN_MODELS } from "@/lib/providers/higgsfield/models";
 import { modelSpecSchema } from "@/lib/providers/higgsfield/types";
 
-const dop = modelSpecSchema.parse(
-  BUILTIN_MODELS.find((model) => model.id === "higgsfield-dop-standard"),
+const kling = modelSpecSchema.parse(
+  BUILTIN_MODELS.find((model) => model.id === "kling-video-v3.0-pro-image-to-video"),
 );
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -44,7 +45,7 @@ describe("HiggsfieldClient", () => {
     );
     const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret" });
     const state = await client.submit(
-      dop,
+      kling,
       { prompt: "x" },
       { generationId: "g1", webhookUrl: "https://app.test/hook?gid=1&sig=2" },
     );
@@ -52,7 +53,7 @@ describe("HiggsfieldClient", () => {
     expect(state).toMatchObject({ requestId: "req-1", status: "queued" });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe(
-      "https://api.higgsfield.ai/v1/image2video/dop?hf_webhook=https%3A%2F%2Fapp.test%2Fhook%3Fgid%3D1%26sig%3D2",
+      "https://api.higgsfield.ai/kling-video/v3.0/pro/image-to-video?hf_webhook=https%3A%2F%2Fapp.test%2Fhook%3Fgid%3D1%26sig%3D2",
     );
     expect(init?.method).toBe("POST");
     expect((init?.headers as Record<string, string>).Authorization).toBe("Key id:secret");
@@ -93,7 +94,7 @@ describe("HiggsfieldClient", () => {
       jsonResponse(422, { detail: [{ loc: ["body", "aspect_ratio"], msg: "unexpected value" }] }),
     );
     await expect(
-      client.submit(dop, {}, { generationId: "g", webhookUrl: null }),
+      client.submit(kling, {}, { generationId: "g", webhookUrl: null }),
     ).rejects.toMatchObject({
       code: "provider_bad_input",
       detail: "aspect_ratio: unexpected value",
@@ -105,7 +106,7 @@ describe("HiggsfieldClient", () => {
       .mockResolvedValueOnce(jsonResponse(500, { detail: "oops" }))
       .mockResolvedValueOnce(jsonResponse(200, { status: "queued", request_id: "req-2" }));
     const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret", retries: 1 });
-    const state = await client.submit(dop, {}, { generationId: "g", webhookUrl: null });
+    const state = await client.submit(kling, {}, { generationId: "g", webhookUrl: null });
     expect(state.requestId).toBe("req-2");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 10_000);
@@ -116,7 +117,7 @@ describe("HiggsfieldClient", () => {
       fetchMock.mockReset();
       fetchMock.mockResolvedValue(jsonResponse(status, { detail: "nope" }));
       await expect(
-        client.submit(dop, {}, { generationId: "g", webhookUrl: null }),
+        client.submit(kling, {}, { generationId: "g", webhookUrl: null }),
       ).rejects.toMatchObject({ status });
       expect(fetchMock).toHaveBeenCalledTimes(1);
     }
@@ -127,7 +128,7 @@ describe("HiggsfieldClient", () => {
       }),
     );
     await expect(
-      client.submit(dop, {}, { generationId: "g", webhookUrl: null }),
+      client.submit(kling, {}, { generationId: "g", webhookUrl: null }),
     ).rejects.toMatchObject({ code: "provider_unavailable" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -141,7 +142,7 @@ describe("HiggsfieldClient", () => {
       )
       .mockResolvedValueOnce(jsonResponse(200, { status: "queued", request_id: "req-3" }));
     const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret", retries: 1 });
-    const state = await client.submit(dop, {}, { generationId: "g", webhookUrl: null });
+    const state = await client.submit(kling, {}, { generationId: "g", webhookUrl: null });
     expect(state.requestId).toBe("req-3");
   }, 10_000);
 
@@ -151,11 +152,11 @@ describe("HiggsfieldClient", () => {
       jsonResponse(400, { detail: "Maximum number of concurrent requests (4) has been reached" }),
     );
     await expect(
-      client.submit(dop, {}, { generationId: "g", webhookUrl: null }),
+      client.submit(kling, {}, { generationId: "g", webhookUrl: null }),
     ).rejects.toMatchObject({ code: "provider_busy", status: 400, retryable: true });
     fetchMock.mockResolvedValueOnce(jsonResponse(400, { detail: "Invalid image" }));
     await expect(
-      client.submit(dop, {}, { generationId: "g", webhookUrl: null }),
+      client.submit(kling, {}, { generationId: "g", webhookUrl: null }),
     ).rejects.toMatchObject({ code: "provider_bad_input" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -180,7 +181,7 @@ describe("HiggsfieldClient", () => {
       }),
     );
     const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret", retries: 0 });
-    const state = await client.submit(dop, {}, { generationId: "g", webhookUrl: null });
+    const state = await client.submit(kling, {}, { generationId: "g", webhookUrl: null });
     expect(state.correlationId).toBe("corr-ok");
 
     fetchMock.mockResolvedValueOnce(
@@ -207,6 +208,24 @@ describe("HiggsfieldClient", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, completed));
     await client.getStatus("req-1", { statusUrl: "https://elsewhere.test/requests/req-1/status" });
     expect(fetchMock.mock.calls[1]![0]).toBe("https://api.test/requests/req-1/status");
+  });
+
+  it("asks the estimate endpoint what a request costs", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { credits: "1.500", usd: "0.094" }));
+    const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret" });
+    const estimate = await client.estimate(kling, {
+      prompt: "x",
+      image_url: "https://a.test/i.png",
+    });
+    expect(estimate).toEqual({ usd: 0.094, credits: 1.5 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://api.higgsfield.ai/estimate/kling-video/v3.0/pro/image-to-video");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      prompt: "x",
+      image_url: "https://a.test/i.png",
+    });
+    expect(parseEstimate({ credits: "n/a" })).toBeNull();
   });
 
   it("explains a cancel that came too late", async () => {

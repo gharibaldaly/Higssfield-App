@@ -11,6 +11,7 @@ import {
 } from "@/lib/http/retry";
 import type {
   ImageVideoProvider,
+  ProviderEstimate,
   ProviderState,
   ProviderStatus,
   StatusContext,
@@ -28,6 +29,7 @@ import type {
  *                { status, request_id, status_url, cancel_url }
  *   - status     GET the status_url from the submit (/requests/{id}/status)
  *   - cancel     POST /requests/{id}/cancel: 202, or 400 once processing started
+ *   - estimate   POST /estimate/{model endpoint} with the same body → { credits, usd }
  *   - upload     POST /files/generate-upload-url {content_type}, then PUT with upload_headers
  *   - statuses   queued | in_progress | completed | failed | nsfw | canceled
  *   - results    images: [{url}] or video: {url}, kept for at least seven days
@@ -118,6 +120,20 @@ export function toProviderState(raw: RawRequestState): ProviderState {
     cost: extractCost(raw),
     error: status === "failed" || status === "nsfw" ? extractError(raw) : null,
   };
+}
+
+function decimal(value: unknown): number | null {
+  const amount =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+/** Reads an estimate response ({ credits: "1.500", usd: "0.094" }). */
+export function parseEstimate(payload: unknown): ProviderEstimate | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { usd, credits } = payload as Record<string, unknown>;
+  const estimate = { usd: decimal(usd), credits: decimal(credits) };
+  return estimate.usd === null && estimate.credits === null ? null : estimate;
 }
 
 /** FastAPI-style `detail` can be a string or a list of {loc, msg}. */
@@ -266,6 +282,7 @@ export class HiggsfieldClient implements ImageVideoProvider {
     path: string,
     body: unknown,
     retryOn: (error: unknown) => boolean,
+    timeoutMs = this.timeoutMs,
   ): Promise<{ payload: unknown; correlationId: string | null }> {
     return withRetry(
       async () => {
@@ -273,7 +290,7 @@ export class HiggsfieldClient implements ImageVideoProvider {
           method,
           headers: this.headers(),
           body: body === undefined ? undefined : JSON.stringify(body),
-          timeoutMs: this.timeoutMs,
+          timeoutMs,
           cache: "no-store",
         });
         if (!response.ok) throw await higgsfieldError(response);
@@ -312,6 +329,24 @@ export class HiggsfieldClient implements ImageVideoProvider {
     }
     const { payload, correlationId } = await this.request("POST", path, body, shouldResubmit);
     return { ...this.parseState(payload), correlationId };
+  }
+
+  /**
+   * The docs' estimate endpoint: the same body posted to /estimate/{endpoint}
+   * returns { credits, usd } as decimal strings. Nothing is generated or charged.
+   */
+  async estimate(
+    target: SubmitTarget,
+    body: Record<string, unknown>,
+  ): Promise<ProviderEstimate | null> {
+    const { payload } = await this.request(
+      "POST",
+      `/estimate/${target.endpoint.replace(/^\/+/, "")}`,
+      body,
+      () => false,
+      15_000,
+    );
+    return parseEstimate(payload);
   }
 
   async getStatus(

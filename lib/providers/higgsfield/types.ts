@@ -47,7 +47,7 @@ export type ImageParam = z.infer<typeof imageParamSchema>;
 export const modelSpecSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,80}$/, "lowercase letters, digits, . _ -"),
   label: z.string().min(1).max(80),
-  /** POST path on the Higgsfield API, e.g. "/v1/image2video/dop". */
+  /** POST path on the Higgsfield API, e.g. "xai/grok-imagine-image-2.0". */
   endpoint: z.string().min(1).max(200),
   kind: z.enum(["image", "video"]),
   modes: z.array(z.enum(GENERATION_MODES)).min(1),
@@ -58,7 +58,9 @@ export const modelSpecSchema = z.object({
       field: z.string().min(1),
       maxChars: z.number().int().positive().optional(),
     }),
-    negativePrompt: z.object({ field: z.string().min(1) }).optional(),
+    negativePrompt: z
+      .object({ field: z.string().min(1), maxChars: z.number().int().positive().optional() })
+      .optional(),
     image: imageParamSchema.optional(),
     aspectRatio: choiceParamSchema.optional(),
     resolution: choiceParamSchema.optional(),
@@ -72,8 +74,13 @@ export const modelSpecSchema = z.object({
       .optional(),
     seed: z.object({ field: z.string().min(1) }).optional(),
   }),
-  /** Where the spec comes from: official SDK source, remote catalogue, owner-added, or mock. */
-  source: z.enum(["sdk", "catalog", "custom", "mock"]),
+  /** Model family for grouping in pickers, e.g. "Kling 3.0". */
+  family: z.string().max(80).optional(),
+  /**
+   * Where the spec comes from: Higgsfield's model docs, official SDK source,
+   * remote catalogue, owner-added, or mock.
+   */
+  source: z.enum(["docs", "sdk", "catalog", "custom", "mock"]),
   sourceNote: z.string().max(400).optional(),
 });
 
@@ -143,9 +150,14 @@ export type StatusContext = {
   loadReference: () => Promise<Buffer | null>;
 };
 
+/** A provider's price estimate for one request. */
+export type ProviderEstimate = { usd: number | null; credits: number | null };
+
 /** Image/video provider used by the generation service. */
 export interface ImageVideoProvider {
   readonly id: "higgsfield" | "mock";
+  /** What the request would cost, when the provider can say. */
+  estimate?(target: SubmitTarget, body: Record<string, unknown>): Promise<ProviderEstimate | null>;
   submit(
     target: SubmitTarget,
     body: Record<string, unknown>,

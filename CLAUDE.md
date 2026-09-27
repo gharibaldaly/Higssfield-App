@@ -269,3 +269,28 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - None of the SDK-era built-in endpoints (Soul v1, Flux Kontext, Seedream 4, DoP, Speak) appears there, so they may be retired.
   - Candidate edit models for ghost images: Grok Imagine 2.0 ("precise edits while preserving image details") and Marketing Studio Image (edits from text and image inputs, 1K–4K).
   - Register them from their own docs pages (or `/docs/openapi.json`), and give the ads an image-to-video or reference-to-video model in place of DoP.
+
+### 2026-09-27 — Models from the Higgsfield docs
+- **Source:** the owner allowed `docs.higgsfield.ai` in the environment's network settings (Custom access), so the model pages were read directly. The docs list 35 model families and 82 workflows. `/docs/openapi.json` only holds 8 paths and is "supplementary", so each workflow's own page is the source: endpoint, usage notes, the complete JSON input schema and the output field.
+- **Snapshot:** `scripts/higgsfield/sync-models.mjs` reads the image and video indexes, every family page and every workflow page into `lib/providers/higgsfield/docs/workflows.json` (kept out of Prettier). `docs-catalog.ts` turns it into model specs when the registry loads. Run the script again to pick up new models, review the diff and deploy. This is the "single config file" the registry rule allows, since the API has no listing endpoint.
+- **Registry:** 68 models (15 image, 53 video), each with `source: "docs"` and a `family` for grouping.
+  - Left out: 14 workflows that need a source video (Genjutsu, Kling motion control, video edit / extend / reference, Wan 2.6 reference) and Soul ID, which trains a character rather than generating.
+  - The SDK-era built-ins (Soul v1 `/v1/text2image/soul`, Flux Kontext, Seedream 4, DoP, Speak) are gone. The docs no longer list them and say not to substitute silently. A job saved with a removed model (or with a mock model, once a key is set) fails with "Model … is not available"; queue it again with a current model.
+- **Conversion rules:**
+  - References come from `image_urls`, else `image_url`, else `first_frame_url`. A reference is required when the schema says so, when `minItems` ≥ 1, or when the notes say so (Wan 2.7 reference-to-video).
+  - The maximum is `maxItems` or a limit stated in the notes (HappyHorse 9, Wan 2.7 5). With neither, the studio sends at most 4 (Kling O3 / Omni image reference) and says so in the source note. Anything above 16 is capped at 16.
+  - Modes follow the output kind and whether references are required.
+  - Durations come from enums or integer ranges. Resolution tiers are sorted (480p < 720p < 1k < 1080p < 2k < 4k), so "highest" means the top tier.
+  - Prompt limits come from `maxLength` or the notes: Kling 3.0, O3 and Omni 2,500; Kling 3.0 Turbo text-to-video 3,072; MiniMax H3 7,000. Negative prompts are trimmed to their `maxLength` (PixVerse 2,048).
+  - MiniMax H3 image-to-video drops `aspect_ratio`, because the output follows the keyframe. Grok Imagine Video in reference mode keeps only 480p and 720p.
+- **House switches:** every model that has them gets `enhance_prompt`, `prompt_extend`, `enable_thinking` and `prompt_optimizer` set to false, so it receives the exact PRODUCT LOCK the brain wrote. Qwen Image 3 enables both of its rewriting switches by default. Native audio is off (`generate_audio: false`, Kling `sound: "off"`), because ad shots are cut to music in the montage.
+  - Left at their defaults: Marketing Studio `quality` (high) and `moderation` (auto), Kling O3 / Omni `mode`, Ideogram `image_weight`. Soul's `image_reference_url` only guides prompt enhancement, so Soul is text-to-image here.
+- **Defaults** (`FAMILY_ORDER`; the first model that supports a mode is its default, and Settings defaults still win):
+  - **Grok Image 2.0** for ghost images, sheets and preview frames: "generate and edit images with up to ten image references"; the console card says "precise edits while preserving image details".
+  - Marketing Studio Image (16 references, 4K) and Qwen Image 3 Edit follow, to compare on real products with the fidelity scores.
+  - **Kling 3.0 Pro image-to-video** for ad shots. It takes 3–15 s but no aspect ratio (framing follows the frame), so exact 9:16 still comes from "preview frame first", or from a model with `aspect_ratio` such as Seedance 2.0 reference-to-video.
+- **Cost:** the Billing page documents `POST /estimate/{endpoint}` with the submit body, returning `{ credits, usd }`.
+  - The estimate runs alongside each submit and never blocks it. `usd` goes to `generations.cost` and both values to `params._estimate`.
+  - Failed, nsfw and canceled requests are set to 0, since the docs say they are not charged. The studio's own 45-minute give-up keeps the estimate, because Higgsfield may still finish the request.
+- **UI:** pickers group models by family (`ModelSelectItems`), and Settings lists families as collapsible sections with each workflow's capabilities and docs path.
+- **Resolved:** the Phase 1 and 2026-09-27 TODOs about model endpoints, parameters and cost. `api.higgsfield.ai` is still not reachable from the sandbox, so no request was sent live. The first real run should be one or two models, with Grok and Marketing Studio compared in the review.

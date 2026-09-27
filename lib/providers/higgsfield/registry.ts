@@ -176,7 +176,13 @@ export function buildProviderInput(
   body[params.prompt.field] = prompt;
 
   if (params.negativePrompt && request.negativePrompt?.trim()) {
-    body[params.negativePrompt.field] = request.negativePrompt.trim();
+    let negative = request.negativePrompt.trim();
+    const limit = params.negativePrompt.maxChars;
+    if (limit && negative.length > limit) {
+      negative = negative.slice(0, limit);
+      warnings.push(`Negative prompt shortened to ${limit} characters for ${spec.label}.`);
+    }
+    body[params.negativePrompt.field] = negative;
   }
 
   let referenceCount = 0;

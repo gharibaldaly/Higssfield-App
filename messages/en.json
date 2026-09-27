@@ -436,6 +436,7 @@
       "speech-to-video": "Speech → video"
     },
     "sources": {
+      "docs": "Official docs",
       "sdk": "Official SDK",
       "catalog": "Higgsfield catalogue",
       "custom": "Custom",
@@ -1270,7 +1271,9 @@
     },
     "models": {
       "title": "Image & video models",
-      "hint": "Every model the app can use. Options marked unverified are defaults to confirm against the Higgsfield docs.",
+      "hint": "Every model documented on docs.higgsfield.ai that the studio can use, grouped by family. Availability can still depend on your Higgsfield account.",
+      "workflows": "{count, plural, one {# workflow} other {# workflows}}",
+      "otherModels": "Other models",
       "provider": {
         "higgsfield": "Higgsfield connected",
         "mock": "Mock provider"
@@ -1315,7 +1318,7 @@
     },
     "costs": {
       "title": "Cost summary",
-      "hint": "Recorded per generation when the provider returns a cost.",
+      "hint": "Higgsfield's price estimate for each request, recorded when it is sent. Failed, filtered and canceled requests are free.",
       "thisMonth": "This month",
       "allTime": "All time",
       "generations": "Generations",
@@ -1323,7 +1326,7 @@
       "creditsValue": "{value} credits",
       "split": "{images} images · {videos} videos",
       "failedValue": "{count} failed (refunded)",
-      "unpriced": "{count, plural, one {# completed generation has} other {# completed generations have}} no cost in the provider response."
+      "unpriced": "{count, plural, one {# completed generation has} other {# completed generations have}} no price estimate."
     },
     "password": {
       "title": "Account password",

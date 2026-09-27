@@ -31,6 +31,7 @@ export const LOCAL_PARAM_KEYS: ReadonlySet<string> = new Set([
   "_finish",
   "_waiting",
   "_correlationId",
+  "_estimate",
 ]);
 
 /** The waiting reason for a rejected submit, or null when it must fail. */

@@ -14,6 +14,12 @@ import {
 } from "@/lib/providers/higgsfield/registry";
 import { modelSpecSchema, type ModelSpec } from "@/lib/providers/higgsfield/types";
 
+const GROK = "xai-grok-imagine-image-2.0";
+const QWEN_EDIT = "alibaba-qwen-image-3-edit";
+const SOUL_V2 = "higgsfield-ai-soul-v2-standard";
+const KLING = "kling-video-v3.0-pro-image-to-video";
+const SEEDANCE_REFS = "bytedance-seedance-2.0-reference-to-video";
+
 function spec(id: string): ModelSpec {
   const input = [...BUILTIN_MODELS, ...MOCK_MODELS].find((model) => model.id === id);
   if (!input) throw new Error(`missing ${id}`);
@@ -32,10 +38,15 @@ describe("model registry", () => {
     expect(registry.some((model) => model.kind === "image")).toBe(true);
     expect(registry.some((model) => model.kind === "video")).toBe(true);
     expect(registry.some((model) => model.source === "mock")).toBe(false);
-    const soul = capabilitiesOf(spec("higgsfield-soul"));
-    expect(soul.maxReferenceImages).toBe(1);
-    expect(soul.aspectRatios).toContain("3:4");
-    expect(soul.resolutions).toEqual(["720p", "1080p"]);
+    const grok = capabilitiesOf(spec(GROK));
+    expect(grok.modes).toEqual(["text-to-image", "image-to-image"]);
+    expect(grok.maxReferenceImages).toBe(10);
+    expect(grok.aspectRatios).toContain("3:4");
+    expect(grok.resolutions).toEqual(["1k", "2k"]);
+    const kling = capabilitiesOf(spec(KLING));
+    expect(kling.durations[0]).toBe(3);
+    expect(kling.maxDurationS).toBe(15);
+    expect(kling.maxPromptChars).toBe(2500);
   });
 
   it("shows only mock models when the mock provider is active", () => {
@@ -68,81 +79,83 @@ describe("model registry", () => {
 
   it("picks a model for a mode, preferring the requested one", () => {
     const registry = buildRegistry({ includeReal: true, includeMock: false });
-    expect(pickModel(registry, "image-to-video")?.kind).toBe("video");
-    expect(pickModel(registry, "image-to-video", "higgsfield-dop-standard")?.id).toBe(
-      "higgsfield-dop-standard",
-    );
-    expect(pickModel(registry, "image-to-image", "higgsfield-dop-standard")?.id).toBe(
-      "higgsfield-soul",
-    );
+    expect(pickModel(registry, "image-to-image")?.id).toBe(GROK);
+    expect(pickModel(registry, "image-to-video")?.id).toBe(KLING);
+    expect(pickModel(registry, "image-to-video", SEEDANCE_REFS)?.id).toBe(SEEDANCE_REFS);
+    expect(pickModel(registry, "image-to-image", KLING)?.id).toBe(GROK);
   });
 });
 
 describe("buildProviderInput", () => {
-  it("encodes Soul image-to-image exactly like the official SDK types", () => {
-    const built = buildProviderInput(spec("higgsfield-soul"), {
+  it("sends Grok Image 2.0 its references as an ordered URL list", () => {
+    const built = buildProviderInput(spec(GROK), {
       mode: "image-to-image",
       prompt: "Front view",
-      referenceUrls: ["https://example.com/front.jpg"],
-      aspectRatio: "3:4",
-      resolution: null,
+      referenceUrls: ["https://example.com/front.jpg", "https://example.com/lace.jpg"],
+      aspectRatio: "4:5",
+      resolution: "2k",
     });
     expect(built.body).toEqual({
-      batch_size: 1,
-      enhance_prompt: false,
       prompt: "Front view",
-      image_reference: { type: "image_url", image_url: "https://example.com/front.jpg" },
-      width_and_height: "1536x2048",
-      quality: "1080p",
+      image_urls: ["https://example.com/front.jpg", "https://example.com/lace.jpg"],
+      aspect_ratio: "3:4",
+      resolution: "2k",
     });
     expect(built.applied).toMatchObject({
       aspectRatio: "3:4",
-      resolution: "1080p",
-      referenceCount: 1,
+      resolution: "2k",
+      referenceCount: 2,
     });
-  });
-
-  it("falls back to the closest aspect ratio with a warning", () => {
-    const built = buildProviderInput(spec("higgsfield-soul"), {
-      mode: "text-to-image",
-      prompt: "Front view",
-      referenceUrls: [],
-      aspectRatio: "4:5",
-    });
-    expect(built.applied.aspectRatio).toBe("3:4");
     expect(built.warnings.join(" ")).toContain("4:5");
   });
 
-  it("encodes DoP image-to-video input_images and the fixed model variant", () => {
-    const built = buildProviderInput(spec("higgsfield-dop-turbo"), {
+  it("keeps Qwen from rewriting the prompt and caps its references at three", () => {
+    const built = buildProviderInput(spec(QWEN_EDIT), {
+      mode: "image-to-image",
+      prompt: "Front view",
+      referenceUrls: ["a", "b", "c", "d"].map((name) => `https://example.com/${name}.jpg`),
+      aspectRatio: "3:4",
+      resolution: "2k",
+    });
+    expect(built.body).toMatchObject({
+      prompt_extend: false,
+      enable_thinking: false,
+      image_urls: ["a", "b", "c"].map((name) => `https://example.com/${name}.jpg`),
+      aspect_ratio: "3:4",
+      resolution: "2k",
+    });
+    expect(built.warnings.join(" ")).toContain("accepts 3 reference");
+  });
+
+  it("animates the first reference with Kling 3.0, sound off", () => {
+    const built = buildProviderInput(spec(KLING), {
       mode: "image-to-video",
       prompt: "Slow push-in",
       referenceUrls: ["https://example.com/a.png", "https://example.com/b.png"],
-      seed: 7,
+      durationS: 2.5,
     });
     expect(built.body).toEqual({
-      model: "dop-turbo",
-      enhance_prompt: false,
+      sound: "off",
       prompt: "Slow push-in",
-      input_images: [{ type: "image_url", image_url: "https://example.com/a.png" }],
-      seed: 7,
+      image_url: "https://example.com/a.png",
+      duration: 3,
     });
     expect(built.warnings.join(" ")).toContain("accepts 1 reference");
   });
 
   it("rejects missing required references and unsupported modes", () => {
     expect(() =>
-      buildProviderInput(spec("higgsfield-dop-lite"), {
+      buildProviderInput(spec(KLING), {
         mode: "image-to-video",
         prompt: "x",
         referenceUrls: [],
       }),
     ).toThrow(/reference image/);
     expect(() =>
-      buildProviderInput(spec("flux-kontext-max"), {
-        mode: "image-to-video",
+      buildProviderInput(spec(SOUL_V2), {
+        mode: "image-to-image",
         prompt: "x",
-        referenceUrls: [],
+        referenceUrls: ["https://example.com/a.png"],
       }),
     ).toThrow(/does not support/);
   });
@@ -160,8 +173,8 @@ describe("buildProviderInput", () => {
     expect(built.body.aspect_ratio).toBe("9:16");
   });
 
-  it("truncates prompts to the model budget", () => {
-    const model = spec("higgsfield-soul");
+  it("truncates prompts and negative prompts to the model's limits", () => {
+    const model = spec(GROK);
     const limited: ModelSpec = {
       ...model,
       params: { ...model.params, prompt: { field: "prompt", maxChars: 10 } },
@@ -173,6 +186,15 @@ describe("buildProviderInput", () => {
     });
     expect(built.body.prompt).toBe("0123456789");
     expect(built.warnings.length).toBeGreaterThan(0);
+
+    const pixverse = buildProviderInput(spec("pixverse-v6-image-to-video"), {
+      mode: "image-to-video",
+      prompt: "x",
+      negativePrompt: "n".repeat(3000),
+      referenceUrls: ["https://example.com/a.png"],
+    });
+    expect(String(pixverse.body.negative_prompt)).toHaveLength(2048);
+    expect(pixverse.warnings.join(" ")).toContain("Negative prompt shortened");
   });
 });
 
@@ -196,8 +218,9 @@ describe("option matching helpers", () => {
   });
 
   it("finds the highest resolution option", () => {
-    expect(highestResolution(spec("higgsfield-soul"))).toBe("1080p");
-    expect(highestResolution(spec("higgsfield-dop-lite"))).toBeNull();
+    expect(highestResolution(spec(GROK))).toBe("2k");
+    expect(highestResolution(spec(SEEDANCE_REFS))).toBe("4k");
+    expect(highestResolution(spec(KLING))).toBeNull();
   });
 
   it("redacts signed URLs from stored request bodies", () => {

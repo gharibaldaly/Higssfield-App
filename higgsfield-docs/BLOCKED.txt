@@ -1,0 +1,22 @@
+Checked: 2026-09-27T10:58:38Z
+URL: https://docs.higgsfield.ai/docs/llms.txt
+
+== curl output ==
+curl: (56) CONNECT tunnel failed, response 403
+000
+
+== agent proxy recentRelayFailures ==
+[
+  {
+    "ts": "2026-09-27T10:58:33.323Z",
+    "kind": "connect_rejected",
+    "detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+    "host": "docs.higgsfield.ai:443"
+  },
+  {
+    "ts": "2026-09-27T10:58:38.935Z",
+    "kind": "connect_rejected",
+    "detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+    "host": "docs.higgsfield.ai:443"
+  }
+]

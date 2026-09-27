@@ -5,6 +5,7 @@ import {
   cropRegions,
   fitToCanvas,
   probeImage,
+  shrinkLlmImages,
   toLlmImage,
   toPixelRect,
 } from "@/lib/images/process";
@@ -97,6 +98,31 @@ describe("image processing", () => {
     expect(image.mimeType).toBe("image/jpeg");
     expect(Math.max(meta.width!, meta.height!)).toBe(1568);
   });
+
+  it("shrinks brain photos to the largest edge that fits a size budget", async () => {
+    const pixels = Buffer.alloc(600 * 800 * 3);
+    for (let i = 0; i < pixels.length; i += 1) pixels[i] = (i * 7919) % 251;
+    const noise = await sharp(pixels, { raw: { width: 600, height: 800, channels: 3 } })
+      .jpeg({ quality: 88 })
+      .toBuffer();
+    const photos = await Promise.all([toLlmImage(noise, "Front"), toLlmImage(noise, "Back")]);
+    const size = photos.reduce((sum, photo) => sum + photo.base64.length, 0);
+
+    const fitted = await shrinkLlmImages(photos, Math.floor(size / 4));
+    expect(fitted).not.toBeNull();
+    expect(fitted!.longEdge).toBeLessThan(800);
+    expect(fitted!.images.map((image) => image.caption)).toEqual(["Front", "Back"]);
+    expect(fitted!.images.reduce((sum, image) => sum + image.base64.length, 0)).toBeLessThanOrEqual(
+      size / 4,
+    );
+    const meta = await sharp(Buffer.from(fitted!.images[0]!.base64, "base64")).metadata();
+    expect(Math.max(meta.width!, meta.height!)).toBe(fitted!.longEdge);
+    // A bigger budget keeps more pixels.
+    const roomier = await shrinkLlmImages(photos, Math.floor(size / 2));
+    expect(roomier!.longEdge).toBeGreaterThan(fitted!.longEdge);
+    // Nothing fits in a few hundred characters.
+    await expect(shrinkLlmImages(photos, 500)).resolves.toBeNull();
+  }, 30_000);
 
   it("renders mock placeholders at the requested ratio", async () => {
     const png = await renderPlaceholder({

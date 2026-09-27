@@ -339,3 +339,20 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - With 1–3 references (ghost prompts, fidelity checks) little or nothing is lost.
   - Fewer photos per product, a gateway model that takes links, or a direct Claude or Gemini key keep full detail.
 
+### 2026-09-27 — Gateway photos through the Anthropic messages format
+- **Why:** after the fitting went live, `agnes-3.0-flash` on VyceAI failed the colour test by link and inline (it named red / yellow for green / red). Then `claude-sonnet-4-6`, which had passed it inline once, failed it both ways (yellow / blue for red / white).
+  - The earlier pass was most likely a lucky guess (about 1 in 30). Together with the 1.4 million tokens counted for 12 photos, this suggests VyceAI's chat completions route hands images to the model as text.
+  - VyceAI's own models page marks only `nemotron-vision` and `minimax-m3` as Vision, and neither is in the owner's plan. The owner asked to keep VyceAI.
+- **Anthropic format:** VyceAI also documents `POST /v1/messages` ("Anthropic messages"), where images are real image blocks. The gateway brain now speaks it as well:
+  - Headers: `x-api-key` plus Bearer, and `anthropic-version: 2023-06-01`.
+  - Body: `system`, `max_tokens`, and image blocks (`url` or `base64`). The JSON schema goes in the prompt, since this format has no `response_format`.
+  - Replies: the stop reasons `refusal` and `max_tokens` are handled, and a chat-shaped reply from that endpoint is read too.
+- **Routes** (this replaces the two-route check and its 6-hour memory from the entry above):
+  - Photos take the first of four routes that passes: chat links, messages links, messages inline, chat inline. The link routes need the Storage host.
+  - A route must read two test images in a row, so a lucky pair is about 1 in 900.
+  - Routes are tested side by side, because VyceAI takes 12–19 s per answer; a route's second test only follows a first success.
+  - On the Anthropic format, a 404 or a refused key only rules out that route.
+  - The choice is re-checked every 30 minutes, since a pooled gateway may change what serves a model.
+  - When no route works, the error lists every route's result.
+- **Not verified live:** there is no VyceAI key in the sandbox, so the next analysis on production is the test. If every route fails, that model on VyceAI cannot see images, and the brain needs a Vision model or a direct key.
+

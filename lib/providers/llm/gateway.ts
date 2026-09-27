@@ -12,18 +12,17 @@ import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-c
 
 /**
  * Director brain through an OpenAI-compatible gateway: POST
- * {baseUrl}/chat/completions with a Bearer key, the garment photos as
- * `image_url` parts (data URLs). The model is whatever id the gateway lists;
- * it must accept images, because most brain calls send photos.
+ * {baseUrl}/chat/completions with a Bearer key. The model is whatever id the
+ * gateway lists; it must see images, because most brain calls send photos.
  *
  * Gateways differ in what they accept, so the brain adapts and remembers what
  * worked for each model:
- * - photos: short-lived links when an image host is given (some gateways count
- *   inline image data as text, so a dozen photos overflow the context), else
- *   inline data URLs. Before its first photos, a model must name two colours
- *   of a test image through the chosen route (see vision-check.ts). Inline
- *   photos that overflow are re-encoded smaller to fit the limit the gateway
- *   reports;
+ * - photos: a gateway may drop images or pass them to the model as text. So
+ *   the photos take the first route through which the model names the colours
+ *   of two test images in a row (see vision-check.ts): links or inline data,
+ *   through chat completions or the Anthropic messages format
+ *   ({baseUrl}/messages), which carries images as image blocks. Inline photos
+ *   that overflow are re-encoded smaller to fit the limit the gateway reports;
  * - JSON: `response_format` json_schema, else json_object, else the schema in
  *   the prompt (the answer is still validated with Zod either way);
  * - output cap: `max_tokens`, or `max_completion_tokens` when the gateway asks
@@ -42,19 +41,34 @@ type Learned = {
 /** What each gateway model accepted, so later calls skip the failed attempts. */
 const learned = new Map<string, Learned>();
 
-type ImageTransport = "url" | "data";
+/** The API a request goes through: OpenAI chat completions, or Anthropic messages. */
+type ApiFormat = "chat" | "messages";
 
-type ImageRoute = {
-  transport: ImageTransport;
+/** How photos reach a gateway model: through which API, and as links or inline data. */
+type ImageRoute = { label: string; format: ApiFormat; images: "url" | "data" };
+
+/** Tried in this order: links keep requests small; inline data is the last resort. */
+const IMAGE_ROUTES: ImageRoute[] = [
+  { label: "chat links", format: "chat", images: "url" },
+  { label: "messages links", format: "messages", images: "url" },
+  { label: "messages inline", format: "messages", images: "data" },
+  { label: "chat inline", format: "chat", images: "data" },
+];
+
+type CheckedRoute = {
+  route: ImageRoute;
   at: number;
-  /** Why links failed the vision check, when the photos go inline instead. */
-  linkProblem?: string;
+  /** What happened on the routes tried before this one. */
+  failed?: string;
 };
 
-/** The route through which each gateway model read the test image. */
-const imageRoutes = new Map<string, ImageRoute>();
-const pendingRoutes = new Map<string, Promise<ImageRoute>>();
-const VISION_CHECK_TTL_MS = 6 * 60 * 60 * 1000;
+/** The route through which each gateway model read the test images. */
+const checkedRoutes = new Map<string, CheckedRoute>();
+const pendingChecks = new Map<string, Promise<CheckedRoute>>();
+/** Re-checked this often, since a pooled gateway may change what serves a model. */
+const ROUTE_CHECK_TTL_MS = 30 * 60 * 1000;
+/** Test images a route must read in a row; a lucky guess is about 1 in 30. */
+const TEST_PASSES = 2;
 
 /** Wording gateways use when a request is longer than the model's context. */
 const CONTEXT_OVERFLOW =
@@ -62,6 +76,18 @@ const CONTEXT_OVERFLOW =
 
 function isOverflow(error: AppError): boolean {
   return error.status === 413 || CONTEXT_OVERFLOW.test(error.detail ?? "");
+}
+
+/**
+ * True when an error only rules out one photo route: a refused image or an
+ * unusable answer, or on the Anthropic format (which a gateway may not serve
+ * for every model or key) a missing endpoint or a refused key. Balance, quota
+ * and outages are reported as they are.
+ */
+function rulesOutRoute(error: AppError, route: ImageRoute): boolean {
+  const imageProblem = ["provider_bad_input", "llm_output", "provider_refusal", "content_filter"];
+  if (imageProblem.includes(error.code)) return true;
+  return route.format === "messages" && ["not_found", "provider_auth"].includes(error.code);
 }
 
 /**
@@ -107,6 +133,12 @@ type ChatCompletion = {
     finish_reason?: string | null;
     message?: { content?: ChatMessageContent; refusal?: string | null };
   }[];
+};
+
+/** An Anthropic messages reply (a gateway may still answer in the chat shape). */
+type GatewayReply = ChatCompletion & {
+  content?: { type?: string; text?: string }[];
+  stop_reason?: string | null;
 };
 
 /** JSON Schema for response_format / the prompt (inlined, no $schema key). */
@@ -239,22 +271,28 @@ export class GatewayBrain extends TemplateBrain {
     return `${this.baseUrl}|${this.model}`;
   }
 
-  private async post(body: Record<string, unknown>): Promise<ChatCompletion> {
+  private async post(body: Record<string, unknown>, format: ApiFormat): Promise<GatewayReply> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (format === "messages") {
+      headers["x-api-key"] = this.apiKey;
+      headers["anthropic-version"] = "2023-06-01";
+    }
+    const path = format === "messages" ? "/messages" : "/chat/completions";
     return withRetry(
       async () => {
-        const response = await fetchWithTimeout(`${this.baseUrl}/chat/completions`, {
+        const response = await fetchWithTimeout(`${this.baseUrl}${path}`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
+          headers,
           body: JSON.stringify(body),
           timeoutMs: 150_000,
           cache: "no-store",
         });
         if (!response.ok) throw await gatewayError(response, this.name, this.model);
-        return (await response.json()) as ChatCompletion;
+        return (await response.json()) as GatewayReply;
       },
       {
         retries: 1,
@@ -270,12 +308,33 @@ export class GatewayBrain extends TemplateBrain {
     request: StructuredRequest<unknown>,
     settings: Learned,
     imageUrls: string[] | null,
+    format: ApiFormat,
   ): Record<string, unknown> {
     const schema = gatewayJsonSchema(request.schema);
     const hint =
       settings.mode === "json_schema"
         ? ""
         : `\n\nRespond with JSON only, matching this JSON Schema:\n${JSON.stringify(schema)}`;
+    if (format === "messages") {
+      const blocks: unknown[] = [];
+      request.images.forEach((image, index) => {
+        const url = imageUrls?.[index];
+        blocks.push({ type: "text", text: image.caption });
+        blocks.push({
+          type: "image",
+          source: url
+            ? { type: "url", url }
+            : { type: "base64", media_type: image.mimeType, data: image.base64 },
+        });
+      });
+      blocks.push({ type: "text", text: request.user + hint });
+      return {
+        model: this.model,
+        max_tokens: Math.min(request.maxTokens, settings.maxTokens ?? this.tokenCap),
+        system: request.system,
+        messages: [{ role: "user", content: blocks }],
+      };
+    }
     const content: unknown[] = [];
     request.images.forEach((image, index) => {
       content.push({ type: "text", text: image.caption });
@@ -314,8 +373,28 @@ export class GatewayBrain extends TemplateBrain {
     request: StructuredRequest<unknown>,
     settings: Learned,
     imageUrls: string[] | null,
+    format: ApiFormat,
   ): Promise<string> {
-    const payload = await this.post(this.body(request, settings, imageUrls));
+    const payload = await this.post(this.body(request, settings, imageUrls, format), format);
+    if (Array.isArray(payload.content)) {
+      if (payload.stop_reason === "refusal") {
+        throw new AppError(
+          "provider_refusal",
+          "The model declined this request. Use neutral garment wording and try again.",
+        );
+      }
+      if (payload.stop_reason === "max_tokens") {
+        throw new AppError("llm_output", "The model ran out of output space before finishing.", {
+          retryable: true,
+        });
+      }
+      const text = payload.content
+        .map((block) => (block.type === "text" && typeof block.text === "string" ? block.text : ""))
+        .join("")
+        .trim();
+      if (!text) throw new AppError("llm_output", `${this.name} returned an empty answer.`);
+      return text;
+    }
     const choice = payload.choices?.[0];
     if (!choice?.message) throw new AppError("llm_output", `${this.name} returned no answer.`);
     if (choice.message.refusal) {
@@ -366,91 +445,100 @@ export class GatewayBrain extends TemplateBrain {
 
   protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
     if (request.images.length === 0) return this.ask(request, null);
-    const route = await this.imageRoute();
+    const checked = await this.imageRoute();
     try {
-      return await this.ask(request, route.transport);
+      return await this.ask(request, checked.route);
     } catch (error) {
-      if (!route.linkProblem || !(error instanceof AppError) || !isOverflow(error)) throw error;
-      // The overflow comes from inline photos; the links are the real problem.
+      const inlineOverflow =
+        checked.failed &&
+        checked.route.images === "data" &&
+        error instanceof AppError &&
+        isOverflow(error);
+      if (!inlineOverflow) throw error;
+      // The overflow comes from inline photos; the routes that failed are the real problem.
       throw new AppError(
         error.code,
-        `${error.message} The photos went inline because ${this.name} could not use links: ${route.linkProblem}`,
+        `${error.message} The photos went inline because the other routes failed the image test (${checked.failed}).`,
         { detail: error.detail, status: error.status },
       );
     }
   }
 
   /**
-   * How this model gets photos, checked once and remembered for a few hours.
+   * How this model gets photos, checked and then remembered for a while.
    * Concurrent first calls share one check.
    */
-  private imageRoute(): Promise<ImageRoute> {
+  private imageRoute(): Promise<CheckedRoute> {
     const key = `${this.key}|${this.imageHost ? "links" : "inline"}`;
-    const known = imageRoutes.get(key);
-    if (known && Date.now() - known.at < VISION_CHECK_TTL_MS) return Promise.resolve(known);
-    let pending = pendingRoutes.get(key);
+    const known = checkedRoutes.get(key);
+    if (known && Date.now() - known.at < ROUTE_CHECK_TTL_MS) return Promise.resolve(known);
+    let pending = pendingChecks.get(key);
     if (!pending) {
       pending = this.checkImageRoutes()
-        .then((route) => {
-          imageRoutes.set(key, route);
-          return route;
+        .then((checked) => {
+          checkedRoutes.set(key, checked);
+          return checked;
         })
-        .finally(() => pendingRoutes.delete(key));
-      pendingRoutes.set(key, pending);
+        .finally(() => pendingChecks.delete(key));
+      pendingChecks.set(key, pending);
     }
     return pending;
   }
 
   /**
-   * Sends a test image by link (when an image host is available), then
-   * inline, and keeps the first route through which the model names its
-   * colours (see vision-check.ts).
+   * Tests every route (links need an image host) and keeps the first, in the
+   * order of IMAGE_ROUTES, through which the model named the colours of the
+   * test images. Routes are tested side by side, because a gateway can take
+   * many seconds per answer. When none works, the error lists every route.
    */
-  private async checkImageRoutes(): Promise<ImageRoute> {
-    const routes: ImageTransport[] = this.imageHost ? ["url", "data"] : ["data"];
-    let problem: string | undefined;
-    for (const transport of routes) {
+  private async checkImageRoutes(): Promise<CheckedRoute> {
+    const routes = IMAGE_ROUTES.filter((route) => route.images === "data" || this.imageHost);
+    const problems = await Promise.all(routes.map((route) => this.testRoute(route)));
+    const chosen = problems.findIndex((problem) => problem === null);
+    const failed = routes.flatMap((route, index) =>
+      problems[index] && (chosen === -1 || index < chosen)
+        ? [`${route.label}: ${problems[index]}`]
+        : [],
+    );
+    for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
+    if (chosen === -1) {
+      throw new AppError(
+        "provider_bad_input",
+        `${this.model} at ${this.name} could not read a test image through any route, so it cannot see the garment photos. Choose another model in Settings.`,
+        { detail: failed.join("; ").slice(0, 600) },
+      );
+    }
+    return {
+      route: routes[chosen]!,
+      at: Date.now(),
+      failed: failed.length > 0 ? failed.join("; ") : undefined,
+    };
+  }
+
+  /** Null when the model names the colours of every test image sent this way; else why not. */
+  private async testRoute(route: ImageRoute): Promise<string | null> {
+    for (let pass = 0; pass < TEST_PASSES; pass += 1) {
       const test = await createVisionTest();
       try {
-        const answer = await this.ask(test.request, transport);
-        if (passesVisionTest(answer, test.expected)) {
-          return { transport, at: Date.now(), linkProblem: problem };
+        const answer = await this.ask(test.request, route);
+        if (!passesVisionTest(answer, test.expected)) {
+          return `named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`;
         }
-        problem = `the model named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`;
       } catch (error) {
-        // Only a refused image or a garbled answer says something about images;
-        // a key, balance, quota or outage problem is reported as it is.
-        if (
-          !(error instanceof AppError) ||
-          !["provider_bad_input", "llm_output"].includes(error.code)
-        ) {
-          throw error;
-        }
-        problem = error.detail ?? error.message;
-      }
-      if (transport === "url") {
-        console.warn(
-          `${this.name} ${this.model}: photo links failed the vision check (${problem})`,
-        );
+        if (!(error instanceof AppError) || !rulesOutRoute(error, route)) throw error;
+        return (error.detail ?? error.message).slice(0, 140);
       }
     }
-    throw new AppError(
-      "provider_bad_input",
-      `${this.model} at ${this.name} could not read a test image, so it cannot see the garment photos. Choose a model marked Vision in Settings.`,
-      { detail: problem?.slice(0, 200) },
-    );
+    return null;
   }
 
   /** One structured call, with the photos sent the given way (links are deleted afterwards). */
-  private async ask<T>(
-    request: StructuredRequest<T>,
-    transport: ImageTransport | null,
-  ): Promise<T> {
-    if (transport === "data") return this.askInline(request);
-    const hosted =
-      transport === "url" && this.imageHost ? await this.imageHost(request.images) : null;
+  private async ask<T>(request: StructuredRequest<T>, route: ImageRoute | null): Promise<T> {
+    if (!route) return this.attempt(request, null, "chat");
+    if (route.images === "data") return this.askInline(request, route.format);
+    const hosted = this.imageHost ? await this.imageHost(request.images) : null;
     try {
-      return await this.attempt(request, hosted?.urls ?? null);
+      return await this.attempt(request, hosted?.urls ?? null, route.format);
     } finally {
       await hosted?.release().catch(() => undefined);
     }
@@ -461,23 +549,26 @@ export class GatewayBrain extends TemplateBrain {
    * limit it reports is learned and the photos are re-encoded smaller (twice
    * at most); later calls fit them before sending.
    */
-  private async askInline<T>(request: StructuredRequest<T>): Promise<T> {
+  private async askInline<T>(request: StructuredRequest<T>, format: ApiFormat): Promise<T> {
     for (let round = 0; ; round += 1) {
-      const sent = { ...request, images: await this.fitInline(request) };
+      const sent = { ...request, images: await this.fitInline(request, format) };
       try {
-        return await this.attempt(sent, null);
+        return await this.attempt(sent, null, format);
       } catch (error) {
         const retry =
           round < 2 && sent.images.length > 0 && error instanceof AppError && isOverflow(error);
         if (!retry) throw error;
-        this.learnInlineLimit(sent, error);
+        this.learnInlineLimit(sent, error, format);
       }
     }
   }
 
   /** The request's photos, re-encoded smaller when they would overflow the learned limit. */
-  private async fitInline(request: StructuredRequest<unknown>): Promise<LlmImage[]> {
-    const limit = inlineLimits.get(this.key);
+  private async fitInline(
+    request: StructuredRequest<unknown>,
+    format: ApiFormat,
+  ): Promise<LlmImage[]> {
+    const limit = inlineLimits.get(`${this.key}|${format}`);
     if (!limit || request.images.length === 0) return request.images;
     const budget =
       "imageChars" in limit
@@ -502,11 +593,15 @@ export class GatewayBrain extends TemplateBrain {
     return fitted.images;
   }
 
-  private learnInlineLimit(sent: StructuredRequest<unknown>, error: AppError): void {
+  private learnInlineLimit(
+    sent: StructuredRequest<unknown>,
+    error: AppError,
+    format: ApiFormat,
+  ): void {
     const numbers = parseOverflow(error.detail ?? "");
     const photos = imageChars(sent.images);
     inlineLimits.set(
-      this.key,
+      `${this.key}|${format}`,
       numbers
         ? {
             contextTokens: numbers.context,
@@ -516,17 +611,26 @@ export class GatewayBrain extends TemplateBrain {
     );
   }
 
-  /** Sends one request, adapting the JSON mode and output cap, and validates the answer. */
-  private async attempt<T>(request: StructuredRequest<T>, imageUrls: string[] | null): Promise<T> {
-    let settings: Learned = learned.get(this.key) ?? {
-      mode: "json_schema",
+  /**
+   * Sends one request, adapting the JSON mode and output cap, and validates the
+   * answer. The Anthropic format has no response_format, so its JSON schema
+   * always goes in the prompt.
+   */
+  private async attempt<T>(
+    request: StructuredRequest<T>,
+    imageUrls: string[] | null,
+    format: ApiFormat,
+  ): Promise<T> {
+    const key = `${this.key}|${format}`;
+    let settings: Learned = learned.get(key) ?? {
+      mode: format === "messages" ? "prompt" : "json_schema",
       tokenField: "max_tokens",
       maxTokens: null,
     };
     let text: string | null = null;
     for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
       try {
-        text = await this.complete(request, settings, imageUrls);
+        text = await this.complete(request, settings, imageUrls, format);
       } catch (error) {
         const next =
           error instanceof AppError && error.code === "provider_bad_input"
@@ -537,7 +641,7 @@ export class GatewayBrain extends TemplateBrain {
       }
     }
     if (text === null) throw new AppError("llm_output", `${this.name} returned no answer.`);
-    learned.set(this.key, settings);
+    learned.set(key, settings);
 
     let json: unknown;
     try {

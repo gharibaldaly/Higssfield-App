@@ -73,16 +73,53 @@ function failure(status: number, message: string): Response {
 }
 
 const fetchMock = vi.fn<typeof fetch>();
-const sentBodies = () =>
-  fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
 
-type Part = { type: string; text?: string; image_url?: { url: string } };
-const userParts = (body: Record<string, unknown>) =>
-  (body.messages as { content: Part[] }[])[1]!.content;
-const imageUrls = (body: Record<string, unknown>) =>
-  userParts(body).flatMap((part) => (part.image_url ? [part.image_url.url] : []));
+type Call = { url: string; body: Record<string, unknown>; headers: Record<string, string> };
+const toCall = (url: unknown, init?: RequestInit): Call => ({
+  url: String(url),
+  body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+  headers: (init?.headers ?? {}) as Record<string, string>,
+});
+const calls = (): Call[] => fetchMock.mock.calls.map(([url, init]) => toCall(url, init));
+const sentBodies = () => calls().map((call) => call.body);
+const isMessagesApi = (url: string) => url.endsWith("/messages");
+
+type Part = {
+  type: string;
+  text?: string;
+  image_url?: { url: string };
+  source?: { type: string; url?: string; media_type?: string; data?: string };
+};
+
+/** The user content of a request, in either API format. */
+function userContent(body: Record<string, unknown>): unknown {
+  const messages = body.messages as { role: string; content: unknown }[];
+  return messages.find((message) => message.role === "user")!.content;
+}
+
+/** Every image a request carries, as a link or a data URL, in either API format. */
+function imageRefs(body: Record<string, unknown>): string[] {
+  const content = userContent(body);
+  if (!Array.isArray(content)) return [];
+  return (content as Part[]).flatMap((part) => {
+    if (part.image_url) return [part.image_url.url];
+    if (part.source?.type === "url") return [part.source.url!];
+    if (part.source) return [`data:${part.source.media_type};base64,${part.source.data}`];
+    return [];
+  });
+}
+
 const isVisionCheck = (body: Record<string, unknown>) =>
   JSON.stringify(body.messages).includes("four equal squares");
+
+/** A successful reply in the shape of the API that was called. */
+function answer(url: string, text: string): Response {
+  if (!isMessagesApi(url)) return completion(text);
+  return new Response(
+    JSON.stringify({ type: "message", content: [{ type: "text", text }], stop_reason: "end_turn" }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
 
 /** Images behind the fake Storage links, so the fake gateway can "fetch" them. */
 const linked = new Map<string, Buffer>();
@@ -94,9 +131,11 @@ function imageBytes(url: string): Buffer {
   return bytes;
 }
 
+type Handler = (call: Call) => Promise<Response>;
+
 /** Answers a vision check the way a model that sees the image would. */
-async function readTestImage(body: Record<string, unknown>): Promise<Response> {
-  const [url] = imageUrls(body);
+const readTestImage: Handler = async (call) => {
+  const [url] = imageRefs(call.body);
   const { data, info } = await sharp(imageBytes(url!)).raw().toBuffer({ resolveWithObject: true });
   const colourAt = (x: number, y: number) => {
     const offset = (y * info.width + x) * info.channels;
@@ -106,35 +145,39 @@ async function readTestImage(body: Record<string, unknown>): Promise<Response> {
     )![0];
   };
   const edge = info.width - 8;
-  return completion(
+  return answer(
+    call.url,
     JSON.stringify({ topLeft: colourAt(8, 8), bottomRight: `${colourAt(edge, edge)} square` }),
   );
-}
+};
 
-type Reply = (body: Record<string, unknown>) => Promise<Response>;
+/** A model that never sees the image and always says the same thing. */
+const blind: Handler = async (call) => answer(call.url, '{"topLeft":"red","bottomRight":"red"}');
 
-/** A gateway that answers vision checks with `onCheck` and everything else with `replies`. */
-function serve(replies: Response[] | Reply, onCheck: Reply = readTestImage) {
-  fetchMock.mockImplementation(async (_url, init) => {
-    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    if (isVisionCheck(body)) return onCheck(body);
-    if (typeof replies === "function") return replies(body);
-    const reply = replies.shift();
-    if (!reply) throw new Error("unexpected request");
-    return reply;
+const isLink = (call: Call) => !imageRefs(call.body)[0]!.startsWith("data:");
+
+/** A fake gateway: vision checks go to `onCheck`, everything else gets `replies` in order. */
+function serve(replies: string[] | Handler, onCheck: Handler = readTestImage) {
+  fetchMock.mockImplementation(async (url, init) => {
+    const call = toCall(url, init);
+    if (isVisionCheck(call.body)) return onCheck(call);
+    if (typeof replies === "function") return replies(call);
+    const text = replies.shift();
+    if (text === undefined) throw new Error("unexpected request");
+    return answer(call.url, text);
   });
 }
 
 /** A gateway that counts every character of the request, four to a token, inline photos included. */
-function countingGateway(limit: number): Reply {
-  return async (body) => {
-    const tokens = Math.ceil(JSON.stringify(body).length / 4);
+function countingGateway(limit: number): Handler {
+  return async (call) => {
+    const tokens = Math.ceil(JSON.stringify(call.body).length / 4);
     return tokens > limit
       ? failure(
           400,
           `This model's maximum context length is ${limit.toLocaleString("en-US")} tokens. However, your request resulted in ${tokens.toLocaleString("en-US")} tokens. Please reduce the length of the messages.`,
         )
-      : completion('{"verdict":"ok","score":5}');
+      : answer(call.url, '{"verdict":"ok","score":5}');
   };
 }
 
@@ -289,90 +332,188 @@ describe("GatewayBrain", () => {
 });
 
 describe("GatewayBrain photos", () => {
-  it("checks once that the model reads a test image, then sends the photos inline", async () => {
-    const ok = () => completion('{"verdict":"ok","score":1}');
-    serve([ok(), ok(), completion('{"verdict":"ok","score":2}')]);
+  it("checks the photo route with two test images once, then sends the photos inline", async () => {
+    serve([
+      '{"verdict":"ok","score":1}',
+      '{"verdict":"ok","score":1}',
+      '{"verdict":"ok","score":2}',
+    ]);
     const brain = gateway();
     // Two first calls at once share one check.
     await Promise.all([brain.run(withPhotos(2)), brain.run(withPhotos(1))]);
     await expect(brain.run(withPhotos(1))).resolves.toEqual({ verdict: "ok", score: 2 });
 
-    const bodies = sentBodies();
-    expect(bodies.map(isVisionCheck)).toEqual([true, false, false, false]);
-    const twoPhotos = bodies.find((body) => imageUrls(body).length === 2)!;
-    expect(userParts(twoPhotos)).toEqual([
-      { type: "text", text: "Photo 1" },
-      { type: "image_url", image_url: { url: `data:image/jpeg;base64,${photo}` } },
-      { type: "text", text: "Photo 2" },
-      { type: "image_url", image_url: { url: `data:image/jpeg;base64,${photo}` } },
-      { type: "text", text: "Compare the photos." },
+    const all = calls();
+    // Both inline routes are tested twice, side by side, before any photo leaves.
+    expect(all.map((call) => isVisionCheck(call.body))).toEqual([
+      ...[true, true, true, true],
+      ...[false, false, false],
     ]);
+    // Without links, the Anthropic format comes first: it carries images as image blocks.
+    const real = all.filter((call) => !isVisionCheck(call.body));
+    expect(real.every((call) => isMessagesApi(call.url))).toBe(true);
+    const twoPhotos = real.find((call) => imageRefs(call.body).length === 2)!;
+    expect(twoPhotos.headers).toMatchObject({
+      Authorization: "Bearer sk-test",
+      "x-api-key": "sk-test",
+      "anthropic-version": "2023-06-01",
+    });
+    expect(twoPhotos.body).toMatchObject({ system: "You check garments.", max_tokens: 16_000 });
+    const blocks = userContent(twoPhotos.body) as Part[];
+    expect(blocks.slice(0, 4)).toEqual([
+      { type: "text", text: "Photo 1" },
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } },
+      { type: "text", text: "Photo 2" },
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } },
+    ]);
+    expect(blocks[4]!.text).toMatch(/^Compare the photos\.[\s\S]*Respond with JSON only/);
   });
 
-  it("sends the photos by link when it can, and deletes the copies after each answer", async () => {
+  it("sends the photos by link when the model reads them that way, and deletes the copies", async () => {
     const { host, released } = fakeHost();
-    serve([completion('{"verdict":"ok","score":3}')]);
+    serve(['{"verdict":"ok","score":3}']);
     await expect(gateway(undefined, host).run(withPhotos(12))).resolves.toEqual({
       verdict: "ok",
       score: 3,
     });
 
-    const [check, real] = sentBodies();
-    expect(imageUrls(check!)).toEqual(["https://storage.test/tmp/brain/1.jpg"]);
-    expect(imageUrls(real!)).toHaveLength(12);
-    expect(imageUrls(real!).every((url) => url.startsWith("https://storage.test/"))).toBe(true);
+    const all = calls();
+    const checks = all.filter((call) => isVisionCheck(call.body));
+    expect(checks).toHaveLength(8);
+    expect(checks.every((call) => imageRefs(call.body).length === 1)).toBe(true);
+    const real = all.at(-1);
+    expect(real!.url).toMatch(/\/chat\/completions$/);
+    expect(imageRefs(real!.body)).toHaveLength(12);
+    expect(imageRefs(real!.body).every((url) => url.startsWith("https://storage.test/"))).toBe(
+      true,
+    );
     // Twelve photos by link stay a few kilobytes, whatever their size.
-    expect(JSON.stringify(real).length).toBeLessThan(4000);
-    expect(released.map((urls) => urls.length)).toEqual([1, 12]);
+    expect(JSON.stringify(real!.body).length).toBeLessThan(4000);
+    expect(released.map((urls) => urls.length).sort((a, b) => a - b)).toEqual([1, 1, 1, 1, 12]);
   });
 
-  it("falls back to inline photos when the gateway cannot fetch links", async () => {
-    const { host, released } = fakeHost();
-    serve([completion('{"verdict":"ok","score":4}')], async (body) =>
-      imageUrls(body)[0]!.startsWith("data:")
-        ? readTestImage(body)
-        : failure(400, "Failed to download image from URL"),
+  it("reads photos through the Anthropic format when chat completions drop them", async () => {
+    const { host } = fakeHost();
+    serve(['{"verdict":"ok","score":4}'], async (call) =>
+      isMessagesApi(call.url) ? readTestImage(call) : blind(call),
     );
-    await expect(gateway(undefined, host).run(withPhotos(1))).resolves.toEqual({
+    await expect(gateway(undefined, host).run(withPhotos(2))).resolves.toEqual({
       verdict: "ok",
       score: 4,
     });
 
-    const bodies = sentBodies();
-    expect(bodies).toHaveLength(3);
-    expect(imageUrls(bodies[2]!)[0]).toMatch(/^data:image\/jpeg;base64,/);
-    expect(released).toHaveLength(1);
+    const all = calls();
+    const checks = all.filter((call) => isVisionCheck(call.body));
+    // Each chat route failed its first test; each Anthropic route passed two.
+    expect(checks.filter((call) => !isMessagesApi(call.url))).toHaveLength(2);
+    expect(checks.filter((call) => isMessagesApi(call.url))).toHaveLength(4);
+    const real = all.at(-1)!;
+    expect(isMessagesApi(real.url)).toBe(true);
+    const blocks = userContent(real.body) as Part[];
+    expect(blocks.filter((part) => part.source).map((part) => part.source!.type)).toEqual([
+      "url",
+      "url",
+    ]);
   });
 
-  it("names the failed links when inline photos overflow the context", async () => {
+  it("uses inline photos in the Anthropic format when links cannot be fetched", async () => {
+    const { host, released } = fakeHost();
+    serve(['{"verdict":"ok","score":5}'], async (call) => {
+      if (isLink(call)) return failure(400, "Failed to download image from URL");
+      return isMessagesApi(call.url) ? readTestImage(call) : blind(call);
+    });
+    await expect(gateway(undefined, host).run(withPhotos(1))).resolves.toEqual({
+      verdict: "ok",
+      score: 5,
+    });
+
+    const real = calls().at(-1)!;
+    expect(isMessagesApi(real.url)).toBe(true);
+    expect(imageRefs(real.body)[0]).toMatch(/^data:image\/jpeg;base64,/);
+    // Each link route failed on its first test, and its copies were deleted.
+    expect(released).toHaveLength(2);
+  });
+
+  it("needs two correct test images in a row before trusting a route", async () => {
+    const { host } = fakeHost();
+    let chatChecks = 0;
+    serve(['{"verdict":"ok","score":6}'], async (call) => {
+      if (isMessagesApi(call.url)) return readTestImage(call);
+      chatChecks += 1;
+      return chatChecks === 1 ? readTestImage(call) : blind(call);
+    });
+    await expect(gateway(undefined, host).run(withPhotos(1))).resolves.toEqual({
+      verdict: "ok",
+      score: 6,
+    });
+    expect(isMessagesApi(calls().at(-1)!.url)).toBe(true);
+  });
+
+  it("skips the Anthropic format when the gateway does not serve it", async () => {
+    const { host } = fakeHost();
+    serve(['{"verdict":"ok","score":7}'], async (call) => {
+      if (isMessagesApi(call.url)) return failure(404, "Not Found");
+      return isLink(call) ? blind(call) : readTestImage(call);
+    });
+    await expect(gateway(undefined, host).run(withPhotos(1))).resolves.toEqual({
+      verdict: "ok",
+      score: 7,
+    });
+    const real = calls().at(-1)!;
+    expect(real.url).toMatch(/\/chat\/completions$/);
+    expect(imageRefs(real.body)[0]).toMatch(/^data:/);
+  });
+
+  it("lists what happened on every route when the model cannot read images", async () => {
+    const { host } = fakeHost();
+    serve([], blind);
+    const error = await gateway("text-only", host)
+      .run(withPhotos(3))
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "provider_bad_input",
+      message: expect.stringContaining("could not read a test image through any route"),
+    });
+    const detail = (error as { detail: string }).detail;
+    for (const route of ["chat links", "messages links", "messages inline", "chat inline"]) {
+      expect(detail).toContain(`${route}: named red / red for`);
+    }
+    expect(sentBodies().every(isVisionCheck)).toBe(true);
+  });
+
+  it("names the failed routes when inline photos overflow the context", async () => {
     const { host } = fakeHost();
     serve(
-      [
+      async () =>
         failure(
           400,
           "This model's maximum context length is 270,000 tokens. However, your request resulted in 1,417,769 tokens.",
         ),
-      ],
-      async (body) =>
-        imageUrls(body)[0]!.startsWith("data:")
-          ? readTestImage(body)
-          : failure(400, "Failed to download image from URL"),
+      async (call) => {
+        if (isLink(call)) return failure(400, "Failed to download image from URL");
+        return isMessagesApi(call.url) ? blind(call) : readTestImage(call);
+      },
     );
     await expect(gateway(undefined, host).run(withPhotos(12))).rejects.toMatchObject({
       message: expect.stringMatching(
-        /Too many photos for .*could not use links: Failed to download image from URL/,
+        /Too many photos for .*other routes failed the image test \(chat links: Failed to download image from URL; messages links: .*messages inline: named red/,
       ),
     });
   });
 
-  it("stops before the garment photos when the model cannot read the test image", async () => {
-    const { host } = fakeHost();
-    serve([], async () => completion('{"topLeft":"red","bottomRight":"red"}'));
-    await expect(gateway("text-only", host).run(withPhotos(3))).rejects.toMatchObject({
-      code: "provider_bad_input",
-      message: expect.stringContaining("could not read a test image"),
+  it("reads Anthropic stop reasons, and chat-shaped replies from the messages endpoint", async () => {
+    serve(async () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ content: [], stop_reason: "refusal" }), { status: 200 }),
+      ),
+    );
+    await expect(gateway().run(withPhotos(1))).rejects.toMatchObject({ code: "provider_refusal" });
+
+    serve(async () => completion('{"verdict":"chat-shaped","score":8}'));
+    await expect(gateway().run(withPhotos(1))).resolves.toEqual({
+      verdict: "chat-shaped",
+      score: 8,
     });
-    expect(sentBodies().every(isVisionCheck)).toBe(true);
   });
 
   it("explains a request longer than the model's context without trying other JSON modes", async () => {
@@ -402,7 +543,7 @@ describe("GatewayBrain photos", () => {
     expect(real()).toHaveLength(2);
     expect(tokensOf(overflowed!)).toBeGreaterThan(limit);
     expect(tokensOf(fitted!)).toBeLessThanOrEqual(limit);
-    expect(await longEdgeOf(imageUrls(fitted!)[0]!)).toBeLessThan(800);
+    expect(await longEdgeOf(imageRefs(fitted!)[0]!)).toBeLessThan(800);
     // Only as small as needed: most of the room goes to the photos.
     expect(tokensOf(fitted!)).toBeGreaterThan(limit * 0.5);
 
@@ -419,12 +560,12 @@ describe("GatewayBrain photos", () => {
 
   it("halves the photos when the gateway names no numbers", async () => {
     let first = 0;
-    serve(async (body) => {
-      const length = JSON.stringify(body).length;
+    serve(async (call) => {
+      const length = JSON.stringify(call.body).length;
       first ||= length;
       return length > first * 0.6
         ? new Response("Payload Too Large", { status: 413 })
-        : completion('{"verdict":"ok","score":6}');
+        : answer(call.url, '{"verdict":"ok","score":6}');
     });
     await expect(gateway().run({ ...request, images: await detailedPhotos() })).resolves.toEqual({
       verdict: "ok",

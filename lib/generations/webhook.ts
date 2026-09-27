@@ -2,16 +2,27 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { z } from "zod";
+
 import { serverEnv } from "@/lib/env";
+
+/** Delivery envelope from the docs (Webhooks → Payload envelope). */
+export const webhookEnvelopeSchema = z.object({
+  request_id: z.string().min(1),
+  status: z.enum(["completed", "failed", "nsfw"]),
+  error: z.string().nullish(),
+  payload: z.record(z.string(), z.unknown()).nullish(),
+});
 
 function signature(generationId: string, secret: string): string {
   return createHmac("sha256", secret).update(generationId).digest("hex");
 }
 
 /**
- * Per-generation webhook URL. Higgsfield calls it on completion
- * (?hf_webhook=… per the official SDK); the HMAC in the URL proves the call
- * came from a URL we issued. Returns null when webhooks are not configured.
+ * Per-generation webhook URL. Higgsfield calls it once the request is done
+ * (?hf_webhook=… on submit). Deliveries are not signed, so the HMAC in the URL
+ * proves the call came to a URL we issued. Returns null when webhooks are not
+ * configured.
  */
 export function webhookUrlFor(generationId: string): string | null {
   const env = serverEnv();

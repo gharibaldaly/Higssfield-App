@@ -98,6 +98,12 @@
       "nsfw": "رفضه فلتر المزوّد",
       "canceled": "أُلغي"
     },
+    "waiting": {
+      "capacity": "بانتظار دوره",
+      "credits": "اشحن رصيد Higgsfield",
+      "model": "الموديل متوقف مؤقتاً",
+      "server": "خطأ مؤقت، يُعاد الإرسال"
+    },
     "queuePosition": "رقم {position} في الطابور",
     "progress": "تقدّم التوليد",
     "mock": "تجريبي",

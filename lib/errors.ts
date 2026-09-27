@@ -11,6 +11,7 @@ export type AppErrorCode =
   | "provider_auth"
   | "provider_credits"
   | "provider_bad_input"
+  | "provider_busy"
   | "provider_rate_limit"
   | "provider_unavailable"
   | "provider_timeout"
@@ -25,17 +26,29 @@ export class AppError extends Error {
   readonly code: AppErrorCode;
   readonly retryable: boolean;
   readonly detail?: string;
+  /** HTTP status of the provider response that caused the error, if any. */
+  readonly status?: number;
+  /** Provider's trace id (e.g. Higgsfield's X-Correlation-ID), for support. */
+  readonly reference?: string;
 
   constructor(
     code: AppErrorCode,
     message: string,
-    options: { retryable?: boolean; detail?: string; cause?: unknown } = {},
+    options: {
+      retryable?: boolean;
+      detail?: string;
+      status?: number;
+      reference?: string;
+      cause?: unknown;
+    } = {},
   ) {
     super(message, { cause: options.cause });
     this.name = "AppError";
     this.code = code;
     this.retryable = options.retryable ?? false;
     this.detail = options.detail;
+    this.status = options.status;
+    this.reference = options.reference;
   }
 }
 
@@ -46,7 +59,9 @@ export function isAppError(error: unknown): error is AppError {
 /** Message suitable for toasts and error rows. */
 export function toUserMessage(error: unknown): string {
   if (isAppError(error)) {
-    return error.detail ? `${error.message} (${error.detail})` : error.message;
+    const detail = error.detail ? ` (${error.detail})` : "";
+    const reference = error.reference ? ` [ref ${error.reference}]` : "";
+    return `${error.message}${detail}${reference}`;
   }
   return "Something went wrong. Please try again.";
 }

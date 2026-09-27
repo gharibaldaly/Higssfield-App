@@ -51,6 +51,32 @@ export async function withRetry<T>(
   }
 }
 
+/**
+ * System error codes raised before a request reaches the server (DNS failure,
+ * refused or timed-out connection). Only these make resending a billable
+ * request safe; a dropped connection or a read timeout may come after the
+ * server already accepted it.
+ */
+const NOT_SENT_CODES = new Set([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+/** True when the error chain shows the request never left this server. */
+export function failedBeforeSending(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current && typeof current === "object"; depth += 1) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string" && NOT_SENT_CODES.has(code)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 /** Status codes that indicate a transient problem on the provider side. */
 export const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 

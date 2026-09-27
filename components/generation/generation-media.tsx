@@ -116,7 +116,11 @@ export function GenerationMedia({
             <div className="absolute inset-0 shimmer opacity-60" />
             <Loader2 className="relative size-6 animate-spin text-accent-ink" aria-hidden />
             <p className="relative text-sm font-medium">
-              {view.status === "queued" ? t("status.queued") : t("status.in_progress")}
+              {view.waitingReason
+                ? t(`waiting.${view.waitingReason}`)
+                : view.status === "queued"
+                  ? t("status.queued")
+                  : t("status.in_progress")}
             </p>
             <div className="relative flex items-center gap-2 text-xs text-muted-foreground">
               <Elapsed since={view.submittedAt ?? view.createdAt} />

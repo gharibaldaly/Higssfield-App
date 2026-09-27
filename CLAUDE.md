@@ -240,3 +240,32 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A local lab page (not committed) rendered the intake and the board in ar/en × dark/light and on a phone, with no console errors and no horizontal overflow.
   - Not yet run end to end on the preview: the Vercel connector now points at another team, and Supabase and Vercel hosts are blocked from this sandbox.
 
+
+### 2026-09-27 — Higgsfield API docs
+- **Source:** docs.higgsfield.ai is still blocked from the sandbox (403), so the owner pasted the pages: Requests and lifecycle, Polling, Webhooks, File uploads, Errors and retries, Rate limits, the API reference (OpenAPI 2.0.0: get request status, cancel a queued request), How the API works, the video model index, and screenshots of the console catalogue. They confirm what the SDK gave:
+  - base URL and `Authorization: Key {api_key_id}:{api_key_secret}`;
+  - a submit answers `{ status, request_id, status_url, cancel_url }`, and the docs say to use those URLs rather than build them;
+  - results in `images[].url` / `video.url`, kept for at least seven days;
+  - cancel answers 202, or 400 once processing started;
+  - uploads are a presigned PUT with every `upload_headers` entry, then `public_url` goes in the model's input field.
+- **Errors** (`higgsfieldError`): FastAPI `{detail}`. 400 invalid input or the concurrency limit, 401 credentials, 403 insufficient credits, 404 model or request not found for the account, 422 validation, 423 model blocked for now, 500 retry with backoff, 503 model disabled or not ready. Failed and nsfw requests are not charged.
+  - The concurrency limit is only recognisable by its message ("Maximum number of concurrent requests (N) has been reached"). The docs warn against parsing messages for permanent decisions; here the only decision is to wait, and if the wording changes the request fails like bad input.
+  - Every response carries `X-Correlation-ID`: it is stored as `params._correlationId` on submit and appended to errors as `[ref …]` for support.
+- **No duplicate submits:** submissions take no idempotency key, so a submit is sent again only after a 500 or a failure before the request left (DNS, refused connection). Never after a timeout, a dropped connection, a 502 or a 504, which Higgsfield may already have accepted.
+- **Waiting room** (`lib/generations/waiting.ts`, `lib/generations/service.ts`):
+  - `HIGGSFIELD_MAX_CONCURRENT` holds the account's limit (shown in the console; default 4, the docs' example). A request counts as open once it is being sent until it settles.
+  - A new request beyond the limit, or one Higgsfield turns away without creating a request (busy 400 or 429, 403, 423, 500, 503), stays `queued` with no request id and a `_waiting` note (`reason`, `since`, `message`) in its params. The stored body is re-signed from its `storage:` markers when it is finally sent.
+  - Polls send a waiting row when its rest is over (capacity 5 s, credits 60 s, paused model or server error 30 s) and there is room. The row is claimed through `submitted_at` first, so two polls never send it twice. It fails after six hours of waiting.
+  - When the account looks full, the oldest open requests are polled first, so one that finished (or was cut off mid-submit) while nobody had its page open frees its slot.
+  - Ghost batches may hold twice the account limit (at least 4), so the next model's prompts are written while earlier images wait. Tiles say why a request waits (`generation.waiting.*`).
+  - Tested against an in-memory Supabase stand-in (`tests/stubs/fake-supabase.ts`) and a fake Higgsfield with its own limit, including two polls racing for the same row (mutation-checked).
+- **Polling:** the stored `status_url` is used when it points at the API's own origin (the key goes with it); otherwise the path is built. The cadence follows the docs: 2 s at first, ×1.5 per poll, up to 10 s.
+- **Webhook:** deliveries are unsigned `{ request_id, status: completed | failed | nsfw, error, payload }`. Higgsfield retries network failures and 5xx for two hours, gives up on 4xx, wants an answer within ten seconds and may deliver twice.
+  - The route checks our URL signature, the envelope and the request id, answers at once, and settles in `after()`, still from the status endpoint rather than the payload.
+  - It answers 503 while the submit has not stored the request id yet, so Higgsfield delivers again.
+- **Cost:** the documented status response has no cost field. `extractCost` stays for an undocumented one; the Billing and retention page has not been read yet.
+- **TODO (models):** the model pages are not in yet.
+  - The console catalogue (2026-09-27) lists these image models: Marketing Studio Image, Grok Imagine 2.0, Soul 2, Ideogram 4.0, Recraft 4.1, Soul Standard, Qwen Image 3 and Z-Image Turbo, plus the workflows Product shots, Graphic ads and Marketplace design. The video index lists 22 families (Kling, Seedance, Wan, Cinema Studio, MiniMax…).
+  - None of the SDK-era built-in endpoints (Soul v1, Flux Kontext, Seedream 4, DoP, Speak) appears there, so they may be retired.
+  - Candidate edit models for ghost images: Grok Imagine 2.0 ("precise edits while preserving image details") and Marketing Studio Image (edits from text and image inputs, 1K–4K).
+  - Register them from their own docs pages (or `/docs/openapi.json`), and give the ads an image-to-video or reference-to-video model in place of DoP.

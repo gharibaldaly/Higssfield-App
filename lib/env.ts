@@ -26,6 +26,7 @@ const serverEnvSchema = z.object({
   HIGGSFIELD_MODELS_URL: optionalString,
   HIGGSFIELD_WEBHOOK_SECRET: optionalString,
   HIGGSFIELD_MOCK: optionalString,
+  HIGGSFIELD_MAX_CONCURRENT: optionalString,
 
   ANTHROPIC_API_KEY: optionalString,
   ANTHROPIC_MODEL: optionalString,
@@ -83,6 +84,16 @@ export function higgsfieldCredentials(): { keyId: string; keySecret: string } | 
     return { keyId: key.slice(0, separator), keySecret: key.slice(separator + 1) };
   }
   return null;
+}
+
+/**
+ * Requests the account may have queued or running at Higgsfield at once. The
+ * docs set this per account (shown in the Higgsfield console) and give 4 as
+ * the example, so 4 is the default until the owner sets their own.
+ */
+export function higgsfieldMaxConcurrent(): number {
+  const value = Number.parseInt(serverEnv().HIGGSFIELD_MAX_CONCURRENT ?? "", 10);
+  return Number.isFinite(value) && value >= 1 ? Math.min(value, 64) : 4;
 }
 
 export function isHiggsfieldMockForced(): boolean {

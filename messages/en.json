@@ -98,6 +98,12 @@
       "nsfw": "Blocked by the provider filter",
       "canceled": "Canceled"
     },
+    "waiting": {
+      "capacity": "Waiting for a free slot",
+      "credits": "Top up Higgsfield credits",
+      "model": "Model paused at Higgsfield",
+      "server": "Higgsfield error, retrying"
+    },
     "queuePosition": "#{position} in queue",
     "progress": "Generation progress",
     "mock": "Mock",

@@ -4,10 +4,10 @@ import sharp, { type OverlayOptions } from "sharp";
 
 import type {
   ImageVideoProvider,
-  ModelSpec,
   ProviderState,
   StatusContext,
   SubmitContext,
+  SubmitTarget,
 } from "@/lib/providers/higgsfield/types";
 
 /**
@@ -76,7 +76,7 @@ export class MockProvider implements ImageVideoProvider {
   readonly id = "mock" as const;
 
   async submit(
-    _spec: ModelSpec,
+    _target: SubmitTarget,
     _body: Record<string, unknown>,
     context: SubmitContext,
   ): Promise<ProviderState> {

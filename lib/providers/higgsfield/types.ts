@@ -112,6 +112,8 @@ export type ProviderState = {
   requestId: string;
   status: ProviderStatus;
   statusUrl: string | null;
+  /** Provider trace id of the response (Higgsfield: X-Correlation-ID), for support. */
+  correlationId?: string | null;
   resultUrls: string[];
   resultKind: "image" | "video" | null;
   cost: { amount: number; unit: "usd" | "credits" } | null;
@@ -119,6 +121,9 @@ export type ProviderState = {
   /** Mock provider returns bytes directly instead of a URL. */
   resultBuffer?: { data: Buffer; mimeType: string } | null;
 };
+
+/** What a submit needs to know about the model: where to post and what comes back. */
+export type SubmitTarget = Pick<ModelSpec, "endpoint" | "kind">;
 
 export type SubmitContext = {
   /** Generation row id (used by the mock to derive deterministic output). */
@@ -128,6 +133,8 @@ export type SubmitContext = {
 
 export type StatusContext = {
   generationId: string;
+  /** status_url returned on submit; the docs say to use it rather than build one. */
+  statusUrl: string | null;
   submittedAt: string | null;
   kind: "image" | "video";
   /** Request body as stored (reference URLs replaced by storage paths). */
@@ -140,7 +147,7 @@ export type StatusContext = {
 export interface ImageVideoProvider {
   readonly id: "higgsfield" | "mock";
   submit(
-    spec: ModelSpec,
+    target: SubmitTarget,
     body: Record<string, unknown>,
     context: SubmitContext,
   ): Promise<ProviderState>;

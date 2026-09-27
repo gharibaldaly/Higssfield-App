@@ -6,6 +6,7 @@ import { isPendingStatus } from "@/lib/domain/generation";
 import type { PhotoView } from "@/lib/domain/photo-classification";
 import { analyzeProduct, approveDnaVersion } from "@/lib/dna/service";
 import { dnaCompletenessIssues, garmentDnaSchema } from "@/lib/domain/garment-dna";
+import { higgsfieldMaxConcurrent } from "@/lib/env";
 import { toUserMessage } from "@/lib/errors";
 import { reviewGenerationFidelity } from "@/lib/generations/fidelity";
 import { refreshGenerations } from "@/lib/generations/service";
@@ -30,8 +31,14 @@ import type {
 } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
-/** Generations of one batch allowed at the provider at once (two models' worth). */
-export const IN_FLIGHT_CAP = 8;
+/**
+ * Open generations one batch may have: the account's Higgsfield limit plus as
+ * many again whose prompts are written and wait for a free slot (at least two
+ * models' front & back). The generation service holds the extra ones back.
+ */
+export function batchInFlightCap(): number {
+  return Math.max(4, 2 * higgsfieldMaxConcurrent());
+}
 /** An analysis still "running" after this long was cut off and is taken over. */
 const ANALYSIS_LEASE_MS = 6 * 60 * 1000;
 /** Longer than a function may run (300 s): a job still "working" after this was cut off. */
@@ -405,7 +412,7 @@ async function advanceBatch(
   if (stale.length > 0) snapshot = await loadSnapshot(supabase, batch);
 
   const plan = planNextStep(snapshot, {
-    inFlightCap: IN_FLIGHT_CAP,
+    inFlightCap: batchInFlightCap(),
     now: Date.now(),
     leaseMs: ANALYSIS_LEASE_MS,
   });

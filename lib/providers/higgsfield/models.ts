@@ -3,11 +3,13 @@ import type { ModelSpecInput } from "@/lib/providers/higgsfield/types";
 /**
  * Built-in model registry.
  *
- * The official docs (docs.higgsfield.ai) were not reachable from the build
- * sandbox, so this list only contains endpoints and parameters that appear in
- * Higgsfield's own published SDKs:
+ * The model pages of the official docs (docs.higgsfield.ai) are not reachable
+ * from the build sandbox yet, so this list only contains endpoints and
+ * parameters that appear in Higgsfield's own published SDKs:
  *   - @higgsfield/client 0.2.6 (npm): README + dist/v2/types.d.ts + helpers.d.ts
  *   - higgsfield-client 0.2.0 (PyPI): README
+ * None of them is listed in the console catalogue of 2026-09-27, so they may be
+ * retired; they are to be replaced from each current model's docs page.
  * Option lists marked `verified: false` are sensible defaults that still need
  * checking against the docs. More models can be added without a deploy in
  * Settings → Models (custom models) or via HIGGSFIELD_MODELS_URL.

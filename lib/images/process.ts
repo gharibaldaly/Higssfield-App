@@ -37,6 +37,60 @@ export async function toLlmImage(
   return { mimeType: "image/jpeg", base64: data.toString("base64"), caption };
 }
 
+/** Long edges tried, largest first, when inline brain images must fit a size budget. */
+const SHRINK_LONG_EDGES = [
+  1568, 1408, 1280, 1152, 1024, 960, 896, 832, 768, 704, 640, 576, 512, 448, 384,
+];
+
+const base64Length = (bytes: number) => Math.ceil(bytes / 3) * 4;
+
+/**
+ * Re-encodes brain images at the largest common long edge whose base64 fits
+ * `maxBase64Chars` in total, or null when even the smallest edge does not.
+ * For gateways that count inline image data as text.
+ */
+export async function shrinkLlmImages(
+  images: LlmImage[],
+  maxBase64Chars: number,
+): Promise<{ images: LlmImage[]; longEdge: number } | null> {
+  const sources = images.map((image) => Buffer.from(image.base64, "base64"));
+  const encode = (longEdge: number) =>
+    Promise.all(
+      sources.map((source) =>
+        sharp(source)
+          .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 80, mozjpeg: true })
+          .toBuffer(),
+      ),
+    );
+  // Sizes fall as the edge falls, so a binary search finds the largest edge that fits.
+  let best: { buffers: Buffer[]; longEdge: number } | null = null;
+  let low = 0;
+  let high = SHRINK_LONG_EDGES.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const longEdge = SHRINK_LONG_EDGES[middle]!;
+    const buffers = await encode(longEdge);
+    const total = buffers.reduce((sum, buffer) => sum + base64Length(buffer.length), 0);
+    if (total <= maxBase64Chars) {
+      best = { buffers, longEdge };
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  if (!best) return null;
+  const { buffers, longEdge } = best;
+  return {
+    longEdge,
+    images: images.map((image, index) => ({
+      mimeType: "image/jpeg",
+      base64: buffers[index]!.toString("base64"),
+      caption: image.caption,
+    })),
+  };
+}
+
 export type ImageInfo = { width: number; height: number; mimeType: string };
 
 export async function probeImage(buffer: Buffer): Promise<ImageInfo | null> {

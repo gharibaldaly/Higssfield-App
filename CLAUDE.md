@@ -325,3 +325,17 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A model that fails both routes is refused ("choose a model marked Vision"). Key, balance, quota and outage errors surface as they are.
 - **Errors:** a context-length error (400 or 413 with the usual wording) gets its own message and no longer cycles through the JSON modes; neither does an error about an image. If the links failed the check and the inline photos then overflow, the message says why the links failed.
 - **Note:** the 270,000-token limit reported for `claude-sonnet-4-6` is not Claude Sonnet 4.6's (1M tokens); VyceAI's site gives 270K for GPT 6 Astra. The vision check proves that the model reads images, not which model answers.
+
+### 2026-09-27 — Inline gateway photos fitted to the reported limit
+- **Why:** the first run with links. VyceAI's route for `claude-sonnet-4-6` failed the vision check by link (it named white / blue for blue / green) and passed it inline. So its photos must go inline, where the product's 12 photos still count as about 1.4 million tokens against 270,000.
+- **Fitting** (`askInline` in `gateway.ts`, `shrinkLlmImages` in `lib/images/process.ts`):
+  - After an overflow with inline photos, the brain reads the model's limit and the counted tokens from the message (`parseOverflow`) and learns how many characters the gateway counts per token.
+  - It then re-encodes the photos (JPEG q80) at the largest common long edge, from 1,568 px down to 384 px, that keeps the request within 85% of the limit after the output cap.
+  - It retries twice at most. Later calls fit the photos before sending, so only the first call per server instance overflows.
+  - When the error names no numbers (a bare 413), the photo budget halves on each retry.
+  - When even 384 px does not fit, the error says "Too many photos…" and suggests fewer photos, a model that takes links, or a direct key.
+- **Trade-off:** only what the brain sees shrinks; Higgsfield still gets the full-size references.
+  - For the owner's 12-photo product, the photos need to shrink to about 15% of their size, which is roughly 700 px instead of 1,568 px.
+  - With 1–3 references (ghost prompts, fidelity checks) little or nothing is lost.
+  - Fewer photos per product, a gateway model that takes links, or a direct Claude or Gemini key keep full detail.
+

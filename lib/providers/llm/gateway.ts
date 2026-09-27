@@ -5,8 +5,9 @@ import { z } from "zod";
 import type { LlmGatewayConfig } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { fetchWithTimeout, withRetry } from "@/lib/http/retry";
+import { shrinkLlmImages } from "@/lib/images/process";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
-import type { LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
+import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
 import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-check";
 
 /**
@@ -20,7 +21,9 @@ import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-c
  * - photos: short-lived links when an image host is given (some gateways count
  *   inline image data as text, so a dozen photos overflow the context), else
  *   inline data URLs. Before its first photos, a model must name two colours
- *   of a test image through the chosen route (see vision-check.ts);
+ *   of a test image through the chosen route (see vision-check.ts). Inline
+ *   photos that overflow are re-encoded smaller to fit the limit the gateway
+ *   reports;
  * - JSON: `response_format` json_schema, else json_object, else the schema in
  *   the prompt (the answer is still validated with Zod either way);
  * - output cap: `max_tokens`, or `max_completion_tokens` when the gateway asks
@@ -59,6 +62,42 @@ const CONTEXT_OVERFLOW =
 
 function isOverflow(error: AppError): boolean {
   return error.status === 413 || CONTEXT_OVERFLOW.test(error.detail ?? "");
+}
+
+/**
+ * How much inline photo data a gateway model takes, learned from its overflow
+ * errors: its context and the characters it counts per token, or (when the
+ * error gives no numbers) a character budget for the photos.
+ */
+type InlineLimit = { contextTokens: number; charsPerToken: number } | { imageChars: number };
+const inlineLimits = new Map<string, InlineLimit>();
+
+/** Share of the context the fitted request may fill. */
+const CONTEXT_SHARE = 0.85;
+
+/**
+ * The model's context and the tokens counted, from an overflow message such
+ * as "maximum context length is 270,000 tokens. However, your request resulted
+ * in 1,417,769 tokens" or "prompt is too long: 250000 tokens > 200000 maximum".
+ */
+export function parseOverflow(detail: string): { context: number; counted: number } | null {
+  const number = (text: string) => Number(text.replace(/,/g, ""));
+  const over = /(\d[\d,]*)\s*tokens\s*>\s*(\d[\d,]*)/i.exec(detail);
+  if (over) return { context: number(over[2]!), counted: number(over[1]!) };
+  const [context, counted] = [...detail.matchAll(/(\d[\d,]*)\s*tokens/gi)].map((match) =>
+    number(match[1]!),
+  );
+  return context && counted && counted > context ? { context, counted } : null;
+}
+
+const imageChars = (images: LlmImage[]) =>
+  images.reduce((sum, image) => sum + image.base64.length, 0);
+
+/** Characters of a request besides its image data, roughly as a gateway counts them. */
+function textChars(request: StructuredRequest<unknown>): number {
+  const schema = JSON.stringify(gatewayJsonSchema(request.schema)).length;
+  const captions = request.images.reduce((sum, image) => sum + image.caption.length + 100, 0);
+  return request.system.length + request.user.length + schema + captions;
 }
 
 type ChatMessageContent = string | { type?: string; text?: string }[] | null | undefined;
@@ -407,49 +446,115 @@ export class GatewayBrain extends TemplateBrain {
     request: StructuredRequest<T>,
     transport: ImageTransport | null,
   ): Promise<T> {
+    if (transport === "data") return this.askInline(request);
     const hosted =
       transport === "url" && this.imageHost ? await this.imageHost(request.images) : null;
     try {
-      let settings: Learned = learned.get(this.key) ?? {
-        mode: "json_schema",
-        tokenField: "max_tokens",
-        maxTokens: null,
-      };
-      let text: string | null = null;
-      for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
-        try {
-          text = await this.complete(request, settings, hosted?.urls ?? null);
-        } catch (error) {
-          const next =
-            error instanceof AppError && error.code === "provider_bad_input"
-              ? this.adapt(settings, error)
-              : null;
-          if (!next) throw error;
-          settings = next;
-        }
-      }
-      if (text === null) throw new AppError("llm_output", `${this.name} returned no answer.`);
-      learned.set(this.key, settings);
-
-      let json: unknown;
-      try {
-        json = extractJson(text);
-      } catch {
-        throw new AppError("llm_output", `${this.name} returned invalid JSON.`);
-      }
-      const parsed = request.schema.safeParse(json);
-      if (!parsed.success) {
-        throw new AppError("llm_output", "The model returned output in an unexpected shape.", {
-          detail: parsed.error.issues
-            .slice(0, 5)
-            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-            .join("; "),
-        });
-      }
-      return parsed.data;
+      return await this.attempt(request, hosted?.urls ?? null);
     } finally {
       await hosted?.release().catch(() => undefined);
     }
+  }
+
+  /**
+   * Inline photos, fitted to what the gateway counts. After an overflow, the
+   * limit it reports is learned and the photos are re-encoded smaller (twice
+   * at most); later calls fit them before sending.
+   */
+  private async askInline<T>(request: StructuredRequest<T>): Promise<T> {
+    for (let round = 0; ; round += 1) {
+      const sent = { ...request, images: await this.fitInline(request) };
+      try {
+        return await this.attempt(sent, null);
+      } catch (error) {
+        const retry =
+          round < 2 && sent.images.length > 0 && error instanceof AppError && isOverflow(error);
+        if (!retry) throw error;
+        this.learnInlineLimit(sent, error);
+      }
+    }
+  }
+
+  /** The request's photos, re-encoded smaller when they would overflow the learned limit. */
+  private async fitInline(request: StructuredRequest<unknown>): Promise<LlmImage[]> {
+    const limit = inlineLimits.get(this.key);
+    if (!limit || request.images.length === 0) return request.images;
+    const budget =
+      "imageChars" in limit
+        ? limit.imageChars
+        : Math.floor(
+            (limit.contextTokens * CONTEXT_SHARE - Math.min(request.maxTokens, this.tokenCap)) *
+              limit.charsPerToken -
+              textChars(request),
+          );
+    if (imageChars(request.images) <= budget) return request.images;
+    const fitted = budget > 0 ? await shrinkLlmImages(request.images, budget) : null;
+    if (!fitted) {
+      throw new AppError(
+        "provider_bad_input",
+        `Too many photos for ${this.model} at ${this.name}: they do not fit its limit even at 384 px. Use fewer photos, a model that takes photos by link, or a direct Claude or Gemini key.`,
+        { status: 413, detail: `${request.images.length} photos` },
+      );
+    }
+    console.warn(
+      `${this.name} ${this.model}: ${request.images.length} photos sent inline at ${fitted.longEdge} px to fit its limit`,
+    );
+    return fitted.images;
+  }
+
+  private learnInlineLimit(sent: StructuredRequest<unknown>, error: AppError): void {
+    const numbers = parseOverflow(error.detail ?? "");
+    const photos = imageChars(sent.images);
+    inlineLimits.set(
+      this.key,
+      numbers
+        ? {
+            contextTokens: numbers.context,
+            charsPerToken: (photos + textChars(sent)) / numbers.counted,
+          }
+        : { imageChars: Math.floor(photos / 2) },
+    );
+  }
+
+  /** Sends one request, adapting the JSON mode and output cap, and validates the answer. */
+  private async attempt<T>(request: StructuredRequest<T>, imageUrls: string[] | null): Promise<T> {
+    let settings: Learned = learned.get(this.key) ?? {
+      mode: "json_schema",
+      tokenField: "max_tokens",
+      maxTokens: null,
+    };
+    let text: string | null = null;
+    for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
+      try {
+        text = await this.complete(request, settings, imageUrls);
+      } catch (error) {
+        const next =
+          error instanceof AppError && error.code === "provider_bad_input"
+            ? this.adapt(settings, error)
+            : null;
+        if (!next) throw error;
+        settings = next;
+      }
+    }
+    if (text === null) throw new AppError("llm_output", `${this.name} returned no answer.`);
+    learned.set(this.key, settings);
+
+    let json: unknown;
+    try {
+      json = extractJson(text);
+    } catch {
+      throw new AppError("llm_output", `${this.name} returned invalid JSON.`);
+    }
+    const parsed = request.schema.safeParse(json);
+    if (!parsed.success) {
+      throw new AppError("llm_output", "The model returned output in an unexpected shape.", {
+        detail: parsed.error.issues
+          .slice(0, 5)
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join("; "),
+      });
+    }
+    return parsed.data;
   }
 }
 

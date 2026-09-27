@@ -3,14 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { resetServerEnvCache } from "@/lib/env";
+import { toLlmImage } from "@/lib/images/process";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import {
   extractJson,
   GatewayBrain,
   listGatewayModels,
   messageText,
+  parseOverflow,
 } from "@/lib/providers/llm/gateway";
-import type { LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
+import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
 import { passesVisionTest, TEST_COLOURS } from "@/lib/providers/llm/vision-check";
 
 const answerSchema = z.object({ verdict: z.string(), score: z.number() });
@@ -109,15 +111,54 @@ async function readTestImage(body: Record<string, unknown>): Promise<Response> {
   );
 }
 
-/** A gateway that answers vision checks with `onCheck` and everything else from `replies`. */
-function serve(replies: Response[], onCheck = readTestImage) {
+type Reply = (body: Record<string, unknown>) => Promise<Response>;
+
+/** A gateway that answers vision checks with `onCheck` and everything else with `replies`. */
+function serve(replies: Response[] | Reply, onCheck: Reply = readTestImage) {
   fetchMock.mockImplementation(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     if (isVisionCheck(body)) return onCheck(body);
+    if (typeof replies === "function") return replies(body);
     const reply = replies.shift();
     if (!reply) throw new Error("unexpected request");
     return reply;
   });
+}
+
+/** A gateway that counts every character of the request, four to a token, inline photos included. */
+function countingGateway(limit: number): Reply {
+  return async (body) => {
+    const tokens = Math.ceil(JSON.stringify(body).length / 4);
+    return tokens > limit
+      ? failure(
+          400,
+          `This model's maximum context length is ${limit.toLocaleString("en-US")} tokens. However, your request resulted in ${tokens.toLocaleString("en-US")} tokens. Please reduce the length of the messages.`,
+        )
+      : completion('{"verdict":"ok","score":5}');
+  };
+}
+
+/** Detailed photos (noise compresses badly, like lace), resized for the brain as usual. */
+let detailed: LlmImage[] | null = null;
+async function detailedPhotos(): Promise<LlmImage[]> {
+  if (!detailed) {
+    const pixels = Buffer.alloc(600 * 800 * 3);
+    for (let i = 0; i < pixels.length; i += 1) pixels[i] = (i * 7919) % 251;
+    const jpeg = await sharp(pixels, { raw: { width: 600, height: 800, channels: 3 } })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+    detailed = await Promise.all(
+      ["Front", "Back", "Lace", "Strap"].map((caption) => toLlmImage(jpeg, caption)),
+    );
+  }
+  return detailed;
+}
+
+const tokensOf = (body: Record<string, unknown>) => Math.ceil(JSON.stringify(body).length / 4);
+
+async function longEdgeOf(url: string): Promise<number> {
+  const meta = await sharp(imageBytes(url)).metadata();
+  return Math.max(meta.width!, meta.height!);
 }
 
 /** A Storage stand-in: one link per image, and a record of the copies released. */
@@ -319,7 +360,7 @@ describe("GatewayBrain photos", () => {
     );
     await expect(gateway(undefined, host).run(withPhotos(12))).rejects.toMatchObject({
       message: expect.stringMatching(
-        /longer than .* accepts.*could not use links: Failed to download image from URL/,
+        /Too many photos for .*could not use links: Failed to download image from URL/,
       ),
     });
   });
@@ -346,6 +387,64 @@ describe("GatewayBrain photos", () => {
       message: expect.stringContaining("longer than small-context at TestGate accepts"),
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fits inline photos to the limit the gateway reports, then fits them before sending", async () => {
+    const photos = { ...request, images: await detailedPhotos() };
+    const photoTokens = photos.images.reduce((sum, image) => sum + image.base64.length, 0) / 4;
+    const limit = Math.round(photoTokens / 3);
+    serve(countingGateway(limit));
+    const brain = gateway();
+    await expect(brain.run(photos)).resolves.toEqual({ verdict: "ok", score: 5 });
+
+    const real = () => sentBodies().filter((body) => !isVisionCheck(body));
+    const [overflowed, fitted] = real();
+    expect(real()).toHaveLength(2);
+    expect(tokensOf(overflowed!)).toBeGreaterThan(limit);
+    expect(tokensOf(fitted!)).toBeLessThanOrEqual(limit);
+    expect(await longEdgeOf(imageUrls(fitted!)[0]!)).toBeLessThan(800);
+    // Only as small as needed: most of the room goes to the photos.
+    expect(tokensOf(fitted!)).toBeGreaterThan(limit * 0.5);
+
+    await expect(brain.run(photos)).resolves.toEqual({ verdict: "ok", score: 5 });
+    expect(real()).toHaveLength(3);
+  }, 30_000);
+
+  it("stops with a clear message when even the smallest photos do not fit", async () => {
+    serve(countingGateway(20_000));
+    await expect(
+      gateway().run({ ...request, images: await detailedPhotos() }),
+    ).rejects.toMatchObject({ message: expect.stringContaining("Too many photos for") });
+  }, 30_000);
+
+  it("halves the photos when the gateway names no numbers", async () => {
+    let first = 0;
+    serve(async (body) => {
+      const length = JSON.stringify(body).length;
+      first ||= length;
+      return length > first * 0.6
+        ? new Response("Payload Too Large", { status: 413 })
+        : completion('{"verdict":"ok","score":6}');
+    });
+    await expect(gateway().run({ ...request, images: await detailedPhotos() })).resolves.toEqual({
+      verdict: "ok",
+      score: 6,
+    });
+    expect(sentBodies().filter((body) => !isVisionCheck(body))).toHaveLength(2);
+  }, 30_000);
+
+  it("reads the limit out of the usual overflow messages", () => {
+    expect(
+      parseOverflow(
+        "This model's maximum context length is 270,000 tokens. However, your request resulted in 1,416,179 tokens.",
+      ),
+    ).toEqual({ context: 270_000, counted: 1_416_179 });
+    expect(parseOverflow("prompt is too long: 250000 tokens > 200000 maximum")).toEqual({
+      context: 200_000,
+      counted: 250_000,
+    });
+    expect(parseOverflow("Payload Too Large")).toBeNull();
+    expect(parseOverflow("limit 4096 tokens, you sent 1000 tokens")).toBeNull();
   });
 
   it("accepts colour names with extra words, and nothing else", () => {

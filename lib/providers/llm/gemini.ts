@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ApiError, FinishReason, GoogleGenAI, type Part } from "@google/genai";
+import { ApiError, FinishReason, GoogleGenAI, type Part, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors";
@@ -11,6 +11,7 @@ import {
   googleMessage,
   nextPacificMidnight,
 } from "@/lib/providers/llm/gemini-errors";
+import { answerText, extractJson } from "@/lib/providers/llm/json-answer";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type { StructuredRequest } from "@/lib/providers/llm/types";
 
@@ -18,18 +19,68 @@ import type { StructuredRequest } from "@/lib/providers/llm/types";
 export const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 
 /**
- * Earlier Flash models (free tier, per the Gemini pricing page on 2026-09-28),
- * tried in turn when the chosen model stays overloaded or has used up its
- * quota; free-tier limits apply per project and model. One that no longer
- * exists is skipped.
+ * Free models (the Gemini pricing page, 2026-09-28: free of charge on the free
+ * tier), tried in turn when the chosen model stays overloaded or has used up
+ * its quota, from the strongest down: the earlier Flash models, Gemini 3 Flash
+ * (preview), the Flash-Lite models, then Gemma 4, which has no paid tier at
+ * all. Free-tier limits apply per project and model, so each one brings its
+ * own daily allowance. One that no longer exists is skipped.
  */
-export const FALLBACK_GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+export const FALLBACK_GEMINI_MODELS = [
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemma-4-31b-it",
+  "gemma-4-26b-a4b-it",
+];
 
 /** The longest per-minute limit worth waiting out before asking the same model again. */
 const MAX_QUOTA_WAIT_MS = 45_000;
 
-/** Errors of the chosen model that another Flash model may not have. */
+/** Errors of the chosen model that another model may not have. */
 const SWITCHABLE = new Set(["provider_unavailable", "provider_rate_limit"]);
+
+/**
+ * How an answer is asked for: JSON mode with the schema, JSON mode with the
+ * schema in the prompt, or plain text with the schema in the prompt.
+ */
+type AnswerFormat = "schema" | "json" | "text";
+
+type Asking = {
+  /** Tried in order; a schema problem (400 or 500) moves to the next. */
+  formats: AnswerFormat[];
+  maxTokens?: number;
+  thinkingOff?: boolean;
+};
+
+/**
+ * Gemma's page on the Gemini API documents system instructions, images and a
+ * thinking switch ("minimal" turns it off), but neither JSON mode nor an
+ * output limit (Gemma 3's was 8,192 tokens). So Gemma answers in plain text,
+ * without thinking, within 8,192 tokens; the brain's answers need far fewer.
+ */
+function askingOf(model: string): Asking {
+  return /^gemma-/i.test(model)
+    ? { formats: ["text"], maxTokens: 8192, thinkingOff: true }
+    : { formats: ["schema", "json"] };
+}
+
+/**
+ * Models whose daily limit ran out, per server instance: skipped until Google
+ * resets the limit (midnight Pacific time), so later calls do not ask every
+ * spent model again first. Remembered for an hour at most, so a limit lifted
+ * early (billing turned on) is noticed.
+ */
+const spentModels = new Map<string, { until: number; error: AppError }>();
+const SPENT_MEMORY_MS = 60 * 60_000;
+
+/** Forgets every spent model (tests). */
+export function forgetSpentGeminiModels(): void {
+  spentModels.clear();
+}
 
 /** JSON Schema for Gemini's responseJsonSchema (inlined, no $schema key). */
 export function geminiJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -128,16 +179,18 @@ export class GeminiBrain extends TemplateBrain {
   private async call(
     model: string,
     request: StructuredRequest<unknown>,
-    withSchema: boolean,
+    format: AnswerFormat,
   ): Promise<string> {
+    const asking = askingOf(model);
     const parts: Part[] = [];
     for (const image of request.images) {
       parts.push({ text: image.caption });
       parts.push({ inlineData: { mimeType: image.mimeType, data: image.base64 } });
     }
-    const schemaHint = withSchema
-      ? ""
-      : `\n\nRespond with JSON only, matching this JSON Schema:\n${JSON.stringify(geminiJsonSchema(request.schema))}`;
+    const schemaHint =
+      format === "schema"
+        ? ""
+        : `\n\nRespond with JSON only, matching this JSON Schema:\n${JSON.stringify(geminiJsonSchema(request.schema))}`;
     parts.push({ text: request.user + schemaHint });
 
     const response = await this.ai.models.generateContent({
@@ -145,9 +198,10 @@ export class GeminiBrain extends TemplateBrain {
       contents: [{ role: "user", parts }],
       config: {
         systemInstruction: request.system,
-        responseMimeType: "application/json",
-        ...(withSchema ? { responseJsonSchema: geminiJsonSchema(request.schema) } : {}),
-        maxOutputTokens: request.maxTokens,
+        ...(format === "text" ? {} : { responseMimeType: "application/json" }),
+        ...(format === "schema" ? { responseJsonSchema: geminiJsonSchema(request.schema) } : {}),
+        ...(asking.thinkingOff ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } } : {}),
+        maxOutputTokens: Math.min(request.maxTokens, asking.maxTokens ?? request.maxTokens),
       },
     });
 
@@ -179,9 +233,9 @@ export class GeminiBrain extends TemplateBrain {
 
   /**
    * Asks the chosen model. When it stays overloaded (after the SDK's own
-   * retries) or has used up its quota, asks the earlier Flash models in turn,
-   * since free-tier limits apply per model. If none answers, the error says
-   * what each model reported.
+   * retries) or has used up its quota, asks the free models in turn, since
+   * free-tier limits apply per model. A model whose daily limit already ran
+   * out is skipped. If none answers, the error says what each model reported.
    */
   protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
     const failures: { model: string; error: AppError }[] = [];
@@ -190,6 +244,11 @@ export class GeminiBrain extends TemplateBrain {
       ...FALLBACK_GEMINI_MODELS.filter((model) => model !== this.chosenModel),
     ];
     for (const model of models) {
+      const spent = spentModels.get(model);
+      if (spent && spent.until > Date.now()) {
+        failures.push({ model, error: spent.error });
+        continue;
+      }
       try {
         const result = await this.generateOn(model, request);
         if (failures.length > 0) {
@@ -202,6 +261,14 @@ export class GeminiBrain extends TemplateBrain {
       } catch (error) {
         if (!(error instanceof AppError)) throw error;
         if (failures.length === 0 && !SWITCHABLE.has(error.code)) throw error;
+        if (geminiQuota(error.cause)?.window === "day") {
+          const now = Date.now();
+          const until = Math.min(
+            nextPacificMidnight(new Date(now)).getTime(),
+            now + SPENT_MEMORY_MS,
+          );
+          spentModels.set(model, { until, error });
+        }
         failures.push({ model, error });
       }
     }
@@ -221,29 +288,32 @@ export class GeminiBrain extends TemplateBrain {
     }
   }
 
-  private async generateWith<T>(model: string, request: StructuredRequest<T>): Promise<T> {
-    let text: string;
-    try {
-      text = await this.call(model, request, true);
-    } catch (error) {
-      const mapped = mapGeminiError(error);
-      // Some schema features are not accepted by every Gemini model (a 400),
-      // and a large schema can make the server fail (a 500): retry once in
-      // plain JSON mode with the schema in the prompt.
-      const schemaTrouble =
-        mapped instanceof AppError &&
-        (mapped.code === "provider_bad_input" || mapped.status === 500);
-      if (!schemaTrouble) throw mapped;
+  /**
+   * The answer in the model's first format. Some schema features are not
+   * accepted by every Gemini model (a 400), and a large schema can make the
+   * server fail (a 500): then the schema goes in the prompt instead.
+   */
+  private async answer(model: string, request: StructuredRequest<unknown>): Promise<string> {
+    const { formats } = askingOf(model);
+    for (let index = 0; ; index++) {
       try {
-        text = await this.call(model, request, false);
-      } catch (fallbackError) {
-        throw mapGeminiError(fallbackError);
+        return await this.call(model, request, formats[index]!);
+      } catch (error) {
+        const mapped = mapGeminiError(error);
+        const schemaTrouble =
+          mapped instanceof AppError &&
+          (mapped.code === "provider_bad_input" || mapped.status === 500);
+        if (!schemaTrouble || index === formats.length - 1) throw mapped;
       }
     }
+  }
 
+  private async generateWith<T>(model: string, request: StructuredRequest<T>): Promise<T> {
+    const text = await this.answer(model, request);
     let json: unknown;
     try {
-      json = JSON.parse(text);
+      // JSON mode answers are plain JSON; a plain text answer may be fenced.
+      json = extractJson(answerText(text));
     } catch {
       throw new AppError("llm_output", "Gemini returned invalid JSON.");
     }
@@ -261,7 +331,7 @@ export class GeminiBrain extends TemplateBrain {
 }
 
 /**
- * The error once every Flash model failed. When each one had used up its daily
+ * The error once every model failed. When each one had used up its daily
  * limit, it says so and when the limit resets; otherwise the chosen model's
  * error stands, with what the others said. A fallback model that no longer
  * exists is only listed.
@@ -279,14 +349,14 @@ function noModelAnswered(failures: { model: string; error: AppError }[]): AppErr
   if (windows.length > 0 && windows.every((window) => window === "day")) {
     return new AppError(
       "provider_rate_limit",
-      `Gemini's daily limit is used up for every Flash model the studio tries. It resets at midnight Pacific time (${cairoTime(nextPacificMidnight())}). Turning on billing for the Google project lifts the daily limit.`,
+      `Gemini's daily limit is used up for every free model the studio tries. It resets at midnight Pacific time (${cairoTime(nextPacificMidnight())}). Turning on billing for the Google project lifts the daily limit.`,
       { detail, status: 429, retryable: true },
     );
   }
   if (counted.length > 0 && counted.every(({ error }) => error.code === "provider_rate_limit")) {
     return new AppError(
       "provider_rate_limit",
-      "Gemini is rate limiting every Flash model the studio tries. Try again in a few minutes.",
+      "Gemini is rate limiting every model the studio tries. Try again in a few minutes.",
       { detail, status: 429, retryable: true },
     );
   }

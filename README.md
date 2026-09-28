@@ -73,6 +73,12 @@ Every variable is documented in [`.env.example`](./.env.example).
 Provider keys are only read on the server (route handlers and server actions). Settings shows
 configured / missing and never displays a value.
 
+**Free director brain (Gemini):** create a free API key in [Google AI Studio](https://aistudio.google.com),
+set `GEMINI_API_KEY`, redeploy, then choose Gemini under Settings → Director brain. When one
+model's free daily limit runs out, the brain moves on to the next free model (Gemini Flash, Flash-Lite,
+then Gemma 4). Limits reset at midnight Pacific time. Google uses free-tier content to improve its
+products; enabling billing on the Google project stops that and lifts the daily limits.
+
 **Director brain on NVIDIA** ([build.nvidia.com](https://build.nvidia.com)): create an API key (it
 starts with `nvapi-`), set `LLM_GATEWAY_BASE_URL=https://integrate.api.nvidia.com/v1`,
 `LLM_GATEWAY_API_KEY`, `LLM_GATEWAY_MODEL=moonshotai/kimi-k3`, `LLM_GATEWAY_NAME=NVIDIA`,
@@ -204,6 +210,12 @@ The `render_jobs` table is already in the schema.
    و2 كلوز، وبعد ما توافق على الأمام يعمل الألوان. لموديلات كتير مرة واحدة، اسحب مجلد فيه مجلد لكل
    موديل (اسم المجلد = اسم الموديل)، وعينات الألوان في مجلد «ألوان». الشغل بيمشي طول ما فيه تبويب من
    الاستوديو مفتوح.
-6. **العقل من NVIDIA**: اعمل مفتاح من build.nvidia.com، وحط في Vercel المتغيرات اللي فوق (موديل
+6. **عقل مجاني بالكامل (Gemini)**: اعمل مفتاح مجاني من aistudio.google.com، وحطه في Vercel باسم
+   `GEMINI_API_KEY`، واعمل Redeploy، وبعدين من **الإعدادات → عقل المخرج** اختار Gemini. لما الحد
+   اليومي المجاني لموديل يخلص، العقل بينقل لوحده للموديل المجاني اللي بعده (Flash ثم Flash-Lite ثم
+   Gemma 4)، والحدود بتتجدد كل يوم حوالي الساعة 10 الصبح بتوقيت القاهرة. جوجل بتستخدم بيانات الخطة
+   المجانية لتحسين منتجاتها.
+7. **العقل من NVIDIA**: اعمل مفتاح من build.nvidia.com، وحط في Vercel المتغيرات اللي فوق (موديل
    `moonshotai/kimi-k3`)، واعمل Redeploy، وبعدين من **الإعدادات → عقل المخرج** اختار البوابة. الاستخدام
-   المجاني حسب شروط NVIDIA للتجربة والتقييم.
+   المجاني حسب شروط NVIDIA للتجربة والتقييم. في أول تجربة (28 سبتمبر) موديلات NVIDIA المجانية كانت
+   أبطأ من إنها ترد على صور القطع، فالعقل المجاني المقترح هو Gemini.

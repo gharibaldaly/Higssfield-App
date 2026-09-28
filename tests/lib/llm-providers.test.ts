@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@google/genai";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { adPlanSchema } from "@/lib/domain/ad-plan";
@@ -9,7 +9,13 @@ import { garmentDnaSchema } from "@/lib/domain/garment-dna";
 import { photoClassificationSchema } from "@/lib/domain/photo-classification";
 import { AppError } from "@/lib/errors";
 import { mapAnthropicError } from "@/lib/providers/llm/claude";
-import { GeminiBrain, geminiJsonSchema, mapGeminiError } from "@/lib/providers/llm/gemini";
+import {
+  FALLBACK_GEMINI_MODELS,
+  forgetSpentGeminiModels,
+  GeminiBrain,
+  geminiJsonSchema,
+  mapGeminiError,
+} from "@/lib/providers/llm/gemini";
 import {
   cairoTime,
   describeQuota,
@@ -263,26 +269,35 @@ describe("Gemini brain", () => {
   }
 
   type Call = { model: string; schema: boolean };
+  type Config = {
+    responseMimeType?: string;
+    responseJsonSchema?: unknown;
+    thinkingConfig?: { thinkingLevel?: string };
+    maxOutputTokens?: number;
+  };
   /** A Gemini stand-in: `reply` decides per call, from the model and whether a schema was sent. */
   function gemini(reply: (call: Call) => unknown) {
     const calls: Call[] = [];
+    const configs: Config[] = [];
     const brain = new TestGemini("key", "gemini-flash-latest");
     (brain as unknown as { ai: unknown }).ai = {
       models: {
-        generateContent: async (params: {
-          model: string;
-          config?: { responseJsonSchema?: unknown };
-        }) => {
+        generateContent: async (params: { model: string; config?: Config }) => {
           const call = { model: params.model, schema: Boolean(params.config?.responseJsonSchema) };
           calls.push(call);
+          configs.push(params.config ?? {});
           const outcome = reply(call);
           if (outcome instanceof Error) throw outcome;
           return { text: outcome, candidates: [{ finishReason: "STOP" }] };
         },
       },
     };
-    return { brain, calls };
+    return { brain, calls, configs };
   }
+
+  // Models whose daily limit ran out are remembered per server instance.
+  beforeEach(() => forgetSpentGeminiModels());
+  afterEach(() => vi.useRealTimers());
 
   const overloaded = () => new ApiError({ message: "The model is overloaded.", status: 503 });
 
@@ -325,14 +340,14 @@ describe("Gemini brain", () => {
     expect(brain.model).toBe("gemini-3.6-flash");
   });
 
-  it("reports what Google said when no Flash model answers", async () => {
+  it("reports what Google said when no model answers", async () => {
     const { brain } = gemini(() => overloaded());
     await expect(brain.run(request)).rejects.toMatchObject({
       code: "provider_unavailable",
       status: 503,
-      detail:
-        "gemini-flash-latest: The model is overloaded. · gemini-3.7-flash: The model is overloaded. · " +
-        "gemini-3.6-flash: The model is overloaded. · gemini-3.5-flash: The model is overloaded.",
+      detail: ["gemini-flash-latest", ...FALLBACK_GEMINI_MODELS]
+        .map((model) => `${model}: The model is overloaded.`)
+        .join(" · "),
     });
   });
 
@@ -382,7 +397,7 @@ describe("Gemini brain", () => {
     expect(calls.map((call) => call.model)).toEqual(["gemini-flash-latest", "gemini-3.7-flash"]);
   });
 
-  it("says when the daily limit resets once every Flash model has used it up", async () => {
+  it("says when the daily limit resets once every free model has used it up", async () => {
     const { brain, calls } = gemini((call) =>
       quotaExceeded(call.model === "gemini-flash-latest" ? "gemini-3.8-flash" : call.model, "Day"),
     );
@@ -390,14 +405,122 @@ describe("Gemini brain", () => {
     expect(error).toMatchObject({
       code: "provider_rate_limit",
       status: 429,
-      detail:
-        "gemini-3.8-flash: 20 requests a day (free tier) · gemini-3.7-flash: 20 requests a day (free tier) · " +
-        "gemini-3.6-flash: 20 requests a day (free tier) · gemini-3.5-flash: 20 requests a day (free tier)",
+      detail: ["gemini-3.8-flash", ...FALLBACK_GEMINI_MODELS]
+        .map((model) => `${model}: 20 requests a day (free tier)`)
+        .join(" · "),
     });
     expect((error as AppError).message).toMatch(
-      /^Gemini's daily limit is used up for every Flash model the studio tries\. It resets at midnight Pacific time \(\d\d:\d\d Cairo time\)\./,
+      /^Gemini's daily limit is used up for every free model the studio tries\. It resets at midnight Pacific time \(\d\d:\d\d Cairo time\)\./,
     );
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(1 + FALLBACK_GEMINI_MODELS.length);
+
+    // The next request asks nobody: every model is remembered as spent.
+    await expect(brain.run(request)).rejects.toMatchObject({
+      code: "provider_rate_limit",
+      message: (error as AppError).message,
+    });
+    expect(calls).toHaveLength(1 + FALLBACK_GEMINI_MODELS.length);
+  });
+
+  it("keeps to free models, from Flash down to Flash-Lite and Gemma", () => {
+    expect(FALLBACK_GEMINI_MODELS).toEqual([
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemma-4-31b-it",
+      "gemma-4-26b-a4b-it",
+    ]);
+  });
+
+  it("asks Gemma in plain text, without thinking, once every Gemini model has used up its day", async () => {
+    const { brain, calls, configs } = gemini((call) =>
+      call.model.startsWith("gemma-")
+        ? '```json\n{"verdict":"ok"}\n```'
+        : quotaExceeded(
+            call.model === "gemini-flash-latest" ? "gemini-3.8-flash" : call.model,
+            "Day",
+          ),
+    );
+    await expect(brain.run({ ...request, maxTokens: 32_000 })).resolves.toEqual({
+      verdict: "ok",
+    });
+    expect(calls.map((call) => call.model)).toEqual([
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemma-4-31b-it",
+    ]);
+    // Gemini models answer in JSON mode with the schema; Gemma's page documents neither.
+    expect(configs[0]).toMatchObject({
+      responseMimeType: "application/json",
+      maxOutputTokens: 32_000,
+    });
+    expect(configs[0]).not.toHaveProperty("thinkingConfig");
+    const gemma = configs.at(-1)!;
+    expect(gemma).not.toHaveProperty("responseMimeType");
+    expect(gemma).not.toHaveProperty("responseJsonSchema");
+    expect(gemma).toMatchObject({ thinkingConfig: { thinkingLevel: "MINIMAL" } });
+    expect(gemma.maxOutputTokens).toBe(8192);
+    expect(brain.model).toBe("gemma-4-31b-it");
+  });
+
+  it("reads Gemma's answer after its thought channel", async () => {
+    const { brain } = gemini((call) =>
+      call.model === "gemma-4-31b-it"
+        ? '<|channel>thought\nThe verdict {draft}.<channel|>{"verdict":"ok"}'
+        : overloaded(),
+    );
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+  });
+
+  it("skips a model whose daily limit ran out until Google resets it, for an hour at most", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-28T12:00:00Z"));
+    const { brain, calls } = gemini((call) =>
+      call.model === "gemini-flash-latest"
+        ? quotaExceeded("gemini-3.8-flash", "Day")
+        : '{"verdict":"ok"}',
+    );
+    await brain.run(request);
+    await brain.run(request);
+    expect(calls.map((call) => call.model)).toEqual([
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+      // The second request goes straight to the next model.
+      "gemini-3.7-flash",
+    ]);
+    expect(brain.model).toBe("gemini-3.7-flash");
+
+    // An hour later the chosen model is asked again (billing may have lifted the limit).
+    vi.setSystemTime(new Date("2026-09-28T13:00:01Z"));
+    await brain.run(request);
+    expect(calls.map((call) => call.model).slice(3)).toEqual([
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+    ]);
+  });
+
+  it("does not remember a per-minute limit", async () => {
+    const { brain, calls } = gemini((call) =>
+      call.model === "gemini-flash-latest"
+        ? quotaExceeded("gemini-3.8-flash", "Minute", "58s")
+        : '{"verdict":"ok"}',
+    );
+    await brain.run(request);
+    await brain.run(request);
+    expect(calls.map((call) => call.model)).toEqual([
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+    ]);
   });
 });
 

@@ -6,6 +6,7 @@ import type { LlmGatewayConfig } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { fetchWithTimeout, withRetry } from "@/lib/http/retry";
 import { shrinkLlmImages } from "@/lib/images/process";
+import { answerText, extractJson } from "@/lib/providers/llm/json-answer";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
 import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-check";
@@ -185,20 +186,6 @@ export function messageText(content: ChatMessageContent): string {
     .trim();
 }
 
-/** Reads JSON from a model answer that may be fenced or wrapped in prose. */
-export function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed)?.[1] ?? trimmed;
-  try {
-    return JSON.parse(fenced);
-  } catch {
-    const start = fenced.indexOf("{");
-    const end = fenced.lastIndexOf("}");
-    if (start === -1 || end <= start) throw new Error("no JSON object");
-    return JSON.parse(fenced.slice(start, end + 1));
-  }
-}
-
 /** A FastAPI validation list ("body.response_format: Extra inputs are not permitted; …"). */
 function validationText(detail: unknown): string | undefined {
   if (!Array.isArray(detail)) return undefined;
@@ -230,11 +217,6 @@ async function errorDetail(response: Response): Promise<string | undefined> {
   } catch {
     return undefined;
   }
-}
-
-/** The JSON in a model answer, after any reasoning the model wrote in <think> tags. */
-export function answerText(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 /** Maps a gateway error response to a user-facing error. */

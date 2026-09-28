@@ -4,20 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireOwnerForAction } from "@/lib/auth/owner";
-import type { FidelityReview } from "@/lib/domain/fidelity";
 import { fail, ok, type ActionResult } from "@/lib/errors";
-import { reviewGenerationFidelity } from "@/lib/generations/fidelity";
 
 const idSchema = z.uuid();
-
-export async function checkFidelity(generationId: string): Promise<ActionResult<FidelityReview>> {
-  try {
-    const { supabase, user } = await requireOwnerForAction();
-    return ok(await reviewGenerationFidelity(supabase, user.id, idSchema.parse(generationId)));
-  } catch (error) {
-    return fail(error);
-  }
-}
 
 export async function setGenerationFavorite(
   generationId: string,

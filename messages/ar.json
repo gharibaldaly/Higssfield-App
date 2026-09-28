@@ -524,6 +524,7 @@
   "review": {
     "hint": "قارن النتيجة بالأصل قبل الاعتماد. اسحب الشريط أو استخدم الأسهم.",
     "approved": "معتمد",
+    "regenerating": "جارٍ إعادة التوليد",
     "approve": "اعتماد",
     "regenerate": "إعادة التوليد",
     "regenerateWithNote": "إعادة التوليد مع ملاحظة",
@@ -633,6 +634,7 @@
     },
     "approvedOutput": "معتمد",
     "clickToReview": "افتح للمقارنة والاعتماد",
+    "regeneratingTile": "جارٍ إعادة التوليد…",
     "attempts": "{count} محاولات",
     "approvedToast": "تم الاعتماد",
     "regenerating": "جارٍ إعادة التوليد — لهذه الصورة فقط.",
@@ -818,6 +820,7 @@
       "waitingSlot": "في الدور",
       "notStarted": "لم يبدأ",
       "approved": "معتمد",
+      "regenerating": "جارٍ إعادة التوليد…",
       "fidelity": "{score}/100",
       "background": "الخلفية ليست بيضاء نقية",
       "colours": "الألوان",

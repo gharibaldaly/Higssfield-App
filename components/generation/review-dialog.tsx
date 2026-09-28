@@ -11,9 +11,10 @@ import {
   ScanSearch,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { postJson } from "@/components/common/post-json";
 import { CompareSlider } from "@/components/generation/compare-slider";
 import { GenerationMedia } from "@/components/generation/generation-media";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
-import { checkFidelity } from "@/lib/actions/generations";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import type { GenerationView } from "@/lib/domain/generation";
 import { cn } from "@/lib/utils";
@@ -52,15 +52,21 @@ type ReviewDialogProps = {
   generation: GenerationView;
   beforeUrl: string | null;
   background?: string;
-  onApprove?: () => Promise<boolean>;
-  onRegenerate?: (note: string | null) => Promise<boolean>;
+  /** Starts the approval; the dialog moves on at once and the caller reports a failure. */
+  onApprove?: () => void;
+  /** Starts a regeneration; the dialog moves on at once and the caller reports a failure. */
+  onRegenerate?: (note: string | null) => void;
   queue?: ReviewQueue;
 };
+
+/** A decision needs the image on screen this long, so a double click never decides the next one. */
+const SETTLE_MS = 500;
 
 /**
  * The compare view every output goes through before approval: original vs
  * result with a slider, plus Approve / Regenerate / Regenerate with note and
- * an optional AI fidelity check. In a queue, a decision moves to the next output.
+ * an optional AI fidelity check. A decision moves on at once (to the next
+ * output in a queue) while its request runs, so the owner never waits on it.
  */
 export function ReviewDialog(props: ReviewDialogProps) {
   const t = useTranslations("review");
@@ -91,23 +97,35 @@ function ReviewBody({
   const t = useTranslations("review");
   const [note, setNote] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
-  const [busy, setBusy] = useState<null | "approve" | "regenerate" | "fidelity">(null);
+  const [checking, setChecking] = useState(false);
   // A check run here wins; otherwise show the stored one (the batch checks images on its own).
   const [checked, setChecked] = useState<FidelityReview | null>(null);
   const review = checked ?? storedReview(generation.review);
   const done = generation.status === "completed";
   const approved = generation.reviewStatus === "approved";
+  // Rejected: a regeneration has started and the new image is on its way.
+  const regenerating = generation.reviewStatus === "rejected";
 
-  async function act(kind: "approve" | "regenerate", fn: () => Promise<boolean>) {
-    setBusy(kind);
-    try {
-      const success = await fn();
-      if (!success) return;
-      if (queue) queue.onNext();
-      else onOpenChange(false);
-    } finally {
-      setBusy(null);
-    }
+  const shownAt = useRef(0);
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, []);
+
+  function decide(start: () => void) {
+    if (Date.now() - shownAt.current < SETTLE_MS) return;
+    start();
+    if (queue) queue.onNext();
+    else onOpenChange(false);
+  }
+
+  async function checkFidelity() {
+    setChecking(true);
+    const result = await postJson<FidelityReview>("/api/generations/fidelity", {
+      generationId: generation.id,
+    });
+    setChecking(false);
+    if (!result.ok) toast.error(result.error);
+    else setChecked(result.data);
   }
 
   return (
@@ -135,7 +153,7 @@ function ReviewBody({
               variant="ghost"
               size="icon-sm"
               onClick={queue.onPrevious}
-              disabled={queue.index === 0 || busy !== null}
+              disabled={queue.index === 0}
               aria-label={t("previous")}
             >
               <ChevronLeft className="rtl:-scale-x-100" aria-hidden />
@@ -143,7 +161,7 @@ function ReviewBody({
             <span className="flex-1 text-center hud text-muted-foreground">
               {t("position", { index: queue.index + 1, total: queue.total })}
             </span>
-            <Button variant="ghost" size="sm" onClick={queue.onNext} disabled={busy !== null}>
+            <Button variant="ghost" size="sm" onClick={queue.onNext}>
               {t("skip")}
               <ChevronRight className="rtl:-scale-x-100" aria-hidden />
             </Button>
@@ -161,13 +179,15 @@ function ReviewBody({
             {t("approved")}
           </Badge>
         ) : null}
-        {onApprove && !approved ? (
-          <Button disabled={!done || busy !== null} onClick={() => void act("approve", onApprove)}>
-            {busy === "approve" ? (
-              <Loader2 className="animate-spin" aria-hidden />
-            ) : (
-              <BadgeCheck aria-hidden />
-            )}
+        {regenerating ? (
+          <Badge variant="accent" className="h-9 justify-center text-sm">
+            <Loader2 className="animate-spin" aria-hidden />
+            {t("regenerating")}
+          </Badge>
+        ) : null}
+        {onApprove && !approved && !regenerating ? (
+          <Button disabled={!done} onClick={() => decide(onApprove)}>
+            <BadgeCheck aria-hidden />
             {t("approve")}
           </Button>
         ) : null}
@@ -175,25 +195,13 @@ function ReviewBody({
           <>
             <Button
               variant="surface"
-              disabled={
-                busy !== null ||
-                generation.status === "queued" ||
-                generation.status === "in_progress"
-              }
-              onClick={() => void act("regenerate", () => onRegenerate(null))}
+              disabled={generation.status === "queued" || generation.status === "in_progress"}
+              onClick={() => decide(() => onRegenerate(null))}
             >
-              {busy === "regenerate" && !noteOpen ? (
-                <Loader2 className="animate-spin" aria-hidden />
-              ) : (
-                <RefreshCw aria-hidden />
-              )}
+              <RefreshCw aria-hidden />
               {t("regenerate")}
             </Button>
-            <Button
-              variant="surface"
-              disabled={busy !== null}
-              onClick={() => setNoteOpen((value) => !value)}
-            >
+            <Button variant="surface" onClick={() => setNoteOpen((value) => !value)}>
               <MessageSquarePlus aria-hidden />
               {t("regenerateWithNote")}
             </Button>
@@ -207,14 +215,10 @@ function ReviewBody({
                   autoFocus
                 />
                 <Button
-                  disabled={!note.trim() || busy !== null}
-                  onClick={() => void act("regenerate", () => onRegenerate(note.trim()))}
+                  disabled={!note.trim()}
+                  onClick={() => decide(() => onRegenerate(note.trim()))}
                 >
-                  {busy === "regenerate" ? (
-                    <Loader2 className="animate-spin" aria-hidden />
-                  ) : (
-                    <RefreshCw aria-hidden />
-                  )}
+                  <RefreshCw aria-hidden />
                   {t("send")}
                 </Button>
               </div>
@@ -223,20 +227,10 @@ function ReviewBody({
         ) : null}
         <Button
           variant="outline"
-          disabled={!done || busy !== null || !generation.mimeType?.startsWith("image/")}
-          onClick={async () => {
-            setBusy("fidelity");
-            const result = await checkFidelity(generation.id);
-            setBusy(null);
-            if (!result.ok) toast.error(result.error);
-            else setChecked(result.data);
-          }}
+          disabled={!done || checking || !generation.mimeType?.startsWith("image/")}
+          onClick={() => void checkFidelity()}
         >
-          {busy === "fidelity" ? (
-            <Loader2 className="animate-spin" aria-hidden />
-          ) : (
-            <ScanSearch aria-hidden />
-          )}
+          {checking ? <Loader2 className="animate-spin" aria-hidden /> : <ScanSearch aria-hidden />}
           {t("fidelityCheck")}
         </Button>
         {review ? (

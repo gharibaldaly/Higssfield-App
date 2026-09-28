@@ -13,7 +13,6 @@ import {
   createProjectSchema,
   deletePreset,
   deleteShot,
-  generateShot,
   planShots,
   reorderShots,
   resetBuiltinPreset,
@@ -155,30 +154,6 @@ export async function reorderShotsAction(
     await reorderShots(supabase, uuid.parse(projectId), z.array(uuid).max(20).parse(orderedIds));
     revalidateProject(projectId);
     return ok(undefined);
-  } catch (error) {
-    return fail(error);
-  }
-}
-
-const generateSchema = z.object({
-  shotId: uuid,
-  note: z.string().trim().max(1000).nullable().optional(),
-  target: z.enum(["auto", "preview", "video"]).optional(),
-});
-
-export async function generateShotAction(
-  projectId: string,
-  input: unknown,
-): Promise<ActionResult<{ generationId: string; status: string }>> {
-  try {
-    const { supabase, user } = await requireOwnerForAction();
-    const parsed = generateSchema.parse(input);
-    const generation = await generateShot(supabase, user.id, parsed.shotId, {
-      note: parsed.note || null,
-      target: parsed.target,
-    });
-    revalidateProject(projectId);
-    return ok({ generationId: generation.id, status: generation.status });
   } catch (error) {
     return fail(error);
   }

@@ -16,8 +16,10 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { useRefresh } from "@/components/common/use-refresh";
 import { ModelRow, type OpenOutput } from "@/components/ghost-batch/model-row";
 import { useRunnerState, wakeGhostRunner } from "@/components/ghost-batch/runner-store";
+import { approveOutput, regenerateOutput } from "@/components/ghost/output-decisions";
 import { ReviewDialog, storedReview } from "@/components/generation/review-dialog";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { Badge } from "@/components/ui/badge";
@@ -38,10 +40,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
-import {
-  approveCatalogueOutputAction,
-  regenerateCatalogueOutputAction,
-} from "@/lib/actions/catalogue";
 import {
   deleteGhostBatchAction,
   renameBatchAction,
@@ -103,6 +101,7 @@ export function BatchBoard({
   const tSlots = useTranslations("ghostBatch.model");
   const format = useFormatter();
   const router = useRouter();
+  const refresh = useRefresh();
   const runner = useRunnerState();
   const [pending, startTransition] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
@@ -110,10 +109,11 @@ export function BatchBoard({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<{ models: boolean } | null>(null);
 
-  const { views } = useGenerationPolling(
+  const { views, decide, undecide } = useGenerationPolling(
     detail.items.flatMap((item) => outputsOf(item).map((output) => output.generation)),
-    { onSettled: () => router.refresh() },
+    { onSettled: refresh },
   );
+  const decisions = { decide, undecide, refresh };
 
   // A running batch wakes the runner (it stops when it runs out of work).
   useEffect(() => {
@@ -127,8 +127,8 @@ export function BatchBoard({
     if (!report || report.batchId !== detail.id || report.step === "waiting") return;
     if (runner.lastStepAt <= lastRefresh.current) return;
     lastRefresh.current = runner.lastStepAt;
-    router.refresh();
-  }, [runner.lastStepAt, runner.report, detail.id, router]);
+    refresh();
+  }, [runner.lastStepAt, runner.report, detail.id, refresh]);
 
   const states = useMemo(
     () => new Map(detail.items.map((item) => [item.id, itemState(item, views)])),
@@ -203,6 +203,7 @@ export function BatchBoard({
     return slotLabel ?? tSlots("colour");
   }
 
+  // The batch actions revalidate the page, so their answer already brings it up to date.
   function run(action: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) {
     startTransition(async () => {
       const result = await action();
@@ -211,7 +212,6 @@ export function BatchBoard({
         return;
       }
       done?.();
-      router.refresh();
     });
   }
 
@@ -460,26 +460,19 @@ export function BatchBoard({
                 }
               : undefined
           }
-          onApprove={async () => {
-            const result = await approveCatalogueOutputAction(currentView.id);
-            if (!result.ok) {
-              toast.error(result.error);
-              return false;
-            }
-            // An approved front can start its colours.
-            if (current.output.slot === "front" && detail.coloursRequested) wakeGhostRunner();
-            router.refresh();
-            return true;
+          onApprove={() => {
+            const startsColours = current.output.slot === "front" && detail.coloursRequested;
+            void approveOutput(currentView, decisions).then((result) => {
+              if (!result.ok) toast.error(result.error);
+              // An approved front can start its colours.
+              else if (startsColours) wakeGhostRunner();
+            });
           }}
-          onRegenerate={async (note) => {
-            const result = await regenerateCatalogueOutputAction(currentView.id, note);
-            if (!result.ok) {
-              toast.error(result.error);
-              return false;
-            }
+          onRegenerate={(note) => {
             toast.success(t("regenerating"));
-            router.refresh();
-            return true;
+            void regenerateOutput(currentView, note, decisions).then((result) => {
+              if (!result.ok) toast.error(result.error);
+            });
           }}
         />
       ) : null}

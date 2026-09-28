@@ -1,10 +1,10 @@
 /**
  * A tiny in-memory stand-in for the Supabase query builder, covering the calls
  * the generation and sheet services make (insert / update / delete / select
- * with eq, neq, in, is, not, or, order, limit, single, maybeSingle), and for
+ * with eq, neq, gt, in, is, not, or, order, limit, single, maybeSingle), and for
  * Storage (upload, download, remove, signed URLs). Each statement runs
  * synchronously when awaited, so a conditional update is atomic, as it is in
- * Postgres.
+ * Postgres. `onUpdate` stands in for triggers such as set_updated_at.
  */
 
 type Row = Record<string, unknown>;
@@ -54,6 +54,7 @@ class Query implements PromiseLike<Result> {
   constructor(
     private readonly table: Row[],
     private readonly defaults: () => Row,
+    private readonly onUpdate?: (row: Row) => void,
   ) {}
 
   select(_columns?: string, options?: { count?: string; head?: boolean }): this {
@@ -80,6 +81,10 @@ class Query implements PromiseLike<Result> {
   }
   neq(column: string, value: unknown): this {
     this.filters.push((row) => row[column] !== value);
+    return this;
+  }
+  gt(column: string, value: unknown): this {
+    this.filters.push((row) => row[column] != null && compareValues(row[column], value) > 0);
     return this;
   }
   in(column: string, values: unknown[]): this {
@@ -121,7 +126,10 @@ class Query implements PromiseLike<Result> {
       return rows.map(clone);
     }
     if (this.action === "update") {
-      for (const row of rows) Object.assign(row, clone(this.patch));
+      for (const row of rows) {
+        Object.assign(row, clone(this.patch));
+        this.onUpdate?.(row);
+      }
     }
     if (this.orderBy) {
       const { column, ascending } = this.orderBy;
@@ -196,7 +204,10 @@ function fakeBucket(objects: Map<string, Buffer>) {
   };
 }
 
-export function createFakeSupabase(defaults: Record<string, () => Row> = {}) {
+export function createFakeSupabase(
+  defaults: Record<string, () => Row> = {},
+  options: { onUpdate?: Record<string, (row: Row) => void> } = {},
+) {
   const tables = new Map<string, Row[]>();
   const objects = new Map<string, Buffer>();
   const tableOf = (name: string) => {
@@ -208,7 +219,8 @@ export function createFakeSupabase(defaults: Record<string, () => Row> = {}) {
     objects,
     rows: (name: string) => tableOf(name),
     client: {
-      from: (name: string) => new Query(tableOf(name), defaults[name] ?? (() => ({}))),
+      from: (name: string) =>
+        new Query(tableOf(name), defaults[name] ?? (() => ({})), options.onUpdate?.[name]),
       storage: { from: () => fakeBucket(objects) },
     },
   };

@@ -736,7 +736,10 @@ describe("NVIDIA's API", () => {
   });
 
   it("says the model is too slow when no route answers a test image in time", async () => {
-    fetchMock.mockImplementation(async (_url, init) => hang(init));
+    // Like NVIDIA: no Anthropic messages endpoint, and chat completions never answer.
+    fetchMock.mockImplementation(async (url, init) =>
+      isMessagesApi(String(url)) ? failure(404, "Not Found") : hang(init),
+    );
     serial += 1;
     const brain = new HurriedGateway({
       baseUrl: `https://gateway${serial}.test/v1`,
@@ -748,6 +751,7 @@ describe("NVIDIA's API", () => {
     await expect(brain.run(withPhotos(1))).rejects.toMatchObject({
       code: "provider_timeout",
       message: expect.stringContaining("too slow for the garment photos"),
+      detail: expect.stringContaining("messages inline: no Anthropic messages endpoint"),
     });
   });
 

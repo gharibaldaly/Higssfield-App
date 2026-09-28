@@ -489,3 +489,7 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A trailing number is dropped from a keyword only when three letters or more remain. So a model code like `B20124` is no longer read as `b` (back), and `B20124 (1).jpg`, `B20124 (2).jpg`… make one model.
 - **Advice to the owner:** set `LLM_GATEWAY_REASONING_EFFORT=off`. If Kimi K3 is still too slow, choose `moonshotai/kimi-k2.6` in Settings.
 - **Not verified live:** there is still no NVIDIA key in the sandbox; the fake NVIDIA in the tests follows the documented 202 and status responses.
+- **Follow-up (first run with these changes):** Kimi K3 answered neither test image within 75 s, through links or inline, even with `reasoning_effort: "low"`. The error then read "NVIDIA has no model …" for the Anthropic-format routes, because NVIDIA answers 404 there.
+  - A 404 or refused key on the Anthropic format now reads "no Anthropic messages endpoint".
+  - When the routes that exist only ran out of time, the error says the model is too slow.
+  - The owner was advised to try `moonshotai/kimi-k2.6`, then `google/gemma-4-31b-it`.

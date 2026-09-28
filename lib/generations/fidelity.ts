@@ -1,6 +1,8 @@
 import "server-only";
 
+import { colourwayBrief } from "@/lib/colorways/words";
 import { approvedDna } from "@/lib/dna/service";
+import type { GarmentDna } from "@/lib/domain/garment-dna";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import type { GenerationPurpose } from "@/lib/domain/generation";
 import { AppError } from "@/lib/errors";
@@ -24,6 +26,25 @@ const CONTEXT: Record<GenerationPurpose, string> = {
   shot_video: "Video ad shot (reviewing its first frame).",
   other: "Generated product image.",
 };
+
+/**
+ * What a colourway is checked against: the requested colour in plain words,
+ * so a result that kept the original colour is reported rather than passed.
+ */
+export function colourwayContext(colorway: { name: string; hex: string }, dna: GarmentDna): string {
+  const main = dna.pieces
+    .flatMap((piece) => piece.colors)
+    .find((colour) => colour.name.trim() && colour.hexRange.length > 0);
+  const brief = colourwayBrief(colorway, main ? { name: main.name, hex: main.hexRange[0]! } : null);
+  return [
+    CONTEXT.colorway,
+    `The requested colour is ${brief.words} (${brief.hex}).`,
+    brief.change,
+    `Report a major "colour" issue when the garment is not clearly this colour, for example when it kept the original ${brief.original ?? "colour"} or drifted to another hue.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /** Ask the director brain to compare a finished image with its references. */
 export async function reviewGenerationFidelity(
@@ -60,10 +81,20 @@ export async function reviewGenerationFidelity(
     await downloadObject(supabase, generation.storage_path),
     "Generated result",
   );
+  const colorway =
+    generation.purpose === "colorway" && generation.colorway_id
+      ? (
+          await supabase
+            .from("colorways")
+            .select("name, hex")
+            .eq("id", generation.colorway_id)
+            .maybeSingle()
+        ).data
+      : null;
   const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const review = await brain.reviewFidelity({
     dna: dna.dna,
-    context: CONTEXT[generation.purpose],
+    context: colorway ? colourwayContext(colorway, dna.dna) : CONTEXT[generation.purpose],
     originals,
     result,
   });

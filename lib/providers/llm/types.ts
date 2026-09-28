@@ -57,7 +57,8 @@ export type GhostPromptInput = {
   /** The catalogue look; the house style block is built from it by code. */
   style: CatalogueStyle;
   detail: { label: string; description: string; pieceName: string } | null;
-  colorway: { name: string; hex: string } | null;
+  /** `swatch`: the image model also receives a photo of the fabric in this colour. */
+  colorway: { name: string; hex: string; swatch?: boolean } | null;
   /** The isolated references for this image; the brain looks at them while writing. */
   references: LlmImage[];
   /** "edit": the image model receives the references too; "text": it only gets the prompt. */

@@ -103,8 +103,29 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
       promptBudget: 6000,
     });
     expectLockedPrompt(built.prompt);
-    expect(built.prompt).toContain("recolour the whole piece to Wine #4D0011");
-    expect(built.prompt).toContain("no colour other than the requested #4D0011");
+    expect(built.prompt).toContain("recolour the whole piece to wine red (#4D0011).");
+    expect(built.prompt).toContain("no colour other than wine red (#4D0011)");
+  });
+
+  it("writes a colourway in plain colour words, never the owner's label", async () => {
+    const built = await brain.buildGhostPrompt({
+      product: PRODUCT,
+      dna: ROBE_SET_DNA,
+      view: "colorway",
+      style: DEFAULT_CATALOGUE_STYLE,
+      detail: null,
+      colorway: { name: "Cashmir", hex: "#B499A0", swatch: true },
+      references: [],
+      referenceMode: "edit",
+      note: null,
+      promptBudget: 6000,
+    });
+    expect(built.prompt).not.toMatch(/cashmir/i);
+    expect(built.prompt).toContain("Re-render the approved front image in dusty rose");
+    expect(built.prompt).toContain(
+      "The second reference image is a photo of fabric in this colour",
+    );
+    expect(built.negativePrompt).not.toContain("colour shift");
   });
 
   it("plans an ad that only uses the provided crops and respects the shot cap", async () => {

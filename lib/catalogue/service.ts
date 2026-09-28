@@ -381,7 +381,15 @@ async function generateSlot(
       view: plan.view,
       style,
       detail: plan.detail,
-      colorway: plan.colorway ? { name: plan.colorway.name, hex: plan.colorway.hex } : null,
+      colorway: plan.colorway
+        ? {
+            name: plan.colorway.name,
+            hex: plan.colorway.hex,
+            swatch:
+              wantsReferences &&
+              plan.references.some((reference) => reference.path === plan.colorway?.swatch_path),
+          }
+        : null,
       references,
       referenceMode: wantsReferences ? "edit" : "text",
       note: options.note ?? null,

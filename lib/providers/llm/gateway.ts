@@ -26,7 +26,9 @@ import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-c
  * - JSON: `response_format` json_schema, else json_object, else the schema in
  *   the prompt (the answer is still validated with Zod either way);
  * - output cap: `max_tokens`, or `max_completion_tokens` when the gateway asks
- *   for it, halved when the model's limit is lower.
+ *   for it, halved when the model's limit is lower;
+ * - reasoning effort: `reasoning_effort` when configured, dropped for a model
+ *   whose API refuses the field (NVIDIA's hosted APIs refuse unknown fields).
  */
 
 type JsonMode = "json_schema" | "json_object" | "prompt";
@@ -36,6 +38,8 @@ type Learned = {
   mode: JsonMode;
   tokenField: "max_tokens" | "max_completion_tokens";
   maxTokens: number | null;
+  /** Whether the configured reasoning effort is sent. */
+  reasoning: boolean;
 };
 
 /** What each gateway model accepted, so later calls skip the failed attempts. */
@@ -69,6 +73,10 @@ const pendingChecks = new Map<string, Promise<CheckedRoute>>();
 const ROUTE_CHECK_TTL_MS = 30 * 60 * 1000;
 /** Test images a route must read in a row; a lucky guess is about 1 in 30. */
 const TEST_PASSES = 2;
+
+/** Wording of a validation error that refuses a field the API does not know. */
+const FIELD_REFUSED =
+  /extra (inputs?|fields?)|not permitted|unrecognized|unknown (field|parameter|argument)|additional propert/i;
 
 /** Wording gateways use when a request is longer than the model's context. */
 const CONTEXT_OVERFLOW =
@@ -175,21 +183,42 @@ export function extractJson(text: string): unknown {
   }
 }
 
+/** A FastAPI validation list ("body.response_format: Extra inputs are not permitted; …"). */
+function validationText(detail: unknown): string | undefined {
+  if (!Array.isArray(detail)) return undefined;
+  const lines = detail.flatMap((item: { loc?: unknown; msg?: unknown }) => {
+    if (typeof item?.msg !== "string") return [];
+    const at = Array.isArray(item.loc) ? item.loc.join(".") : "";
+    return [at ? `${at}: ${item.msg}` : item.msg];
+  });
+  return lines.length > 0 ? lines.join("; ") : undefined;
+}
+
 async function errorDetail(response: Response): Promise<string | undefined> {
   try {
     const payload = (await response.json()) as {
       error?: { message?: unknown } | string;
       message?: unknown;
       detail?: unknown;
+      title?: unknown;
     };
     const message =
       typeof payload.error === "string"
         ? payload.error
-        : (payload.error?.message ?? payload.message ?? payload.detail);
+        : (payload.error?.message ??
+          payload.message ??
+          validationText(payload.detail) ??
+          payload.detail ??
+          payload.title);
     return typeof message === "string" ? message.slice(0, 300) : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** The JSON in a model answer, after any reasoning the model wrote in <think> tags. */
+export function answerText(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 /** Maps a gateway error response to a user-facing error. */
@@ -255,6 +284,7 @@ export class GatewayBrain extends TemplateBrain {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly tokenCap: number;
+  private readonly reasoningEffort: string | null;
   private readonly imageHost: LlmImageHost | null;
 
   constructor(config: LlmGatewayConfig & { model: string }, imageHost?: LlmImageHost) {
@@ -264,6 +294,7 @@ export class GatewayBrain extends TemplateBrain {
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
     this.tokenCap = config.maxTokens;
+    this.reasoningEffort = config.reasoningEffort ?? null;
     this.imageHost = imageHost ?? null;
   }
 
@@ -352,6 +383,9 @@ export class GatewayBrain extends TemplateBrain {
         { role: "user", content: request.images.length > 0 ? content : request.user + hint },
       ],
       [settings.tokenField]: cap,
+      ...(this.reasoningEffort && settings.reasoning
+        ? { reasoning_effort: this.reasoningEffort }
+        : {}),
       ...(settings.mode === "json_schema"
         ? {
             response_format: {
@@ -422,9 +456,10 @@ export class GatewayBrain extends TemplateBrain {
 
   /**
    * Adjusts what is sent after a rejected request: the output cap field or
-   * size when the error names it, otherwise the next JSON mode. Null when
-   * there is nothing left to try, or when no JSON mode can help (a request
-   * longer than the context, an image the gateway could not take).
+   * size when the error names it, the fields the API refuses (reasoning
+   * effort, response_format), otherwise the next JSON mode. Null when there
+   * is nothing left to try, or when no JSON mode can help (a request longer
+   * than the context, an image the gateway could not take).
    */
   private adapt(settings: Learned, error: AppError): Learned | null {
     if (isOverflow(error)) return null;
@@ -435,6 +470,18 @@ export class GatewayBrain extends TemplateBrain {
     const cap = settings.maxTokens ?? this.tokenCap;
     if (/max_(completion_)?tokens/.test(detail) && cap > 4096) {
       return { ...settings, maxTokens: Math.max(4096, Math.floor(cap / 2)) };
+    }
+    // An API that refuses unknown fields can name several at once.
+    const refused = FIELD_REFUSED.test(detail);
+    const adjusted = { ...settings };
+    if (settings.reasoning && this.reasoningEffort && detail.includes("reasoning_effort")) {
+      adjusted.reasoning = false;
+    }
+    if (settings.mode !== "prompt" && refused && detail.includes("response_format")) {
+      adjusted.mode = "prompt";
+    }
+    if (adjusted.reasoning !== settings.reasoning || adjusted.mode !== settings.mode) {
+      return adjusted;
     }
     if (!/response_format|json/.test(detail) && /image|download|fetch|url/.test(detail)) {
       return null;
@@ -626,6 +673,7 @@ export class GatewayBrain extends TemplateBrain {
       mode: format === "messages" ? "prompt" : "json_schema",
       tokenField: "max_tokens",
       maxTokens: null,
+      reasoning: true,
     };
     let text: string | null = null;
     for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
@@ -645,7 +693,7 @@ export class GatewayBrain extends TemplateBrain {
 
     let json: unknown;
     try {
-      json = extractJson(text);
+      json = extractJson(answerText(text));
     } catch {
       throw new AppError("llm_output", `${this.name} returned invalid JSON.`);
     }

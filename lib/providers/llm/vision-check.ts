@@ -28,7 +28,8 @@ export const TEST_COLOURS = {
 export type TestColour = keyof typeof TEST_COLOURS;
 
 const COLOUR_NAMES = Object.keys(TEST_COLOURS) as TestColour[];
-const SIZE = 256;
+/** Above the smallest image some vision encoders take (DeepSeek V4.1: 295,936 px, i.e. 544²). */
+const SIZE = 640;
 
 const answerSchema = z.object({ topLeft: z.string(), bottomRight: z.string() });
 export type VisionAnswer = z.infer<typeof answerSchema>;
@@ -75,7 +76,8 @@ export async function createVisionTest(): Promise<VisionTest> {
       user: `The test image is split into four equal squares. Name the colour of the top-left square and of the bottom-right square, each as one word from: ${COLOUR_NAMES.join(", ")}. Return {"topLeft": "…", "bottomRight": "…"}.`,
       images: [image],
       schema: answerSchema,
-      maxTokens: 4096,
+      // Room for models that always reason before answering (Kimi K3).
+      maxTokens: 16_000,
     },
   };
 }

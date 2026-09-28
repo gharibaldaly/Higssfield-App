@@ -452,3 +452,21 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
 - **Verification:**
   - Unit tests cover the owner's 15 file names, descriptive names, several named models, role folders and letter-code folders.
   - A local lab page (not committed) was driven by Playwright in Arabic and English, on desktop and phone. The 15 photos made one model, "every 5 photos" made three, and a second drop made a second model. It found no console errors and no horizontal overflow.
+
+### 2026-09-28 — Director brain on NVIDIA's API
+- **Why:** Gemini's free daily limit (about 20 requests per Flash model) ran out during one batch. The owner asked to run the brain on NVIDIA's hosted models (build.nvidia.com) and to pick the best one.
+- **Service** (NVIDIA's docs and each model's OpenAPI spec, 2026-09-28):
+  - `POST https://integrate.api.nvidia.com/v1/chat/completions` with a Bearer key (`nvapi-…`); `GET /v1/models` lists 81 models. It runs through the existing OpenAI-compatible gateway brain, not a new provider.
+  - Free endpoints: up to 40 requests a minute and 10,000 a day, varying with load.
+  - Terms: the NVIDIA API Trial Terms of Service allow internal testing and evaluation only; production use needs a subscription from NVIDIA or a service provider. NVIDIA may use what is sent and what comes back to improve its products and models. The owner was told.
+  - Each model's request schema refuses unknown fields (`additionalProperties: false`) and has no `response_format`, so the JSON schema goes in the prompt. Photos are `image_url` parts; DeepSeek's spec asks for base64 data URLs.
+- **Model:** `moonshotai/kimi-k3`, the strongest vision model in the catalogue by its card: MMMU-Pro 81.6 (83.4 with tools), 1M context, 104B active parameters, thinking always on (`reasoning_effort` low / high / max, default max).
+  - Also checked: Kimi K2.6 (79.4, 32B active, faster), Gemma 4 31B (76.9), and DeepSeek V4.1 Flash (56.5 for the base model; 1,024 image tokens per image). Ising Calibration reads quantum-computing charts and Cosmos Reason serves robotics and the physical world, so neither suits garments.
+  - Settings: `LLM_GATEWAY_REASONING_EFFORT=high` (max is the slowest) and `LLM_GATEWAY_MAX_TOKENS=32000`, because thinking counts towards the cap (Kimi K3 takes up to 65,536).
+- **Gateway changes** (generic, not only for NVIDIA):
+  - FastAPI validation lists and NVIDIA's `{status, title, detail}` errors are read into the error detail.
+  - A refused `response_format` goes straight to the schema in the prompt instead of trying `json_object` first.
+  - `LLM_GATEWAY_REASONING_EFFORT` is sent as `reasoning_effort`, then dropped and remembered for a model that refuses the field.
+  - Reasoning written in `<think>` tags is dropped before the JSON is read.
+  - The vision test image is 640 px, because DeepSeek's encoder needs at least 544 × 544 (295,936 px). It has 16,000 tokens of room for models that always reason.
+- **Not verified live:** there is no NVIDIA key in the sandbox, so the first analysis on production is the test. The vision check shows whether the model reads the photos.

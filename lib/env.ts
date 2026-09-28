@@ -38,6 +38,7 @@ const serverEnvSchema = z.object({
   LLM_GATEWAY_MODEL: optionalString,
   LLM_GATEWAY_NAME: optionalString,
   LLM_GATEWAY_MAX_TOKENS: optionalString,
+  LLM_GATEWAY_REASONING_EFFORT: optionalString,
 
   GOOGLE_DRIVE_CLIENT_ID: optionalString,
   GOOGLE_DRIVE_CLIENT_SECRET: optionalString,
@@ -144,6 +145,11 @@ export type LlmGatewayConfig = {
   name: string;
   /** Output token cap sent to the gateway. */
   maxTokens: number;
+  /**
+   * Sent as `reasoning_effort` when set (e.g. "high" for Kimi K3 on NVIDIA),
+   * and dropped for a model that refuses the field.
+   */
+  reasoningEffort?: string | null;
 };
 
 /**
@@ -163,6 +169,9 @@ export function llmGatewayConfig(): LlmGatewayConfig | null {
     model: env.LLM_GATEWAY_MODEL ?? null,
     name: env.LLM_GATEWAY_NAME ?? "Gateway",
     maxTokens: Number.isFinite(maxTokens) && maxTokens >= 1024 ? maxTokens : 16_000,
+    reasoningEffort: /^[a-z]{2,12}$/i.test(env.LLM_GATEWAY_REASONING_EFFORT ?? "")
+      ? env.LLM_GATEWAY_REASONING_EFFORT!.toLowerCase()
+      : null,
   };
 }
 

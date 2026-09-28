@@ -2,10 +2,11 @@ import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { resetServerEnvCache } from "@/lib/env";
+import { llmGatewayConfig, resetServerEnvCache } from "@/lib/env";
 import { toLlmImage } from "@/lib/images/process";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import {
+  answerText,
   extractJson,
   GatewayBrain,
   listGatewayModels,
@@ -13,7 +14,7 @@ import {
   parseOverflow,
 } from "@/lib/providers/llm/gateway";
 import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
-import { passesVisionTest, TEST_COLOURS } from "@/lib/providers/llm/vision-check";
+import { createVisionTest, passesVisionTest, TEST_COLOURS } from "@/lib/providers/llm/vision-check";
 
 const answerSchema = z.object({ verdict: z.string(), score: z.number() });
 
@@ -25,7 +26,7 @@ class TestGateway extends GatewayBrain {
 
 /** Every gateway is new (its own URL), so nothing learned in one test leaks into another. */
 let serial = 0;
-function gateway(model?: string, imageHost?: LlmImageHost) {
+function gateway(model?: string, imageHost?: LlmImageHost, reasoningEffort?: string) {
   serial += 1;
   return new TestGateway(
     {
@@ -34,6 +35,7 @@ function gateway(model?: string, imageHost?: LlmImageHost) {
       model: model ?? `model-${serial}`,
       name: "TestGate",
       maxTokens: 16_000,
+      reasoningEffort,
     },
     imageHost,
   );
@@ -68,6 +70,19 @@ function completion(content: unknown, finish = "stop"): Response {
 function failure(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: { message } }), {
     status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** A FastAPI validation error, as NVIDIA's APIs send for fields they do not take. */
+function refusedFields(...fields: string[]): Response {
+  const detail = fields.map((field) => ({
+    type: "extra_forbidden",
+    loc: ["body", field],
+    msg: "Extra inputs are not permitted",
+  }));
+  return new Response(JSON.stringify({ detail }), {
+    status: 422,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -631,6 +646,94 @@ describe("answer parsing", () => {
   });
 });
 
+describe("NVIDIA's API", () => {
+  it("reads NVIDIA's error envelope and FastAPI validation lists", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ status: 403, title: "Forbidden", detail: "Authorization failed" }),
+        {
+          status: 403,
+        },
+      ),
+    );
+    await expect(gateway().run(request)).rejects.toMatchObject({
+      code: "provider_auth",
+      detail: "Authorization failed",
+    });
+    fetchMock.mockImplementation(async () => refusedFields("tools"));
+    await expect(gateway().run(request)).rejects.toMatchObject({
+      code: "provider_bad_input",
+      detail: "body.tools: Extra inputs are not permitted",
+    });
+  });
+
+  it("puts the schema in the prompt at once when the API refuses response_format", async () => {
+    fetchMock
+      .mockResolvedValueOnce(refusedFields("response_format"))
+      .mockResolvedValueOnce(completion('{"verdict":"ok","score":1}'))
+      .mockResolvedValueOnce(completion('{"verdict":"again","score":2}'));
+    const brain = gateway("deepseek-ai/deepseek-v4.1-flash");
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok", score: 1 });
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "again", score: 2 });
+    const bodies = sentBodies();
+    expect(bodies.map((body) => (body.response_format as { type?: string })?.type)).toEqual([
+      "json_schema",
+      undefined,
+      undefined,
+    ]);
+    expect((bodies[1]!.messages as { content: string }[])[1]!.content).toContain(
+      "Respond with JSON only",
+    );
+  });
+
+  it("sends the configured reasoning effort, and drops it for a model that refuses it", async () => {
+    // Kimi K3 takes reasoning_effort but not response_format.
+    fetchMock
+      .mockResolvedValueOnce(refusedFields("response_format"))
+      .mockResolvedValueOnce(completion('{"verdict":"ok","score":1}'));
+    await expect(gateway("moonshotai/kimi-k3", undefined, "high").run(request)).resolves.toEqual({
+      verdict: "ok",
+      score: 1,
+    });
+    expect(sentBodies().map((body) => body.reasoning_effort)).toEqual(["high", "high"]);
+
+    // A model that takes neither loses both in one step, and remembers it.
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(refusedFields("reasoning_effort", "response_format"))
+      .mockResolvedValueOnce(completion('{"verdict":"ok","score":2}'))
+      .mockResolvedValueOnce(completion('{"verdict":"ok","score":3}'));
+    const brain = gateway("google/gemma-4-31b-it", undefined, "high");
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok", score: 2 });
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok", score: 3 });
+    const bodies = sentBodies();
+    expect(bodies.map((body) => body.reasoning_effort)).toEqual(["high", undefined, undefined]);
+    expect(bodies[2]!.response_format).toBeUndefined();
+
+    // Without a configured effort, the field is never sent.
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(completion('{"verdict":"ok","score":4}'));
+    await gateway().run(request);
+    expect(sentBodies()[0]).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("reads the JSON after reasoning written in think tags", async () => {
+    const text =
+      '<think>The answer needs {"verdict"} and a score.</think>\n{"verdict":"ok","score":7}';
+    expect(extractJson(answerText(text))).toEqual({ verdict: "ok", score: 7 });
+    fetchMock.mockResolvedValueOnce(completion(text));
+    await expect(gateway().run(request)).resolves.toEqual({ verdict: "ok", score: 7 });
+  });
+
+  it("sends a test image big enough for every vision encoder, with room to reason", async () => {
+    const test = await createVisionTest();
+    const meta = await sharp(Buffer.from(test.request.images[0]!.base64, "base64")).metadata();
+    // DeepSeek V4.1's vision encoder takes images of at least 295,936 pixels.
+    expect(meta.width! * meta.height!).toBeGreaterThanOrEqual(295_936);
+    expect(test.request.maxTokens).toBeGreaterThanOrEqual(16_000);
+  });
+});
+
 describe("brain selection", () => {
   const MANAGED = [
     "ANTHROPIC_API_KEY",
@@ -639,6 +742,7 @@ describe("brain selection", () => {
     "LLM_GATEWAY_API_KEY",
     "LLM_GATEWAY_MODEL",
     "LLM_GATEWAY_NAME",
+    "LLM_GATEWAY_REASONING_EFFORT",
   ] as const;
   function setEnv(values: Partial<Record<(typeof MANAGED)[number], string>>) {
     for (const name of MANAGED) vi.stubEnv(name, values[name] ?? "");
@@ -674,5 +778,27 @@ describe("brain selection", () => {
       LLM_GATEWAY_MODEL: "gpt-6-luna",
     });
     expect(getDirectorBrain({ llmProvider: "claude" }).provider).toBe("gateway");
+  });
+
+  it("reads NVIDIA's settings, the reasoning effort included", () => {
+    setEnv({
+      LLM_GATEWAY_BASE_URL: "https://integrate.api.nvidia.com/v1",
+      LLM_GATEWAY_API_KEY: "nvapi-test",
+      LLM_GATEWAY_MODEL: "moonshotai/kimi-k3",
+      LLM_GATEWAY_NAME: "NVIDIA",
+      LLM_GATEWAY_REASONING_EFFORT: "High",
+    });
+    expect(llmGatewayConfig()).toMatchObject({
+      baseUrl: "https://integrate.api.nvidia.com/v1",
+      model: "moonshotai/kimi-k3",
+      name: "NVIDIA",
+      reasoningEffort: "high",
+    });
+    setEnv({
+      LLM_GATEWAY_BASE_URL: "https://integrate.api.nvidia.com/v1",
+      LLM_GATEWAY_API_KEY: "nvapi-test",
+      LLM_GATEWAY_REASONING_EFFORT: "very high!",
+    });
+    expect(llmGatewayConfig()?.reasoningEffort).toBeNull();
   });
 });

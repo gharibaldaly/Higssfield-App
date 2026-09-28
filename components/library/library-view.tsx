@@ -8,6 +8,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { useRefresh } from "@/components/common/use-refresh";
 import { GreaseCircle } from "@/components/fx/grease-circle";
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
@@ -363,8 +364,8 @@ function GenerationGrid({ items }: { items: LibraryItem[] }) {
   const t = useTranslations("library");
   const format = useFormatter();
   const now = useNow({ updateInterval: 60_000 });
-  const router = useRouter();
-  const { views } = useGenerationPolling(items, { onSettled: () => router.refresh() });
+  const refresh = useRefresh();
+  const { views } = useGenerationPolling(items, { onSettled: refresh });
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [, startTransition] = useTransition();
 

@@ -2,12 +2,13 @@
 
 import { Ghost, Layers, Loader2, Palette, ScanEye, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { postJson } from "@/components/common/post-json";
+import { useRefresh } from "@/components/common/use-refresh";
 import { Elapsed } from "@/components/generation/elapsed";
 import { ModelPicker } from "@/components/generation/model-picker";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/controls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { queueCatalogueJobsAction, runCatalogueJobAction } from "@/lib/actions/catalogue";
+import { queueCatalogueJobsAction } from "@/lib/actions/catalogue";
 import type { GhostJob, GhostProduct } from "@/lib/catalogue/queries";
 import type { CatalogueStyle } from "@/lib/domain/catalogue-style";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
@@ -47,7 +48,7 @@ export function GhostStudio({
   style: CatalogueStyle;
 }) {
   const t = useTranslations("ghost");
-  const router = useRouter();
+  const refresh = useRefresh();
   const [jobType, setJobType] = useState<JobType>("front_back");
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [selected, setSelected] = useState<string[]>(products[0] ? [products[0].id] : []);
@@ -56,10 +57,11 @@ export function GhostStudio({
   const [modelId, setModelId] = useState<string | null>(defaultModelId);
   const [pending, startTransition] = useTransition();
 
-  const { views } = useGenerationPolling(
+  const { views, decide, undecide } = useGenerationPolling(
     jobs.flatMap((job) => job.outputs.map((output) => output.generation)),
-    { onSettled: () => router.refresh() },
+    { onSettled: refresh },
   );
+  const decisions = useMemo(() => ({ decide, undecide, refresh }), [decide, undecide, refresh]);
 
   const queued = useMemo(
     () =>
@@ -71,10 +73,12 @@ export function GhostStudio({
   );
   const runner = useSequentialRunner({
     queue: queued,
+    // Through a route: the director brain writes every prompt, and a server
+    // action that long would hold up every click on the page.
     run: async (jobId) => {
-      const result = await runCatalogueJobAction(jobId);
+      const result = await postJson<{ status: string }>("/api/catalogue/run", { jobId });
       if (!result.ok) toast.error(result.error);
-      router.refresh();
+      refresh();
     },
   });
 
@@ -114,7 +118,6 @@ export function GhostStudio({
         const product = products.find((candidate) => candidate.id === skip.productId);
         toast.warning(`${product?.name ?? ""}: ${skip.reason}`);
       }
-      router.refresh();
     });
   }
 
@@ -264,6 +267,7 @@ export function GhostStudio({
               key={job.id}
               job={job}
               views={views}
+              decisions={decisions}
               queuePosition={runner.positionOf(job.id)}
               isRunning={runner.current === job.id}
             />

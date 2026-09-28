@@ -1,7 +1,6 @@
 "use client";
 
-import { BadgeCheck, RotateCcw, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { BadgeCheck, Loader2, RotateCcw, X } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -9,15 +8,15 @@ import { toast } from "sonner";
 import { GreaseCircle } from "@/components/fx/grease-circle";
 import { GenerationMedia } from "@/components/generation/generation-media";
 import { ReviewDialog } from "@/components/generation/review-dialog";
+import {
+  approveOutput,
+  regenerateOutput,
+  type OutputDecisions,
+} from "@/components/ghost/output-decisions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  approveCatalogueOutputAction,
-  cancelCatalogueJobAction,
-  regenerateCatalogueOutputAction,
-  retryCatalogueJobAction,
-} from "@/lib/actions/catalogue";
+import { cancelCatalogueJobAction, retryCatalogueJobAction } from "@/lib/actions/catalogue";
 import type { GhostJob, GhostOutput } from "@/lib/catalogue/queries";
 import type { GenerationView } from "@/lib/domain/generation";
 
@@ -34,18 +33,19 @@ const STATUS_VARIANT = {
 export function JobCard({
   job,
   views,
+  decisions,
   queuePosition,
   isRunning,
 }: {
   job: GhostJob;
   views: Map<string, GenerationView>;
+  decisions: OutputDecisions;
   queuePosition: number | null;
   isRunning: boolean;
 }) {
   const t = useTranslations("ghost");
   const format = useFormatter();
   const now = useNow({ updateInterval: 60_000 });
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reviewing, setReviewing] = useState<GhostOutput | null>(null);
 
@@ -87,7 +87,6 @@ export function JobCard({
               startTransition(async () => {
                 const result = await cancelCatalogueJobAction(job.id);
                 if (!result.ok) toast.error(result.error);
-                router.refresh();
               })
             }
           >
@@ -104,7 +103,6 @@ export function JobCard({
               startTransition(async () => {
                 const result = await retryCatalogueJobAction(job.id);
                 if (!result.ok) toast.error(result.error);
-                router.refresh();
               })
             }
           >
@@ -148,10 +146,20 @@ export function JobCard({
                         </span>
                       </>
                     ) : null}
+                    {/* The server marks an output rejected before it writes the new prompt. */}
+                    {view.reviewStatus === "rejected" ? (
+                      <Badge
+                        variant="accent"
+                        className="absolute start-4 bottom-4 z-[2] bg-(--surface-solid)"
+                      >
+                        <Loader2 className="animate-spin" aria-hidden />
+                        {t("regeneratingTile")}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-2 truncate text-sm font-medium">{slotTitle(output)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {view.status === "completed" && view.reviewStatus !== "approved"
+                    {view.status === "completed" && view.reviewStatus === "pending"
                       ? t("clickToReview")
                       : null}
                     {output.attempts > 1 ? ` · ${t("attempts", { count: output.attempts })}` : ""}
@@ -170,25 +178,17 @@ export function JobCard({
           generation={reviewingView}
           beforeUrl={reviewing.beforeUrl}
           background={job.background}
-          onApprove={async () => {
-            const result = await approveCatalogueOutputAction(reviewingView.id);
-            if (!result.ok) {
-              toast.error(result.error);
-              return false;
-            }
-            toast.success(t("approvedToast"));
-            router.refresh();
-            return true;
+          onApprove={() => {
+            void approveOutput(reviewingView, decisions).then((result) => {
+              if (!result.ok) toast.error(result.error);
+              else toast.success(t("approvedToast"));
+            });
           }}
-          onRegenerate={async (note) => {
-            const result = await regenerateCatalogueOutputAction(reviewingView.id, note);
-            if (!result.ok) {
-              toast.error(result.error);
-              return false;
-            }
+          onRegenerate={(note) => {
             toast.success(t("regenerating"));
-            router.refresh();
-            return true;
+            void regenerateOutput(reviewingView, note, decisions).then((result) => {
+              if (!result.ok) toast.error(result.error);
+            });
           }}
         />
       ) : null}

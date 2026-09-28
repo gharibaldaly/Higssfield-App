@@ -542,3 +542,22 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
 - **Change:** a workflow that offers `moderation: "low"` now gets it as a house switch; today that is only Marketing Studio Image. The studio only renders garments on an invisible display form, never a person, and the prompts keep their neutral wording.
 - **If it still fails:** the next suspect is the 4k tier, which the studio picks as the highest resolution (the docs' examples use 2k). The request id in the error finds the request in the Higgsfield console, which may show the reason.
 - **Not verified live:** the sandbox cannot reach the API, so the next Marketing Studio request is the test.
+
+### 2026-09-28 — Review decisions no longer wait
+- **What happened:** in the compare view, Approve and Regenerate sometimes kept loading for a long time before anything happened.
+- **Cause:** Next runs router refreshes and server actions one at a time, in a single queue (`dispatchAction` in the app router).
+  - The batch board refreshed the page after every runner step and after every image that finished, so refreshes piled up in that queue.
+  - Regenerate and the AI fidelity check were server actions that wait for the director brain, often a minute. So were running a queued job in the products view and generating a shot on the ads board. Every click behind them waited as long.
+  - An action that revalidates also renders the whole page again in its answer, so approving a batch image by image queued one full render per click.
+- **Changes:**
+  - **Refreshes:** `useRefresh` (`lib/coalesce.ts`) runs at most one refresh at a time; any asked for meanwhile become one more after it. Polling reports finished images once per poll instead of once per image. `router.refresh()` right after an action that revalidates is gone, because the action's answer already refreshes the page.
+  - **Routes:** the long work runs through routes, which run side by side with the page: `/api/catalogue/run`, `/api/catalogue/regenerate`, `/api/catalogue/approve`, `/api/generations/fidelity` and `/api/ads/shots/generate`. They answer with the same ActionResult (`jsonResult`). They accept JSON only, which a cross-site page cannot send without a preflight, and the preflight is refused.
+  - **Instant decisions:** Approve and Regenerate move on at once, to the next image in the review queue. The tile shows the decision straight away (`decide` in the polling hook). `mergeServerViews` keeps it when a refresh that started before the click arrives. A failed request puts the tile back and shows the error.
+  - **Regenerating:** the tile and the compare view show "Regenerating…" for an output being regenerated, and Approve is hidden. The server marks the output rejected before the brain writes the new prompt.
+  - **Double clicks:** a decision needs its image on screen for half a second, so a double click never decides the next image too.
+- **One regeneration per output** (`claimRegeneration`): the dialog no longer waits, so a second click or another tab could otherwise pay for a second regeneration.
+  - The first request marks the output rejected with a conditional update.
+  - A second request is refused while the first writes its prompt, and refused for good once a newer image exists.
+  - A regeneration cut off before it recorded anything frees the output after 6 minutes (the route runs 5 at most). Only one request can take it over.
+  - Tested against the in-memory Supabase with an `updated_at` trigger, and mutation-checked.
+- **Not verified live:** the sandbox cannot open the production site, so the owner's next review session is the test.

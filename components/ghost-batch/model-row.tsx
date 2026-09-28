@@ -11,7 +11,6 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -99,6 +98,16 @@ function OutputTile({
                 </span>
               </>
             ) : null}
+            {/* The server marks an output rejected before it writes the new prompt. */}
+            {view.reviewStatus === "rejected" ? (
+              <Badge
+                variant="accent"
+                className="absolute start-2 bottom-2 z-[2] bg-(--surface-solid)"
+              >
+                <Loader2 className="animate-spin" aria-hidden />
+                {t("regenerating")}
+              </Badge>
+            ) : null}
             {!approved && (view.backgroundOk === false || review) ? (
               <span className="absolute end-2 top-2 z-[2] flex flex-col items-end gap-1">
                 {review ? (
@@ -157,7 +166,6 @@ export function ModelRow({
   const t = useTranslations("ghostBatch.model");
   const tPhase = useTranslations("ghostBatch.phase");
   const tLines = useTranslations("products.lines");
-  const router = useRouter();
   const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [colourPhotos, setColourPhotos] = useState<
@@ -177,7 +185,6 @@ export function ModelRow({
         return;
       }
       wakeGhostRunner();
-      router.refresh();
     });
   }
 
@@ -193,7 +200,6 @@ export function ModelRow({
       const result = await removeBatchItemAction(item.id);
       if (!result.ok) toast.error(result.error);
       else toast.success(t("removed"));
-      router.refresh();
     });
   }
 

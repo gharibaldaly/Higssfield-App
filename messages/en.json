@@ -524,6 +524,7 @@
   "review": {
     "hint": "Compare the result with the original before approving. Drag the slider or use the arrow keys.",
     "approved": "Approved",
+    "regenerating": "Regenerating",
     "approve": "Approve",
     "regenerate": "Regenerate",
     "regenerateWithNote": "Regenerate with note",
@@ -633,6 +634,7 @@
     },
     "approvedOutput": "Approved",
     "clickToReview": "Open to compare & approve",
+    "regeneratingTile": "Regenerating…",
     "attempts": "{count} attempts",
     "approvedToast": "Approved",
     "regenerating": "Regenerating — only this image.",
@@ -818,6 +820,7 @@
       "waitingSlot": "In line",
       "notStarted": "Not started",
       "approved": "Approved",
+      "regenerating": "Regenerating…",
       "fidelity": "{score}/100",
       "background": "Background isn't pure white",
       "colours": "Colours",

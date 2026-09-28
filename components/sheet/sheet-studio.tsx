@@ -18,6 +18,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { useRefresh } from "@/components/common/use-refresh";
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { CropEditor } from "@/components/sheet/crop-editor";
@@ -76,6 +77,7 @@ export function SheetStudio({
 }) {
   const t = useTranslations("sheet");
   const router = useRouter();
+  const refresh = useRefresh();
   const selected = sheets.find((sheet) => sheet.id === selectedId) ?? sheets[0] ?? null;
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
@@ -85,7 +87,7 @@ export function SheetStudio({
   const [, startTransition] = useTransition();
   const { views } = useGenerationPolling(
     sheets.flatMap((sheet) => (sheet.generation ? [sheet.generation] : [])),
-    { onSettled: () => router.refresh() },
+    { onSettled: refresh },
   );
   const generation = selected?.generation
     ? (views.get(selected.generation.id) ?? selected.generation)

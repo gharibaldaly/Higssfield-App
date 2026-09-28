@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { postJson } from "@/components/common/post-json";
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
 import { ModelSelectItems } from "@/components/generation/model-picker";
 import { Badge } from "@/components/ui/badge";
@@ -33,12 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  approvePreviewAction,
-  approveShotAction,
-  generateShotAction,
-  updateShotAction,
-} from "@/lib/actions/director";
+import { approvePreviewAction, approveShotAction, updateShotAction } from "@/lib/actions/director";
 import type { CropOption, ShotView } from "@/lib/director/queries";
 import type { GenerationView } from "@/lib/domain/generation";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
@@ -106,6 +102,7 @@ export function ShotCard({
   video: GenerationView | null;
   onMove: (to: number) => void;
   onDelete: () => void;
+  /** After a generation starts: the board fetches the new request. */
   onChanged: () => void;
 }) {
   const t = useTranslations("director.shot");
@@ -156,11 +153,12 @@ export function ShotCard({
     setBusy("generate");
     try {
       if (dirty && !(await save())) return;
-      const result = await generateShotAction(projectId, {
-        shotId: shot.id,
-        target,
-        note: withNote ? note.trim() : null,
-      });
+      // Through a route: the director brain writes the prompt, and a server
+      // action that long would hold up every other click on the board.
+      const result = await postJson<{ generationId: string; status: string }>(
+        "/api/ads/shots/generate",
+        { shotId: shot.id, target, note: withNote ? note.trim() : null },
+      );
       if (!result.ok) toast.error(result.error);
       else {
         toast.success(target === "preview" ? t("previewStarted") : t("videoStarted"));
@@ -182,7 +180,6 @@ export function ShotCard({
     setBusy(null);
     if (!result.ok) toast.error(result.error);
     else toast.success(kind === "preview" ? t("previewApproved") : t("shotApproved"));
-    onChanged();
   }
 
   const selectedCrops = crops.filter((crop) => draft.referenceCropIds.includes(crop.id));
@@ -513,7 +510,6 @@ export function ShotCard({
               setBusy("save");
               if (await save()) toast.success(t("saved"));
               setBusy(null);
-              onChanged();
             }}
           >
             {busy === "save" ? (

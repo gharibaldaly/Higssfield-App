@@ -2,11 +2,11 @@
 
 import { ArrowUpRight, Clapperboard, Ghost, Plus, Settings, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type * as React from "react";
 
 import { HangTag } from "@/components/common/hang-tag";
+import { useRefresh } from "@/components/common/use-refresh";
 import { GhostForm } from "@/components/fx/ghost-form";
 import { GreaseCircle } from "@/components/fx/grease-circle";
 import { LiquidTitle } from "@/components/fx/liquid-title";
@@ -66,8 +66,8 @@ export function StudioHome({
 }) {
   const t = useTranslations("home");
   const tn = useTranslations("nav");
-  const router = useRouter();
-  const { views } = useGenerationPolling(recent, { onSettled: () => router.refresh() });
+  const refresh = useRefresh();
+  const { views } = useGenerationPolling(recent, { onSettled: refresh });
 
   const steps = [
     { key: "products", value: stats.products, href: "/products" },

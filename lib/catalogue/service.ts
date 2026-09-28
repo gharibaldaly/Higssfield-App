@@ -486,6 +486,58 @@ export async function runCatalogueJob(
 }
 
 /** Regenerate a single output (optionally with the owner's note). */
+/** How long a regeneration may still be writing its prompt (its route runs 5 minutes at most). */
+export const REGENERATION_LEASE_MS = 6 * 60_000;
+
+/**
+ * One regeneration per output. The first request marks the output rejected;
+ * a second one (a double click, another tab) is refused while the first is
+ * writing its prompt, and for good once the output has a newer image. A
+ * regeneration cut off before it recorded anything frees the output once
+ * its lease is over. Every step is a conditional update, so two requests
+ * never both win.
+ */
+export async function claimRegeneration(
+  supabase: TypedSupabaseClient,
+  output: { id: string; jobId: string; slot: string; createdAt: string },
+  now: number = Date.now(),
+): Promise<void> {
+  const { data: claimed, error } = await supabase
+    .from("generations")
+    .update({ review_status: "rejected" })
+    .eq("id", output.id)
+    .neq("review_status", "rejected")
+    .select("id");
+  if (error)
+    throw new AppError("unknown", "Could not start the regeneration.", { detail: error.message });
+  if (claimed.length > 0) return;
+
+  const [{ data: newer }, { data: current }] = await Promise.all([
+    supabase
+      .from("generations")
+      .select("id")
+      .eq("catalogue_job_id", output.jobId)
+      .eq("slot", output.slot)
+      .gt("created_at", output.createdAt)
+      .limit(1),
+    supabase.from("generations").select("updated_at").eq("id", output.id).maybeSingle(),
+  ]);
+  if (newer && newer.length > 0)
+    throw new AppError("conflict", "This image was already regenerated. Review the new one.");
+  if (!current) throw new AppError("not_found", "Generation not found.");
+  if (now - Date.parse(current.updated_at) < REGENERATION_LEASE_MS)
+    throw new AppError("conflict", "This image is already being regenerated.");
+  // The earlier regeneration was cut off. Touching the row renews the lease.
+  const { data: taken } = await supabase
+    .from("generations")
+    .update({ review_status: "rejected" })
+    .eq("id", output.id)
+    .eq("updated_at", current.updated_at)
+    .select("id");
+  if (!taken || taken.length === 0)
+    throw new AppError("conflict", "This image is already being regenerated.");
+}
+
 export async function regenerateCatalogueOutput(
   supabase: TypedSupabaseClient,
   ownerId: string,
@@ -506,7 +558,12 @@ export async function regenerateCatalogueOutput(
   const plan = planSlots(context).find((candidate) => candidate.slot === previous.slot);
   if (!plan) throw new AppError("validation", "This output can no longer be regenerated.");
 
-  await supabase.from("generations").update({ review_status: "rejected" }).eq("id", previous.id);
+  await claimRegeneration(supabase, {
+    id: previous.id,
+    jobId: job.id,
+    slot: previous.slot,
+    createdAt: previous.created_at,
+  });
   await supabase
     .from("catalogue_jobs")
     .update({ status: "generating", finished_at: null })

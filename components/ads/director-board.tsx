@@ -1,7 +1,6 @@
 "use client";
 
 import { Clapperboard, Film, Loader2, Plus, Save, Sparkles, Wand2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -12,6 +11,8 @@ import { ShotCard } from "@/components/ads/shot-card";
 import { VideoSettingsPanel } from "@/components/ads/video-settings-panel";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
+import { postJson } from "@/components/common/post-json";
+import { useRefresh } from "@/components/common/use-refresh";
 import { StringListEditor } from "@/components/dna/list-editors";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { useSequentialRunner } from "@/components/generation/use-sequential-runner";
@@ -30,7 +31,6 @@ import {
   addShotAction,
   applyPresetAction,
   deleteShotAction,
-  generateShotAction,
   planShotsAction,
   reorderShotsAction,
   updateAdProjectAction,
@@ -43,7 +43,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
   const t = useTranslations("director");
   const tc = useTranslations("common");
   const confirm = useConfirm();
-  const router = useRouter();
+  const refresh = useRefresh();
   const { project } = data;
   const [name, setName] = useState(project.name);
   const [brief, setBrief] = useState(project.brief);
@@ -78,16 +78,21 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
 
   const { views } = useGenerationPolling(
     data.shots.flatMap((shot) => [shot.preview, shot.video].filter((view) => view !== null)),
-    { onSettled: () => router.refresh() },
+    { onSettled: refresh },
   );
 
   const runner = useSequentialRunner({
     queue: batch,
+    // Through a route: the director brain writes each prompt, and a server
+    // action that long would hold up every other click on the board.
     run: async (shotId) => {
-      const result = await generateShotAction(project.id, { shotId, target: "auto" });
+      const result = await postJson<{ generationId: string; status: string }>(
+        "/api/ads/shots/generate",
+        { shotId, target: "auto" },
+      );
       if (!result.ok) toast.error(result.error);
       setBatch((current) => current.filter((id) => id !== shotId));
-      router.refresh();
+      refresh();
     },
   });
 
@@ -121,6 +126,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
     return true;
   }
 
+  // The director actions revalidate the board, so their answer already brings it up to date.
   function run(kind: NonNullable<typeof busy>, action: () => Promise<void>) {
     setBusy(kind);
     startTransition(async () => {
@@ -141,7 +147,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
         return;
       }
       toast.success(t("planned", { count: result.data.shots }));
-      router.refresh();
     });
 
   const pendingShots = data.shots
@@ -175,7 +180,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                       setDirty(false);
                       toast.success(t("presetApplied"));
                     }
-                    router.refresh();
                   })
                 }
               >
@@ -222,7 +226,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                 onClick={() =>
                   run("save", async () => {
                     if (await saveProject()) toast.success(t("saved"));
-                    router.refresh();
                   })
                 }
               >
@@ -312,7 +315,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                 run("add", async () => {
                   const result = await addShotAction(project.id);
                   if (!result.ok) toast.error(result.error);
-                  router.refresh();
                 })
               }
             >
@@ -344,7 +346,7 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                     maxShotDurationS={videoSettings.maxShotDurationS}
                     preview={shot.preview ? (views.get(shot.preview.id) ?? shot.preview) : null}
                     video={shot.video ? (views.get(shot.video.id) ?? shot.video) : null}
-                    onChanged={() => router.refresh()}
+                    onChanged={refresh}
                     onDelete={async () => {
                       const confirmed = await confirm({
                         title: t("confirmDeleteShot"),
@@ -355,7 +357,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                       startTransition(async () => {
                         const result = await deleteShotAction(project.id, shot.id);
                         if (!result.ok) toast.error(result.error);
-                        router.refresh();
                       });
                     }}
                     onMove={(to) => {
@@ -365,7 +366,6 @@ export function DirectorBoard({ data }: { data: DirectorBoardData }) {
                       startTransition(async () => {
                         const result = await reorderShotsAction(project.id, ids);
                         if (!result.ok) toast.error(result.error);
-                        router.refresh();
                       });
                     }}
                   />

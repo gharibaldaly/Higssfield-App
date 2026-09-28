@@ -125,3 +125,25 @@ export function toGenerationView(row: GenerationRow, url: string | null): Genera
         : null,
   };
 }
+
+/**
+ * Merges views from the server (after a page refresh) into the ones on
+ * screen. A stale "pending" from the server never overwrites a view that
+ * already settled here, and server data from before a review decision (a
+ * refresh already on its way when the owner clicked) never takes the
+ * decision back.
+ */
+export function mergeServerViews(
+  current: ReadonlyMap<string, GenerationView>,
+  server: readonly GenerationView[],
+  decisions: ReadonlyMap<string, GenerationView["reviewStatus"]>,
+): Map<string, GenerationView> {
+  const next = new Map(current);
+  for (const view of server) {
+    const existing = next.get(view.id);
+    if (existing && !isPendingStatus(existing.status) && isPendingStatus(view.status)) continue;
+    const decided = decisions.get(view.id);
+    next.set(view.id, decided ? { ...view, reviewStatus: decided } : view);
+  }
+  return next;
+}

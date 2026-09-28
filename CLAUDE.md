@@ -535,3 +535,10 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - The brain template is now `ghost@2.1.0`. It gets the words, the change and the swatch, never writes the label, and never forbids the colour change.
 - **Fidelity:** colourway reviews (`review-fidelity@1.1.0`) get the requested colour in words and against the original. A garment that is not in that colour is a major issue.
 - **Not verified live:** no generation was sent from the sandbox, so the next colourway runs are the test. The recorded cashmir prompt, rebuilt from the real DNA with these changes, reads consistently at 4,836 characters (the failed one had 4,640).
+
+### 2026-09-28 — Marketing Studio Image: the lower content-filter level
+- **What happened:** every request to Marketing Studio Image (2.5 Sunburst ×7, 2.5 Flare ×1; product sheets, fronts, backs and close-ups) ended `failed` about 30 s after it was accepted, with no reason. Grok Image 2.0 and Qwen Image 3 Edit made images from the same photos (ordinary 2–3 MB JPEGs). The requests match the documented schema: prompts under 5,000 characters, 1–8 references, 4k, `enhance_prompt: false`.
+- **Most likely cause:** the model's content filter. Its schema offers `moderation: auto | low`, and the studio sent the default `auto`. The garments are lingerie and sleepwear, which a strict automatic filter tends to refuse. The docs do not say what a filtered request returns, and a failure without a reason fits.
+- **Change:** a workflow that offers `moderation: "low"` now gets it as a house switch; today that is only Marketing Studio Image. The studio only renders garments on an invisible display form, never a person, and the prompts keep their neutral wording.
+- **If it still fails:** the next suspect is the 4k tier, which the studio picks as the highest resolution (the docs' examples use 2k). The request id in the error finds the request in the Higgsfield console, which may show the reason.
+- **Not verified live:** the sandbox cannot reach the API, so the next Marketing Studio request is the test.

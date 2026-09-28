@@ -101,9 +101,17 @@ describe("models from the Higgsfield docs", () => {
       prompt_extend: false,
       enable_thinking: false,
     });
-    expect(byEndpoint("marketing-studio/image/flare").fixedParams).toEqual({
-      enhance_prompt: false,
-    });
+    // Marketing Studio's default automatic filter refused every garment image (2026-09-28).
+    for (const endpoint of [
+      "marketing-studio/image",
+      "marketing-studio/image/flare",
+      "marketing-studio/image/sunburst",
+    ]) {
+      expect(byEndpoint(endpoint).fixedParams).toEqual({
+        enhance_prompt: false,
+        moderation: "low",
+      });
+    }
     expect(byEndpoint("minimax/hailuo-2.3/standard/image-to-video").fixedParams).toEqual({
       prompt_optimizer: false,
     });

@@ -1,58 +1,33 @@
 "use client";
 
-import { BadgeCheck, Download, Heart, Images } from "lucide-react";
+import { Images } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useFormatter, useNow, useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { EmptyState } from "@/components/common/empty-state";
-import { useRefresh } from "@/components/common/use-refresh";
-import { GreaseCircle } from "@/components/fx/grease-circle";
-import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
-import { useGenerationPolling } from "@/components/generation/use-generation-polling";
+import { StorageImage } from "@/components/generation/generation-media";
+import { CollectionCards } from "@/components/library/collection-cards";
 import { ProductLineBadge } from "@/components/products/product-line-badge";
 import { StageSteps } from "@/components/products/stage-steps";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { setGenerationFavorite } from "@/lib/actions/generations";
 import type { ProductStage, ProductLine } from "@/lib/domain/product";
-import type { LibraryFilters, LibraryItem } from "@/lib/library/queries";
-import { cn } from "@/lib/utils";
+import type { CollectionCard } from "@/lib/library/collections";
 
-const PURPOSES = [
-  "ghost_front",
-  "ghost_back",
-  "macro",
-  "colorway",
-  "product_sheet",
-  "shot_preview",
-  "shot_video",
-] as const;
 const TABS = ["generations", "products", "dna", "sheets", "colorways"] as const;
 
 export function LibraryView({
   tab,
-  filters,
-  items,
+  collections,
   products,
   dna,
   sheets,
   colorways,
 }: {
   tab: string;
-  filters: LibraryFilters;
-  items: LibraryItem[];
+  collections: { batches: CollectionCard[]; products: CollectionCard[] };
   products: {
     id: string;
     name: string;
@@ -115,68 +90,7 @@ export function LibraryView({
 
       {/* The active tab's panel; its trigger's aria-controls points here. */}
       <TabsContent value={active} className="flex flex-col gap-6">
-        {active === "generations" ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              <FilterSelect
-                value={filters.kind}
-                placeholder={t("filters.kind")}
-                options={[
-                  ["image", t("filters.images")],
-                  ["video", t("filters.videos")],
-                ]}
-                onChange={(value) => setParam("kind", value)}
-                allLabel={t("filters.all")}
-              />
-              <FilterSelect
-                value={filters.purpose}
-                placeholder={t("filters.purpose")}
-                options={PURPOSES.map(
-                  (purpose) => [purpose, t(`purposes.${purpose}`)] as [string, string],
-                )}
-                onChange={(value) => setParam("purpose", value)}
-                allLabel={t("filters.all")}
-              />
-              <FilterSelect
-                value={filters.status}
-                placeholder={t("filters.status")}
-                options={[
-                  ["completed", t("filters.completed")],
-                  ["pending", t("filters.pending")],
-                  ["failed", t("filters.failed")],
-                ]}
-                onChange={(value) => setParam("status", value)}
-                allLabel={t("filters.all")}
-              />
-              <FilterSelect
-                value={filters.product}
-                placeholder={t("filters.product")}
-                options={products.map((product) => [product.id, product.name] as [string, string])}
-                onChange={(value) => setParam("product", value)}
-                allLabel={t("filters.all")}
-              />
-              <Button
-                variant={filters.favorites ? "default" : "surface"}
-                size="sm"
-                className="h-10"
-                onClick={() => setParam("favorites", filters.favorites ? null : "1")}
-              >
-                <Heart aria-hidden />
-                {t("filters.favorites")}
-              </Button>
-              <Button
-                variant={filters.approved ? "default" : "surface"}
-                size="sm"
-                className="h-10"
-                onClick={() => setParam("approved", filters.approved ? null : "1")}
-              >
-                <BadgeCheck aria-hidden />
-                {t("filters.approved")}
-              </Button>
-            </div>
-            <GenerationGrid items={items} />
-          </>
-        ) : null}
+        {active === "generations" ? <CollectionCards {...collections} /> : null}
 
         {active === "products" ? (
           products.length === 0 ? (
@@ -322,133 +236,5 @@ export function LibraryView({
         ) : null}
       </TabsContent>
     </Tabs>
-  );
-}
-
-function FilterSelect({
-  value,
-  placeholder,
-  options,
-  onChange,
-  allLabel,
-}: {
-  value: string | undefined;
-  placeholder: string;
-  options: [string, string][];
-  onChange: (value: string | null) => void;
-  allLabel: string;
-}) {
-  return (
-    <Select
-      value={value ?? "__all"}
-      onValueChange={(next) => onChange(next === "__all" ? null : next)}
-    >
-      <SelectTrigger className="w-auto min-w-40" aria-label={placeholder}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__all">
-          {placeholder}: {allLabel}
-        </SelectItem>
-        {options.map(([optionValue, label]) => (
-          <SelectItem key={optionValue} value={optionValue}>
-            {label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-function GenerationGrid({ items }: { items: LibraryItem[] }) {
-  const t = useTranslations("library");
-  const format = useFormatter();
-  const now = useNow({ updateInterval: 60_000 });
-  const refresh = useRefresh();
-  const { views } = useGenerationPolling(items, { onSettled: refresh });
-  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
-  const [, startTransition] = useTransition();
-
-  if (items.length === 0) {
-    return (
-      <EmptyState icon={Images} title={t("empty.title")} description={t("empty.description")} />
-    );
-  }
-  // Everything generated, laid out as a photographer's contact sheet.
-  return (
-    <ul className="contact-sheet fx-stagger grid grid-cols-2 items-start gap-x-4 gap-y-6 rounded-(--radius-panel) px-4 sm:px-5 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-      {items.map((item, index) => {
-        const view = views.get(item.id) ?? item;
-        const favorite = favorites[item.id] ?? item.isFavorite;
-        const approved = item.reviewStatus === "approved";
-        return (
-          <li key={item.id} style={{ "--i": Math.min(index, 12) } as React.CSSProperties}>
-            <div className="relative">
-              <GenerationMedia
-                view={view}
-                alt={item.productName ?? t(`purposes.${item.purpose as "ghost_front"}`)}
-                className={cn(
-                  "w-full rounded-[4px]",
-                  item.purpose === "product_sheet"
-                    ? "aspect-video"
-                    : item.kind === "video"
-                      ? "aspect-[9/16]"
-                      : "aspect-[4/5]",
-                )}
-              />
-              {approved ? (
-                <GreaseCircle className="absolute -start-2 -top-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)]" />
-              ) : null}
-            </div>
-            <div className="mt-2.5 flex items-start gap-1">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-white/90">{item.productName ?? "—"}</p>
-                <p className="truncate font-mono text-[11px]">
-                  {t(`purposes.${item.purpose as "ghost_front"}`)} ·{" "}
-                  {format.relativeTime(new Date(item.createdAt), now)}
-                </p>
-                {approved ? (
-                  <p className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-(--grease)">
-                    <BadgeCheck className="size-3" aria-hidden />
-                    {t("approvedBadge")}
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-white/80 hover:bg-white/10 hover:text-white"
-                aria-pressed={favorite}
-                aria-label={favorite ? t("unfavorite") : t("favorite")}
-                onClick={() =>
-                  startTransition(async () => {
-                    setFavorites((current) => ({ ...current, [item.id]: !favorite }));
-                    const result = await setGenerationFavorite(item.id, !favorite);
-                    if (!result.ok) {
-                      setFavorites((current) => ({ ...current, [item.id]: favorite }));
-                      toast.error(result.error);
-                    }
-                  })
-                }
-              >
-                <Heart className={cn(favorite && "fill-[#ff6a9a] text-[#ff6a9a]")} aria-hidden />
-              </Button>
-              {item.downloadUrl && view.status === "completed" ? (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-white/80 hover:bg-white/10 hover:text-white"
-                  asChild
-                >
-                  <a href={item.downloadUrl} aria-label={t("download")}>
-                    <Download aria-hidden />
-                  </a>
-                </Button>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

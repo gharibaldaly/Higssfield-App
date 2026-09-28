@@ -6,14 +6,22 @@ import type { ActionResult } from "@/lib/errors";
  * actions: Next runs server actions one at a time, so a minute-long one would
  * hold up every click after it.
  */
-export async function postJson<T>(url: string, body: unknown): Promise<ActionResult<T>> {
+export function postJson<T>(url: string, body: unknown): Promise<ActionResult<T>> {
+  return requestJson<T>(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** GET from one of the studio's JSON routes. */
+export function getJson<T>(url: string): Promise<ActionResult<T>> {
+  return requestJson<T>(url, { method: "GET" });
+}
+
+async function requestJson<T>(url: string, init: RequestInit): Promise<ActionResult<T>> {
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
+    const response = await fetch(url, { ...init, cache: "no-store" });
     const payload = (await response.json().catch(() => null)) as ActionResult<T> | null;
     if (payload && typeof payload === "object" && "ok" in payload) return payload;
     // The session proxy answers signed-out API calls itself.

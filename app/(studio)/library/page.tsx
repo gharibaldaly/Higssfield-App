@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/common/page-header";
 import { LibraryView } from "@/components/library/library-view";
 import { requireOwner } from "@/lib/auth/owner";
-import { libraryFiltersSchema, listLibrary } from "@/lib/library/queries";
+import { listLibraryCollections } from "@/lib/library/collections";
 import { listProductCards } from "@/lib/products/queries";
 import { signPaths } from "@/lib/storage/objects";
 
@@ -22,13 +22,9 @@ export default async function LibraryPage({
   const { supabase } = await requireOwner();
   const t = await getTranslations("library");
   const tab = typeof raw.tab === "string" ? raw.tab : "generations";
-  const parsed = libraryFiltersSchema.safeParse(
-    Object.fromEntries(Object.entries(raw).filter(([, value]) => typeof value === "string")),
-  );
-  const filters = parsed.success ? parsed.data : {};
 
-  const [items, products, dna, sheets, colorways] = await Promise.all([
-    listLibrary(supabase, filters),
+  const [collections, products, dna, sheets, colorways] = await Promise.all([
+    listLibraryCollections(supabase),
     listProductCards(supabase),
     supabase
       .from("garment_dna")
@@ -65,8 +61,7 @@ export default async function LibraryPage({
       <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} />
       <LibraryView
         tab={tab}
-        filters={filters}
-        items={items}
+        collections={collections}
         products={products.map((product) => ({
           id: product.id,
           name: product.name,

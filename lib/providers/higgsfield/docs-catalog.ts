@@ -342,6 +342,10 @@ export function specFromWorkflow(
   }
   // Kling's native audio switch is a string: "on" / "off".
   if (enumOf(properties.sound)?.includes("off")) fixedParams.sound = "off";
+  // The studio only renders garments (lingerie and sleepwear on an invisible
+  // display form, never a person), which a strict automatic content filter
+  // tends to refuse: where a workflow offers the documented "low" level, use it.
+  if (enumOf(properties.moderation)?.includes("low")) fixedParams.moderation = "low";
 
   return {
     id: slugForEndpoint(workflow.endpoint),

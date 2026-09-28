@@ -242,6 +242,9 @@ function BrainCard({
         <p id="gateway-model-hint" className="text-xs text-muted-foreground">
           {keys.gateway ? t("gatewayHint") : t("gatewayMissing")}
         </p>
+        {provider === "gemini" ? (
+          <p className="text-xs text-muted-foreground">{t("geminiHint")}</p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <Button
             disabled={pending}

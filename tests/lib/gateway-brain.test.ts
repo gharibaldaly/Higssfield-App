@@ -6,13 +6,12 @@ import { llmGatewayConfig, resetServerEnvCache } from "@/lib/env";
 import { toLlmImage } from "@/lib/images/process";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import {
-  answerText,
-  extractJson,
   GatewayBrain,
   listGatewayModels,
   messageText,
   parseOverflow,
 } from "@/lib/providers/llm/gateway";
+import { answerText, extractJson } from "@/lib/providers/llm/json-answer";
 import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
 import { createVisionTest, passesVisionTest, TEST_COLOURS } from "@/lib/providers/llm/vision-check";
 
@@ -371,11 +370,17 @@ describe("GatewayBrain photos", () => {
     await expect(brain.run(withPhotos(1))).resolves.toEqual({ verdict: "ok", score: 2 });
 
     const all = calls();
-    // Both inline routes are tested twice, side by side, before any photo leaves.
+    // The inline routes are tested side by side, and no photo leaves before the check ends.
+    const checks = all.filter((call) => isVisionCheck(call.body));
     expect(all.map((call) => isVisionCheck(call.body))).toEqual([
-      ...[true, true, true, true],
+      ...checks.map(() => true),
       ...[false, false, false],
     ]);
+    // The preferred route reads both test images. The other route's second test
+    // image may still be unsent when the check ends, and is then never sent.
+    expect(checks.filter((call) => isMessagesApi(call.url))).toHaveLength(2);
+    expect(checks.length).toBeGreaterThanOrEqual(3);
+    expect(checks.length).toBeLessThanOrEqual(4);
     // Without links, the Anthropic format comes first: it carries images as image blocks.
     const real = all.filter((call) => !isVisionCheck(call.body));
     expect(real.every((call) => isMessagesApi(call.url))).toBe(true);
@@ -736,7 +741,10 @@ describe("NVIDIA's API", () => {
   });
 
   it("says the model is too slow when no route answers a test image in time", async () => {
-    fetchMock.mockImplementation(async (_url, init) => hang(init));
+    // Like NVIDIA: no Anthropic messages endpoint, and chat completions never answer.
+    fetchMock.mockImplementation(async (url, init) =>
+      isMessagesApi(String(url)) ? failure(404, "Not Found") : hang(init),
+    );
     serial += 1;
     const brain = new HurriedGateway({
       baseUrl: `https://gateway${serial}.test/v1`,
@@ -748,6 +756,7 @@ describe("NVIDIA's API", () => {
     await expect(brain.run(withPhotos(1))).rejects.toMatchObject({
       code: "provider_timeout",
       message: expect.stringContaining("too slow for the garment photos"),
+      detail: expect.stringContaining("messages inline: no Anthropic messages endpoint"),
     });
   });
 

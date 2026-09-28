@@ -489,3 +489,29 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A trailing number is dropped from a keyword only when three letters or more remain. So a model code like `B20124` is no longer read as `b` (back), and `B20124 (1).jpg`, `B20124 (2).jpg`… make one model.
 - **Advice to the owner:** set `LLM_GATEWAY_REASONING_EFFORT=off`. If Kimi K3 is still too slow, choose `moonshotai/kimi-k2.6` in Settings.
 - **Not verified live:** there is still no NVIDIA key in the sandbox; the fake NVIDIA in the tests follows the documented 202 and status responses.
+- **Follow-up (first run with these changes):** Kimi K3 answered neither test image within 75 s, through links or inline, even with `reasoning_effort: "low"`. The error then read "NVIDIA has no model …" for the Anthropic-format routes, because NVIDIA answers 404 there.
+  - A 404 or refused key on the Anthropic format now reads "no Anthropic messages endpoint".
+  - When the routes that exist only ran out of time, the error says the model is too slow.
+  - The owner was advised to try `moonshotai/kimi-k2.6`, then `google/gemma-4-31b-it`.
+
+### 2026-09-28 — A free brain: Gemini's free models in turn
+- **Why:** NVIDIA's free endpoints never answered in time. Kimi K3 and DeepSeek V4.1 Flash both failed the photo check: neither described a 640 px test image within 75 s. The owner asked for something completely free to run the studio until they subscribe to a paid service.
+- **Free models** (Google's pricing, models and Gemma pages, 2026-09-28):
+  - Every text model below is free of charge on the free tier. Limits apply per project and model, and daily limits reset at midnight Pacific time.
+  - After the chosen model, the brain now tries: 3.7, 3.6 and 3.5 Flash; Gemini 3 Flash (preview); 3.5 and 3.1 Flash-Lite; then Gemma 4 31B and 26B A4B, which have no paid tier at all.
+  - Each model brings its own daily allowance, so a day's work no longer stops once the Flash models' allowance (about 20 requests each) is used up.
+  - This extends the fallback list in the two Gemini entries above.
+  - Left out: Gemini 3.1 Pro Preview (no free tier), and the 2.5 models, which Google now serves only to projects that used them before.
+- **Gemma** (`askingOf` in `gemini.ts`):
+  - Google's page for Gemma on the Gemini API documents system instructions, images and a thinking switch. It documents neither JSON mode nor an output limit.
+  - So Gemma answers in plain text with the schema in the prompt, with thinking off (`thinkingLevel: MINIMAL`), and within 8,192 output tokens. That was Gemma 3's limit, and the brain's answers need far fewer.
+  - Answers are read leniently (code fences, Gemma 4's thought channel `<|channel>thought … <channel|>`), then validated with Zod as always. The helpers moved to `lib/providers/llm/json-answer.ts`, shared with the gateway.
+  - Gemini models keep JSON mode with the schema, then the schema in the prompt.
+- **Spent models:**
+  - A model that reports its daily limit is skipped per server instance until midnight Pacific time, for an hour at most. Later calls go straight to a model with requests left, and a limit lifted early (billing turned on) shows within the hour.
+  - When every model is spent, the error says when the limits reset (in Cairo time), without asking Google again.
+- **Trade-offs:**
+  - Quality steps down along the chain: Flash-Lite and Gemma read fine detail less well than Flash. The model that answered is recorded next to each DNA, plan and review.
+  - Free-tier content is used to improve Google's products. Turning on billing stops that and lifts the daily limits.
+- **Settings:** with Gemini chosen, the brain card says that the brain moves through the free models, and when the limits reset.
+- **Not verified live:** there is no Gemini key in the sandbox. The fake Gemini in the tests follows Google's documented 429 body.

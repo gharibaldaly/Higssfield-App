@@ -6,6 +6,7 @@ import type { LlmGatewayConfig } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { fetchWithTimeout, withRetry } from "@/lib/http/retry";
 import { shrinkLlmImages } from "@/lib/images/process";
+import { answerText, extractJson } from "@/lib/providers/llm/json-answer";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type { LlmImage, LlmImageHost, StructuredRequest } from "@/lib/providers/llm/types";
 import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-check";
@@ -185,20 +186,6 @@ export function messageText(content: ChatMessageContent): string {
     .trim();
 }
 
-/** Reads JSON from a model answer that may be fenced or wrapped in prose. */
-export function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed)?.[1] ?? trimmed;
-  try {
-    return JSON.parse(fenced);
-  } catch {
-    const start = fenced.indexOf("{");
-    const end = fenced.lastIndexOf("}");
-    if (start === -1 || end <= start) throw new Error("no JSON object");
-    return JSON.parse(fenced.slice(start, end + 1));
-  }
-}
-
 /** A FastAPI validation list ("body.response_format: Extra inputs are not permitted; …"). */
 function validationText(detail: unknown): string | undefined {
   if (!Array.isArray(detail)) return undefined;
@@ -230,11 +217,6 @@ async function errorDetail(response: Response): Promise<string | undefined> {
   } catch {
     return undefined;
   }
-}
-
-/** The JSON in a model answer, after any reasoning the model wrote in <think> tags. */
-export function answerText(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 /** Maps a gateway error response to a user-facing error. */
@@ -681,7 +663,9 @@ export class GatewayBrain extends TemplateBrain {
     // Routes after the chosen one are cancelled; their failures must not surface as unhandled.
     for (const test of tests) test.catch(() => undefined);
     const failed: string[] = [];
+    // Routes that only ran out of time, and Anthropic-format routes the gateway does not serve.
     let slow = 0;
+    let unserved = 0;
     try {
       for (const [index, test] of tests.entries()) {
         const outcome = await test;
@@ -694,6 +678,7 @@ export class GatewayBrain extends TemplateBrain {
           };
         }
         if (outcome.slow) slow += 1;
+        if (outcome.unserved) unserved += 1;
         failed.push(`${routes[index]!.label}: ${outcome.problem}`);
       }
     } finally {
@@ -702,7 +687,7 @@ export class GatewayBrain extends TemplateBrain {
     }
     for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
     const detail = failed.join("; ").slice(0, 600);
-    if (slow === routes.length) {
+    if (slow > 0 && slow + unserved === routes.length) {
       throw new AppError(
         "provider_timeout",
         `${this.model} at ${this.name} did not answer a small test image within ${this.testTimeoutMs / 1000} s, so it is too slow for the garment photos. Choose a faster model in Settings, or less reasoning.`,
@@ -718,15 +703,16 @@ export class GatewayBrain extends TemplateBrain {
 
   /**
    * Null when the model names the colours of every test image sent this way;
-   * otherwise what went wrong, and whether it was only too slow.
+   * otherwise what went wrong: only too slow, a format the gateway does not
+   * serve, or anything else.
    */
   private async testRoute(
     route: ImageRoute,
     signal: AbortSignal,
-  ): Promise<{ problem: string; slow: boolean } | null> {
+  ): Promise<{ problem: string; slow?: boolean; unserved?: boolean } | null> {
     for (let pass = 0; pass < TEST_PASSES; pass += 1) {
       // Another route was chosen meanwhile.
-      if (signal.aborted) return { problem: "not needed", slow: false };
+      if (signal.aborted) return { problem: "not needed" };
       const test = await createVisionTest();
       try {
         const answer = await this.ask(test.request, route, {
@@ -737,7 +723,6 @@ export class GatewayBrain extends TemplateBrain {
         if (!passesVisionTest(answer, test.expected)) {
           return {
             problem: `named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`,
-            slow: false,
           };
         }
       } catch (error) {
@@ -745,7 +730,11 @@ export class GatewayBrain extends TemplateBrain {
           return { problem: `no answer within ${this.testTimeoutMs / 1000} s`, slow: true };
         }
         if (!(error instanceof AppError) || !rulesOutRoute(error, route)) throw error;
-        return { problem: (error.detail ?? error.message).slice(0, 140), slow: false };
+        // A 404 or a refused key on the Anthropic format: that endpoint is not there.
+        if (route.format === "messages" && ["not_found", "provider_auth"].includes(error.code)) {
+          return { problem: "no Anthropic messages endpoint", unserved: true };
+        }
+        return { problem: (error.detail ?? error.message).slice(0, 140) };
       }
     }
     return null;

@@ -152,12 +152,20 @@ export const scenePromptSchema = z.object({
 
 export type ScenePrompt = z.infer<typeof scenePromptSchema>;
 
-/** LLM output for ghost images (prompt v2): an instruction plus checklists. */
+/** LLM output for ghost images (prompt v3): the garment slots of the house prompt. */
 export const ghostScenePromptSchema = z.object({
-  instruction: z.string().min(1).describe("2 to 5 imperative sentences for this exact image"),
-  mustKeep: z
+  garment: z
+    .string()
+    .min(1)
+    .describe(
+      "The noun phrase after 'the exact {colour}': the category and what defines this piece, 3 to 12 words",
+    ),
+  colour: z
+    .string()
+    .describe("The garment's colour in 2 to 4 plain colour words, as the photos show it"),
+  construction: z
     .array(z.string())
-    .describe("4 to 8 concrete, checkable construction details visible in this view"),
+    .describe("6 to 10 construction items visible in this view, top to bottom, each 3 to 12 words"),
   cleanUp: z
     .array(z.string())
     .describe("0 to 5 handling or photography artefacts in the photos to leave out"),

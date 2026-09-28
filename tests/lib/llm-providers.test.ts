@@ -133,10 +133,11 @@ describe("TemplateBrain", () => {
 
   it("repairs one invalid structured answer", async () => {
     const brain = new ScriptedBrain([
-      new AppError("llm_output", "bad shape", { detail: "instruction: required" }),
+      new AppError("llm_output", "bad shape", { detail: "garment: required" }),
       {
-        instruction: "A sexy mannequin shot of the robe.",
-        mustKeep: ["exactly 5 pearl buttons at centre front.", " "],
+        garment: "sexy mannequin robe",
+        colour: "blush pink",
+        construction: ["exactly 5 pearl buttons at centre front.", " "],
         cleanUp: ["the wooden hanger"],
         extraNegatives: ["no belt"],
         rationale: "",
@@ -145,36 +146,53 @@ describe("TemplateBrain", () => {
     const built = await brain.buildGhostPrompt(ghostInput);
     expect(brain.requests).toHaveLength(2);
     expect(brain.requests[1]?.user).toContain(
-      "did not match the required JSON schema (instruction: required)",
+      "did not match the required JSON schema (garment: required)",
     );
-    expect(built.scene).toBe(
-      "A sexy mannequin shot of the robe.\nKEEP EXACTLY — exactly 5 pearl buttons at centre front.\nLEAVE OUT (photo artefacts only, never design details) — the wooden hanger.",
+    // The brain's words fill the house prompt's slots; the rest is the house system.
+    expect(built.scene).toContain(
+      "of the exact blush pink sexy mannequin robe, displayed on an invisible display form in the classic ghost technique",
     );
-    expect(built.prompt.startsWith("A elegant invisible display form shot of the robe.")).toBe(
-      true,
+    expect(built.scene).toContain(
+      "preserving the exact original garment construction and proportions: exactly 5 pearl buttons at centre front, and all original seams and panel divisions;",
     );
+    expect(built.scene).toContain("Leave out from the reference photos: the wooden hanger;");
+    expect(
+      built.prompt.startsWith(
+        "Working only from the attached reference photos of this exact garment, create a premium ultra-realistic e-commerce fashion photograph of the exact blush pink elegant invisible display form robe,",
+      ),
+    ).toBe(true);
     expect(built.prompt).toContain("no belt.");
     expect(built.negativePrompt).toContain("no belt");
     expect(built.negativePrompt).toContain("grey background");
   });
 
-  it("shows the reference photos to the brain and appends the house style", async () => {
+  it("shows the reference photos to the brain and writes the house prompt around its answer", async () => {
     const brain = new ScriptedBrain([
-      { instruction: "Front view.", mustKeep: [], cleanUp: [], extraNegatives: [], rationale: "" },
+      {
+        garment: "kimono robe",
+        colour: "blush",
+        construction: [],
+        cleanUp: [],
+        extraNegatives: [],
+        rationale: "",
+      },
     ]);
     const built = await brain.buildGhostPrompt(ghostInput);
     expect(brain.requests[0]?.images.map((image) => image.caption)).toEqual(["Robe front photo"]);
     expect(brain.requests[0]?.user).toContain("Mode: EDIT");
     expect(brain.requests[0]?.user).toContain("1. Robe front photo");
-    const house = built.prompt.indexOf("HOUSE STYLE");
     const lock = built.prompt.indexOf("PRODUCT LOCK");
     const negatives = built.prompt.indexOf("STRICT NEGATIVES");
-    expect(house).toBeGreaterThan(0);
-    expect(house).toBeLessThan(lock);
+    expect(built.prompt.indexOf("clean pure white (#FFFFFF) seamless background")).toBeLessThan(
+      lock,
+    );
     expect(lock).toBeLessThan(negatives);
-    expect(built.prompt).toContain("Seamless pure white #FFFFFF background");
+    // An empty construction list falls back to the DNA's own steps for the view.
+    expect(built.prompt).toContain(
+      "collar: shawl collar faced with scalloped lace, 6 cm wide, waist: self-fabric belt through 2 side loops, hem: scalloped lace band 8 cm, and all original seams and panel divisions;",
+    );
     expect(built.prompt).toContain("no hanger, hook, clip, peg or pin anywhere in the image");
-    expect(built.promptVersion).toBe("ghost@2.1.0");
+    expect(built.promptVersion).toBe("ghost@3.0.0");
   });
 
   it("keeps one in-range answer per photo when sorting views", async () => {

@@ -84,7 +84,8 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
     expectLockedPrompt(built.prompt);
     expect(built.prompt).toContain('Piece 2 "Slip dress"');
     expect(built.prompt).not.toContain('Piece 1 "Robe"');
-    expect(built.prompt).toContain("seamless solid #F7F3EE background");
+    expect(built.prompt).toContain("clean seamless solid #F7F3EE background");
+    expect(built.prompt).toContain("macro photograph of the Lace V neckline of the exact");
     expect(built.prompt).toContain("no background colour other than #F7F3EE");
     expect(findForbiddenWords(built.negativePrompt)).toEqual([]);
   });
@@ -121,7 +122,9 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
       promptBudget: 6000,
     });
     expect(built.prompt).not.toMatch(/cashmir/i);
-    expect(built.prompt).toContain("Re-render the approved front image in dusty rose");
+    expect(built.prompt).toContain(
+      "re-rendered in dusty rose (#B499A0): only the fabric colour changes.",
+    );
     expect(built.prompt).toContain(
       "The second reference image is a photo of fabric in this colour",
     );

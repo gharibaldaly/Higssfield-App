@@ -1,3 +1,4 @@
+import { colourWords } from "@/lib/colorways/words";
 import type { AdPlan, PlannedShot } from "@/lib/domain/ad-plan";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import { DEFAULT_CHEST_PANEL, sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
@@ -154,27 +155,24 @@ export class MockBrain extends TemplateBrain {
   }
 
   protected override async askGhostScene(input: GhostPromptInput): Promise<GhostScenePrompt> {
-    const source =
-      input.referenceMode === "edit"
-        ? "Recreate the exact garment from the reference photo as a catalogue photograph"
-        : "Photograph the garment described below";
-    const instructions: Record<GhostPromptInput["view"], string> = {
-      front: `${source}: straight-on front view on an invisible display form, centred, full length visible, natural drape.`,
-      back: `${source}: straight-on back view on the same invisible display form, identical framing to the front image.`,
-      macro: `${source}: advertising macro close-up of ${input.detail?.label ?? "the signature detail"}, crisp micro-texture, gentle fall-off.`,
-      colorway: `Re-render the approved front image in ${input.colorway?.name ?? "the new colour"}, identical in every construction detail.`,
-    };
+    // The garment slots of the house prompt, straight from the DNA.
     const piece = input.dna.pieces[0];
+    const steps = input.view === "back" ? piece?.backConstruction : piece?.frontConstruction;
+    const main = piece?.colors.find((colour) => colour.name.trim() && colour.hexRange.length > 0);
     return {
-      instruction: [instructions[input.view], input.note ? `Owner note: ${input.note}` : ""]
-        .filter(Boolean)
-        .join(" "),
-      mustKeep: [
-        ...(piece?.doNotAlter ?? []).slice(0, 3),
-        ...(piece?.frontConstruction ?? [])
+      garment: piece?.silhouette.trim() || piece?.category.trim() || "garment",
+      colour: input.colorway
+        ? colourWords(input.colorway.name, input.colorway.hex).words
+        : main
+          ? colourWords(main.name, main.hexRange[0]!).words
+          : "",
+      construction: [
+        ...(steps ?? [])
           .filter((step) => step.detail.trim())
-          .slice(0, 3)
+          .slice(0, 4)
           .map((step) => `${step.zone}: ${step.detail}`),
+        ...(piece?.doNotAlter ?? []).slice(0, 2),
+        ...(input.note ? [`owner's correction: ${input.note}`] : []),
       ],
       cleanUp: input.referenceMode === "edit" ? ["the hanger", "the room behind the garment"] : [],
       extraNegatives: [],

@@ -109,6 +109,11 @@ async function uploadWithRetry(path: string, file: File): Promise<void> {
 
 const TAG_ORDER: Record<IntakeTag, number> = { front: 0, back: 1, detail: 2, colour: 3 };
 
+/** The same file picked twice has the same name, size and date. */
+function fileSignature(file: File): string {
+  return `${file.name}|${file.size}|${file.lastModified}`;
+}
+
 /** Photos show front, back, details, then colours, whatever order the files came in. */
 function byTag(a: PhotoDraft, b: PhotoDraft): number {
   return TAG_ORDER[a.tag] - TAG_ORDER[b.tag];
@@ -190,6 +195,7 @@ export function BatchIntake({
   const [grouping, setGrouping] = useState<IntakeGrouping>("names");
   const [perModel, setPerModel] = useState<PhotosPerModel>(DEFAULT_PHOTOS_PER_MODEL);
   const [rejected, setRejected] = useState(0);
+  const [duplicates, setDuplicates] = useState(0);
   const [reading, setReading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [name, setName] = useState(() =>
@@ -206,6 +212,10 @@ export function BatchIntake({
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+  const draftsRef = useRef(drafts);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
   useEffect(
     () => () => {
       for (const local of filesRef.current.values()) {
@@ -249,12 +259,29 @@ export function BatchIntake({
   }
 
   async function addFiles(picked: PickedFile[]) {
-    const accepted = picked.filter(({ file }) => isAcceptedPhoto(file));
     const skipped = picked.filter(
       ({ file }) =>
         !isAcceptedPhoto(file) && !file.name.startsWith(".") && file.name !== "Thumbs.db",
     ).length;
     setRejected((count) => count + skipped);
+    // A photo already in a model (dropped twice, or by folder and by name) is skipped.
+    const inUse = new Set(
+      draftsRef.current.flatMap((model) => model.photos.map((photo) => photo.fileId)),
+    );
+    const known = new Set(
+      [...filesRef.current.values()]
+        .filter((local) => inUse.has(local.id))
+        .map((local) => fileSignature(local.file)),
+    );
+    const accepted = picked.filter(({ file }) => {
+      if (!isAcceptedPhoto(file)) return false;
+      const signature = fileSignature(file);
+      if (known.has(signature)) return false;
+      known.add(signature);
+      return true;
+    });
+    const repeated = picked.filter(({ file }) => isAcceptedPhoto(file)).length - accepted.length;
+    if (repeated > 0) setDuplicates((count) => count + repeated);
     if (accepted.length === 0) return;
     const added: LocalFile[] = accepted.map(({ file, path }) => ({
       id: crypto.randomUUID(),
@@ -327,6 +354,7 @@ export function BatchIntake({
     setDrops([]);
     setDrafts([]);
     setRejected(0);
+    setDuplicates(0);
   }
 
   function updateModel(index: number, patch: Partial<ModelDraft>) {
@@ -625,6 +653,12 @@ export function BatchIntake({
           <p className="flex items-start gap-2 text-sm text-warning">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
             {t("rejected", { count: rejected })}
+          </p>
+        ) : null}
+        {duplicates > 0 ? (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {t("duplicates", { count: duplicates })}
           </p>
         ) : null}
 

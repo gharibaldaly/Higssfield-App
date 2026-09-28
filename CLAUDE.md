@@ -397,3 +397,12 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A rejected key stops the work with the 401 message and costs no brain call.
   - An accepted key is remembered for five minutes; an unreachable API lets the work go on.
 - **Settings:** a rejected Higgsfield key also says how the studio read it: `KEY_ID:SECRET` in one variable, or two variables. The key itself is never shown.
+
+### 2026-09-28 — First real Higgsfield run: Grok takes five references
+- **What happened:** with the key accepted, the product sheet reached Higgsfield (Grok Image 2.0) and failed about three seconds later with the docs' bare "Generation failed". The request had 8 references (four front and three back phone photos at 4284×5712 px, plus one detail), a 7,669-character prompt, 2k and 16:9.
+- **Most likely cause:** xAI's own docs for the model (Multi-Image Editing) say "Use up to five source images for a single image edit", while Higgsfield's schema allows ten; a reseller's docs for the same model say three. Nothing else in the request breaks a documented limit: xAI publishes no prompt or input-size limit, and Higgsfield resizes references during preprocessing.
+- **Changes:**
+  - `NOTED_LIMITS` can now tighten a schema maximum, and Grok Image 2.0 takes at most 5 references. Its source note in Settings says so.
+  - Sheet references follow `orderSheetReferences`: one front and one back per piece, then the details, then further angles. Before, every front came first, so five references would have been four fronts and one back.
+  - A failure Higgsfield gives no reason for now says so, with the request id for support, instead of "Generation failed: Generation failed".
+- **If it still fails:** try Marketing Studio Image from the sheet page's model picker. The next suspects are the prompt length and the 24 MP photos.

@@ -106,6 +106,8 @@ export type ProductSheetRow = Timestamps & {
   prompt: string | null;
   layout: Json;
   generation_id: string | null;
+  /** The board built from the photos (layout version 2); null for sheets an image model drew. */
+  image_path: string | null;
   approved_at: string | null;
 };
 
@@ -367,7 +369,14 @@ export type Database = {
       >;
       product_sheets: Table<
         ProductSheetRow,
-        OwnedDefaults | "dna_id" | "status" | "plan" | "prompt" | "generation_id" | "approved_at",
+        | OwnedDefaults
+        | "dna_id"
+        | "status"
+        | "plan"
+        | "prompt"
+        | "generation_id"
+        | "image_path"
+        | "approved_at",
         [
           Rel<"product_sheets_product_id_fkey", ["product_id"], "products">,
           Rel<"product_sheets_dna_id_fkey", ["dna_id"], "garment_dna">,

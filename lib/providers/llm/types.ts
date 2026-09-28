@@ -6,8 +6,8 @@ import type { FidelityReview } from "@/lib/domain/fidelity";
 import type { GarmentDna } from "@/lib/domain/garment-dna";
 import type { PhotoClassification } from "@/lib/domain/photo-classification";
 import type { ProductLine } from "@/lib/domain/product";
-import type { SheetPlan } from "@/lib/domain/sheet";
-import type { SheetCropKind, SheetLayout } from "@/lib/sheet/layout";
+import type { SheetPhotoPlan } from "@/lib/domain/sheet";
+import type { SheetCropKind } from "@/lib/sheet/layout";
 
 export type LlmProviderId = "claude" | "gemini" | "gateway" | "mock";
 
@@ -40,19 +40,12 @@ export type AnalyzeGarmentInput = {
   photos: LlmImage[];
 };
 
-export type SheetPromptInput = {
+export type SheetPlanInput = {
   product: ProductBrief;
   dna: GarmentDna;
-  references: LlmImage[];
+  /** The owner's photos; each caption starts with its number ("Photo 1 — front…"). */
+  photos: LlmImage[];
   note: string | null;
-  promptBudget: number;
-};
-
-export type BuiltSheetPrompt = {
-  plan: SheetPlan;
-  layout: SheetLayout;
-  prompt: string;
-  promptVersion: string;
 };
 
 export type GhostView = "front" | "back" | "macro" | "colorway";
@@ -141,7 +134,8 @@ export interface DirectorBrain {
   /** Sorts unnamed phone photos into front / back / detail before the DNA is written. */
   classifyPhotos(input: ClassifyPhotosInput): Promise<PhotoClassification>;
   analyzeGarment(input: AnalyzeGarmentInput): Promise<GarmentDna>;
-  buildProductSheetPrompt(input: SheetPromptInput): Promise<BuiltSheetPrompt>;
+  /** Chooses what the product sheet shows and where it is on the owner's photos. */
+  planProductSheet(input: SheetPlanInput): Promise<SheetPhotoPlan>;
   buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt>;
   planAd(input: PlanAdInput): Promise<AdPlan>;
   buildShotPrompt(input: ShotPromptInput): Promise<BuiltPrompt>;

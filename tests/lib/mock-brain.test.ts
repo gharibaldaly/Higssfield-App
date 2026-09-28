@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import { adPlanSchema } from "@/lib/domain/ad-plan";
 import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
 import { garmentDnaSchema } from "@/lib/domain/garment-dna";
-import { sheetPlanSchema } from "@/lib/domain/sheet";
+import { sheetPhotoPlanSchema } from "@/lib/domain/sheet";
 import { findForbiddenWords } from "@/lib/prompts/wording";
 import { MockBrain } from "@/lib/providers/llm/mock";
 import type { LlmImage, ProductBrief } from "@/lib/providers/llm/types";
-import { croppableCards } from "@/lib/sheet/layout";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
 
 const PRODUCT: ProductBrief = {
@@ -38,23 +37,31 @@ describe("MockBrain (template guarantees without an LLM key)", () => {
     expect(dna.photoGaps).toContain("No back photo uploaded yet");
   });
 
-  it("builds a product sheet prompt with six detail cards and a pieces card", async () => {
-    const built = await brain.buildProductSheetPrompt({
+  it("plans a sheet on the photos: six details, the views and a pieces card", async () => {
+    const photo = (caption: string): LlmImage => ({ ...IMAGE, caption });
+    const plan = await brain.planProductSheet({
       product: PRODUCT,
       dna: ROBE_SET_DNA,
-      references: [],
+      photos: [
+        photo('Photo 1: Piece 1 "Robe" — front'),
+        photo('Photo 2: Piece 1 "Robe" — back'),
+        photo('Photo 3: Piece 1 "Robe" — detail — lace hem'),
+      ],
       note: null,
-      promptBudget: 8000,
     });
-    expect(sheetPlanSchema.safeParse(built.plan).success).toBe(true);
-    expect(built.plan.detailCards).toHaveLength(6);
-    expect(new Set(built.plan.detailCards.map((card) => card.label)).size).toBe(6);
-    expect(built.plan.bottomCards[0]?.kind).toBe("pieces");
-    expect(croppableCards(built.layout)).toHaveLength(10);
-    expect(built.prompt).toContain("LAYOUT (keep these positions exactly)");
-    expect(built.prompt.length).toBeLessThanOrEqual(8000);
-    expectLockedPrompt(built.prompt);
-    expect(built.promptVersion).toMatch(/@/);
+    expect(sheetPhotoPlanSchema.safeParse(plan).success).toBe(true);
+    expect(plan.front.photo).toBe(1);
+    expect(plan.back?.photo).toBe(2);
+    expect(plan.detailCards).toHaveLength(6);
+    expect(new Set(plan.detailCards.map((card) => card.label)).size).toBe(6);
+    expect(plan.detailCards.every((card) => card.photo === 3)).toBe(true);
+    expect(plan.bottomCards[0]).toMatchObject({ kind: "pieces", photo: null, box: null });
+  });
+
+  it("refuses to plan a sheet without photos", async () => {
+    await expect(
+      brain.planProductSheet({ product: PRODUCT, dna: ROBE_SET_DNA, photos: [], note: null }),
+    ).rejects.toMatchObject({ code: "validation" });
   });
 
   it("locks macro prompts to the detail's own piece", async () => {

@@ -1,26 +1,31 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { z } from "zod";
 
-import { SheetStudio, type CropView, type SheetView } from "@/components/sheet/sheet-studio";
+import {
+  SheetStudio,
+  type CropView,
+  type SheetCardView,
+  type SheetView,
+} from "@/components/sheet/sheet-studio";
 import { requireOwner } from "@/lib/auth/owner";
-import { sheetPlanSchema } from "@/lib/domain/sheet";
-import { ownerRegistry } from "@/lib/generations/models";
-import { toViews } from "@/lib/generations/queries";
+import { sheetPlanViewSchema } from "@/lib/domain/sheet";
+import { approvedCatalogueImage, toViews } from "@/lib/generations/queries";
 import { loadProductIntake } from "@/lib/products/queries";
-import { toModelOptions } from "@/lib/providers/higgsfield/options";
-import { getOwnerSettings } from "@/lib/settings/service";
+import { anySheetLayoutSchema } from "@/lib/sheet/layout";
 import { listCrops, listSheets } from "@/lib/sheet/service";
-import { sheetLayoutSchema } from "@/lib/sheet/layout";
 import { signPaths } from "@/lib/storage/objects";
 
-// Sheet planning sends reference photos to the LLM before submitting.
+// Building a sheet sends the photos to the director brain, then cuts and renders them.
 export const maxDuration = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("products.subnav");
   return { title: t("sheet") };
 }
+
+const warningsSchema = z.object({ warnings: z.array(z.string()) });
 
 export default async function SheetPage({
   params,
@@ -31,15 +36,18 @@ export default async function SheetPage({
 }) {
   const { productId } = await params;
   const { s } = await searchParams;
-  const { supabase, user } = await requireOwner();
+  const { supabase } = await requireOwner();
   const tk = await getTranslations("products.photos.kinds");
-  const [intake, sheets, settings] = await Promise.all([
+  const te = await getTranslations("sheet.editor");
+  const [intake, sheets, frontRow, backRow] = await Promise.all([
     loadProductIntake(supabase, productId),
     listSheets(supabase, productId),
-    getOwnerSettings(supabase, user.id),
+    approvedCatalogueImage(supabase, productId, "ghost_front"),
+    approvedCatalogueImage(supabase, productId, "ghost_back"),
   ]);
   if (!intake) notFound();
 
+  // Sheets an image model drew (before sheets were built from photos) show their generation.
   const generationIds = sheets
     .map((sheet) => sheet.generation_id)
     .filter((id): id is string => Boolean(id));
@@ -49,18 +57,33 @@ export default async function SheetPage({
   const generationViews = new Map(
     (await toViews(supabase, generations ?? [])).map((view) => [view.id, view]),
   );
+  const approvedImages = [
+    frontRow?.storage_path ? { path: frontRow.storage_path, label: te("approvedFront") } : null,
+    backRow?.storage_path ? { path: backRow.storage_path, label: te("approvedBack") } : null,
+  ].filter((image): image is { path: string; label: string } => image !== null);
+  const signed = await signPaths(supabase, [
+    ...sheets.map((sheet) => sheet.image_path),
+    ...approvedImages.map((image) => image.path),
+  ]);
 
   const sheetViews: SheetView[] = sheets.map((sheet) => {
-    const plan = sheetPlanSchema.safeParse(sheet.plan);
-    const layout = sheetLayoutSchema.safeParse(sheet.layout);
+    const plan = sheetPlanViewSchema.safeParse(sheet.plan);
+    const warnings = warningsSchema.safeParse(sheet.plan);
+    const layout = anySheetLayoutSchema.safeParse(sheet.layout);
+    const cards: SheetCardView[] = layout.success
+      ? layout.data.version === 2
+        ? layout.data.cards
+        : layout.data.cards.map((card) => ({ ...card, sources: [] }))
+      : [];
     return {
       id: sheet.id,
       version: sheet.version,
       status: sheet.status,
+      source: layout.success && layout.data.version === 2 ? "photos" : "drawn",
       plan: plan.success ? plan.data : null,
-      layout: layout.success
-        ? layout.data
-        : { version: 1, aspectRatio: "16:9", canvas: { width: 1600, height: 900 }, cards: [] },
+      warnings: warnings.success ? warnings.data.warnings : [],
+      cards,
+      imageUrl: sheet.image_path ? (signed.get(sheet.image_path) ?? null) : null,
       generation: sheet.generation_id ? (generationViews.get(sheet.generation_id) ?? null) : null,
       approvedAt: sheet.approved_at,
     };
@@ -70,7 +93,7 @@ export default async function SheetPage({
   let crops: CropView[] = [];
   if (selected?.status === "approved") {
     const rows = await listCrops(supabase, selected.id);
-    const signed = await signPaths(
+    const signedCrops = await signPaths(
       supabase,
       rows.map((row) => row.storage_path),
     );
@@ -78,17 +101,13 @@ export default async function SheetPage({
       id: row.id,
       kind: row.kind,
       label: row.label,
-      url: signed.get(row.storage_path) ?? null,
+      url: signedCrops.get(row.storage_path) ?? null,
     }));
   }
 
-  const registry = await ownerRegistry(settings);
-  const models = toModelOptions(registry, "image", ["image-to-image", "text-to-image"]);
-  const defaultModel =
-    models.find((model) => model.id === settings.defaultImageModel && !model.disabledReason) ??
-    models.find((model) => model.capabilities.modes.includes("image-to-image")) ??
-    models[0];
   const pieceNames = new Map(intake.pieces.map((piece) => [piece.id, piece.name]));
+  const photoLabel = (photo: (typeof intake.photos)[number]) =>
+    `${pieceNames.get(photo.pieceId) ?? ""} · ${photo.label ?? tk(photo.kind)}`;
 
   return (
     <SheetStudio
@@ -97,13 +116,23 @@ export default async function SheetPage({
       sheets={sheetViews}
       selectedId={selected?.id ?? null}
       crops={crops}
-      models={models}
-      defaultModelId={defaultModel?.id ?? null}
       references={intake.photos.map((photo) => ({
         id: photo.id,
         url: photo.url,
-        label: `${pieceNames.get(photo.pieceId) ?? ""} · ${photo.label ?? tk(photo.kind)}`,
+        label: photoLabel(photo),
       }))}
+      photos={[
+        ...intake.photos.map((photo) => ({
+          path: photo.storagePath,
+          url: photo.url,
+          label: photoLabel(photo),
+        })),
+        ...approvedImages.map((image) => ({
+          path: image.path,
+          url: signed.get(image.path) ?? null,
+          label: image.label,
+        })),
+      ]}
     />
   );
 }

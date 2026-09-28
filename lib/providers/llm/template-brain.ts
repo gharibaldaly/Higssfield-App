@@ -5,12 +5,7 @@ import {
   photoClassificationSchema,
   type PhotoClassification,
 } from "@/lib/domain/photo-classification";
-import {
-  enforceSheetRules,
-  SHEET_DESIGN,
-  sheetPlanSchema,
-  type SheetPlan,
-} from "@/lib/domain/sheet";
+import { enforceSheetRules, sheetPhotoPlanSchema, type SheetPhotoPlan } from "@/lib/domain/sheet";
 import { AppError, isAppError } from "@/lib/errors";
 import {
   composeGenerationPrompt,
@@ -22,7 +17,6 @@ import { PROMPTS, templateVersion } from "@/lib/prompts";
 import type {
   AnalyzeGarmentInput,
   BuiltPrompt,
-  BuiltSheetPrompt,
   ClassifyPhotosInput,
   DirectorBrain,
   GhostPromptInput,
@@ -31,13 +25,12 @@ import type {
   PlanAdInput,
   ReviewFidelityInput,
   ScenePrompt,
-  SheetPromptInput,
+  SheetPlanInput,
   ShotPromptInput,
   StructuredRequest,
 } from "@/lib/providers/llm/types";
 import { ghostScenePromptSchema, scenePromptSchema } from "@/lib/providers/llm/types";
 import { neutralizeWording } from "@/lib/prompts/wording";
-import { computeSheetLayout, describeLayout } from "@/lib/sheet/layout";
 
 const GHOST_LOCK_VIEW: Record<GhostPromptInput["view"], LockView> = {
   front: "front",
@@ -119,14 +112,14 @@ export abstract class TemplateBrain implements DirectorBrain {
     });
   }
 
-  protected askSheetPlan(input: SheetPromptInput): Promise<SheetPlan> {
+  protected askSheetPlan(input: SheetPlanInput): Promise<SheetPhotoPlan> {
     const template = PROMPTS.productSheet;
     return this.structured({
       name: "sheet_plan",
       system: template.system,
       user: template.render(input),
-      images: input.references,
-      schema: sheetPlanSchema,
+      images: input.photos,
+      schema: sheetPhotoPlanSchema,
       maxTokens: 24_000,
     });
   }
@@ -214,31 +207,16 @@ export abstract class TemplateBrain implements DirectorBrain {
     return normalizeGarmentDna(dna, input.product.pieces);
   }
 
-  async buildProductSheetPrompt(input: SheetPromptInput): Promise<BuiltSheetPrompt> {
-    const raw = await this.askSheetPlan(input);
-    const plan = enforceSheetRules(
-      raw,
+  async planProductSheet(input: SheetPlanInput): Promise<SheetPhotoPlan> {
+    // Every card is cut from a photo: without photos there is nothing to choose from.
+    if (input.photos.length === 0) {
+      throw new AppError("validation", "Upload product photos before building the sheet.");
+    }
+    const plan = await this.askSheetPlan(input);
+    return enforceSheetRules(
+      plan,
       input.product.pieces.map((piece) => piece.name),
     );
-    const layout = computeSheetLayout({
-      detailLabels: plan.detailCards.map((card) => card.label),
-      bottomCards: plan.bottomCards,
-    });
-    const design = [
-      `PRODUCT SHEET — landscape 16:9, highest resolution. Background ${SHEET_DESIGN.background}; white rounded cards with soft shadows; headings ${SHEET_DESIGN.heading}; body text ${SHEET_DESIGN.body}; thin gold ${SHEET_DESIGN.accent} accent rules.`,
-      `Title: "${plan.title}". Overview bullets: ${plan.overviewBullets.map((bullet) => `"${bullet}"`).join(", ")}.`,
-      `Macro detail cards: ${plan.detailCards.map((card) => `"${card.label}" — ${card.description}`).join(" | ")}.`,
-      `Bottom cards: ${plan.bottomCards.map((card) => `"${card.label}" — ${card.description}`).join(" | ")}.`,
-      `LAYOUT (keep these positions exactly):\n${describeLayout(layout)}`,
-    ].join("\n");
-    const prompt = composeGenerationPrompt({
-      scene: plan.prompt,
-      dna: input.dna,
-      view: "all",
-      style: design,
-      maxChars: input.promptBudget,
-    });
-    return { plan, layout, prompt, promptVersion: templateVersion(PROMPTS.productSheet) };
   }
 
   async buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt> {

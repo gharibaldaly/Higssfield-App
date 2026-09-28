@@ -1,8 +1,10 @@
 /**
  * A tiny in-memory stand-in for the Supabase query builder, covering the calls
- * the generation service makes (insert / update / select with eq, in, is, not,
- * or, order, limit, single, maybeSingle). Each statement runs synchronously
- * when awaited, so a conditional update is atomic, as it is in Postgres.
+ * the generation and sheet services make (insert / update / delete / select
+ * with eq, neq, in, is, not, or, order, limit, single, maybeSingle), and for
+ * Storage (upload, download, remove, signed URLs). Each statement runs
+ * synchronously when awaited, so a conditional update is atomic, as it is in
+ * Postgres.
  */
 
 type Row = Record<string, unknown>;
@@ -42,7 +44,7 @@ function condition(expression: string): Filter {
 
 class Query implements PromiseLike<Result> {
   private readonly filters: Filter[] = [];
-  private action: "select" | "insert" | "update" = "select";
+  private action: "select" | "insert" | "update" | "delete" = "select";
   private patch: Row = {};
   private inserted: Row[] = [];
   private orderBy: { column: string; ascending: boolean } | null = null;
@@ -68,8 +70,16 @@ class Query implements PromiseLike<Result> {
     this.patch = patch;
     return this;
   }
+  delete(): this {
+    this.action = "delete";
+    return this;
+  }
   eq(column: string, value: unknown): this {
     this.filters.push((row) => row[column] === value);
+    return this;
+  }
+  neq(column: string, value: unknown): this {
+    this.filters.push((row) => row[column] !== value);
     return this;
   }
   in(column: string, values: unknown[]): this {
@@ -106,6 +116,10 @@ class Query implements PromiseLike<Result> {
       return rows.map(clone);
     }
     let rows = this.table.filter((row) => this.filters.every((matches) => matches(row)));
+    if (this.action === "delete") {
+      for (const row of rows) this.table.splice(this.table.indexOf(row), 1);
+      return rows.map(clone);
+    }
     if (this.action === "update") {
       for (const row of rows) Object.assign(row, clone(this.patch));
     }
@@ -154,17 +168,48 @@ class Query implements PromiseLike<Result> {
   }
 }
 
+/** Storage: one bucket's objects by path. */
+function fakeBucket(objects: Map<string, Buffer>) {
+  return {
+    upload: async (path: string, data: Buffer | Uint8Array) => {
+      objects.set(path, Buffer.from(data));
+      return { data: { path }, error: null };
+    },
+    download: async (path: string) => {
+      const data = objects.get(path);
+      return data
+        ? { data: new Blob([new Uint8Array(data)]), error: null }
+        : { data: null, error: { message: "Object not found" } };
+    },
+    remove: async (paths: string[]) => {
+      for (const path of paths) objects.delete(path);
+      return { data: [], error: null };
+    },
+    createSignedUrls: async (paths: string[], expiresIn: number) => ({
+      data: paths.map((path) => ({
+        path,
+        signedUrl: objects.has(path) ? `https://storage.test/${path}?expires=${expiresIn}` : null,
+        error: objects.has(path) ? null : "Object not found",
+      })),
+      error: null,
+    }),
+  };
+}
+
 export function createFakeSupabase(defaults: Record<string, () => Row> = {}) {
   const tables = new Map<string, Row[]>();
+  const objects = new Map<string, Buffer>();
   const tableOf = (name: string) => {
     if (!tables.has(name)) tables.set(name, []);
     return tables.get(name)!;
   };
   return {
     tables,
+    objects,
     rows: (name: string) => tableOf(name),
     client: {
       from: (name: string) => new Query(tableOf(name), defaults[name] ?? (() => ({}))),
+      storage: { from: () => fakeBucket(objects) },
     },
   };
 }

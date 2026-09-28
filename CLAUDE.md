@@ -35,7 +35,7 @@ All image/video generation goes through the **Higgsfield API**. An LLM ("the dir
 - Log cost/credits per generation into `generations.cost` when the API returns it.
 
 ## Director brain (LLM)
-- `lib/providers/llm/` with one interface (`analyzeGarment`, `buildProductSheetPrompt`, `buildGhostPrompt`, `planAd`, `buildShotPrompt`, `reviewFidelity`) and two implementations: **Claude (Anthropic API)** and **Gemini**. Switchable in Settings; default Claude. At the owner's request (2026-09-27) a third option runs the brain through an **OpenAI-compatible gateway** the owner subscribes to (base URL, key and model in env/Settings).
+- `lib/providers/llm/` with one interface (`analyzeGarment`, `planProductSheet`, `buildGhostPrompt`, `planAd`, `buildShotPrompt`, `reviewFidelity`) and two implementations: **Claude (Anthropic API)** and **Gemini**. Switchable in Settings; default Claude. At the owner's request (2026-09-27) a third option runs the brain through an **OpenAI-compatible gateway** the owner subscribes to (base URL, key and model in env/Settings).
 - All prompt templates live in `lib/prompts/` as versioned TypeScript files, not inline strings, so they can be tuned.
 - LLM outputs that feed the app are **JSON validated with Zod**.
 
@@ -57,11 +57,11 @@ Rules: consistent background, lighting and framing across the whole catalogue (s
 **Batch from photos** (the Ghost page's default view, added 2026-09-27 at the owner's request): the owner drops the photos of many models (30 or more) without creating products first. The studio works through them one by one: stage 1 is front, back and two close-ups for every model; stage 2 renders the colours once the owner approves the fronts. White background, one house style for every image, and prompts that keep every detail of the model. The product-based studio stays under "From products".
 
 ### C. Product Sheet
-Generated after DNA approval; this is the reference used by the ad module. Layout system (landscape 16:9, highest available resolution):
+Built after DNA approval; this is the reference used by the ad module. Since 2026-09-28 (the owner's decision, after an image model redrew every detail wrongly) the sheet is **built from the owner's real photos, never drawn**: the director brain chooses the views and six details and where each one is on which photo, and the studio cuts those regions out at full resolution and lays them out. Approved ghost front/back images stand in for the phone photos. The owner can move any card's box or switch its photo. Layout system (landscape 16:9, 4K):
 - Warm off-white background `#FAF8F5`, white rounded cards with soft shadows, charcoal headings `#1A1A1A`, grey body text `#666666`, thin gold accent rules.
 - **Left column (~37%)**: product title, hero ghost-mannequin front view, short product-overview bullets, back-view card.
 - **Right column (~63%)**: 3×2 grid of six macro detail crop cards with small labels; bottom row with two cards (matching pieces / fabric swatches). For multi-piece sets a mandatory card shows all pieces side by side on separate forms, each labelled.
-- User approves the sheet. The app then **auto-crops isolated reference images** (each detail card, front, back) and stores them for shot-level use.
+- User approves the sheet. The app then **cuts isolated reference images** (each detail card, front, back, fabrics, the set) from the full-resolution photos and stores them for shot-level use.
 
 ### D. Ads Director (video ads)
 One screen, the **Director Board**: left = controls, centre = shot list/storyboard with previews, right = video settings.
@@ -406,3 +406,26 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Sheet references follow `orderSheetReferences`: one front and one back per piece, then the details, then further angles. Before, every front came first, so five references would have been four fronts and one back.
   - A failure Higgsfield gives no reason for now says so, with the request id for support, instead of "Generation failed: Generation failed".
 - **If it still fails:** try Marketing Studio Image from the sheet page's model picker. The next suspects are the prompt length and the 24 MP photos.
+
+### 2026-09-28 — Product sheets built from the real photos
+- **Why:** the first sheet an image model drew (Grok Image 2.0, five references) came back complete, but the owner found every detail unlike the real garment. Against the approved DNA:
+  - the back had a lace panel, where the DNA says the back is all opaque satin;
+  - the hardware looked metal, where the DNA says clear plastic.
+  No image model can redraw a whole garment plus six close-ups in one image and keep a lace motif exact. The owner chose to build the sheet from the real photos instead.
+- **How it works:**
+  - **Brain** (`planProductSheet`, template `product-sheet@2.0.0`; v1 removed, it lives in git history): the brain sees the photos numbered in their captions. It returns the title, the bullets, the front and back photos with a box around the garment, six details (each a photo number and a tight box), and two bottom cards. Boxes are `[ymin, xmin, ymax, xmax]` on 0–1000, Gemini's native form.
+  - **Bottom cards** (`enforceSheetRules`): a set always gets the pieces card, built from each piece's front photo. A single piece gets two fabric swatches.
+  - **Layout** (`composeSheetLayout`, pure): the plan becomes a version 2 layout on the same card geometry, where each image card names its source regions.
+    - A missing photo number or an unusable box falls back to a real photo and is listed in the plan's `warnings`, which the sheet page shows.
+    - Detail and fabric boxes get 6% padding and grow to their card's shape around their centre, so nothing is stretched.
+    - Approved ghost front/back images replace the phone photos.
+  - **Rendering** (`lib/sheet/render.ts`): sharp at 3840×2160 (4K), on the sheet design. Regions are cut from the full-resolution, EXIF-upright photo.
+    - Text goes through sharp's Pango renderer with IBM Plex Sans Arabic (OFL, `assets/fonts/`), which also shapes Arabic.
+    - `outputFileTracingIncludes` ships the fonts with the sheet route; a local build confirmed the trace, and a probe with no fontconfig setup still rendered.
+    - Card shadows are blurred by libvips, because an SVG drop-shadow filter took 13 s at 4K.
+  - **References for the ads:** cut from the full-resolution photo regions (up to 2560 px, JPEG q92), never from the board. The same crop rows and kinds as before, so the Ads Director works unchanged.
+  - **Owner edits** (`updateSheetSources`, source editor): pick a card, move or resize its box on the photo, or switch it to another of the product's photos or approved catalogue images.
+    - The board is rendered again under a new file name, and the old file is deleted.
+    - An approved sheet's references are cut again.
+- **Data:** migration `20260928081146_sheet_image_path` adds `product_sheets.image_path`. Sheets an image model drew keep `generation_id` and their version 1 layout; they stay viewable and approvable, and so does the old crop editor for them.
+- **Cost:** a sheet uses no Higgsfield credits at all, only one brain request.

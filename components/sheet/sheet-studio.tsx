@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Scissors,
   Sparkles,
+  TriangleAlert,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,31 +19,37 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { GenerationMedia, StorageImage } from "@/components/generation/generation-media";
-import { ModelPicker } from "@/components/generation/model-picker";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { CropEditor } from "@/components/sheet/crop-editor";
+import { SourceEditor, type EditorPhoto } from "@/components/sheet/source-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/controls";
 import { Textarea } from "@/components/ui/input";
-import { approveSheetAction, generateSheetAction, recropSheetAction } from "@/lib/actions/sheets";
+import {
+  approveSheetAction,
+  buildSheetAction,
+  recropSheetAction,
+  updateSheetSourcesAction,
+} from "@/lib/actions/sheets";
 import type { GenerationView } from "@/lib/domain/generation";
-import type { ModelOption } from "@/lib/providers/higgsfield/options";
-import type { SheetLayout } from "@/lib/sheet/layout";
+import type { SheetPlanView } from "@/lib/domain/sheet";
+import type { CardSource, SheetCard } from "@/lib/sheet/layout";
 import { cn } from "@/lib/utils";
+
+export type SheetCardView = SheetCard & { sources: CardSource[] };
 
 export type SheetView = {
   id: string;
   version: number;
   status: "draft" | "generating" | "review" | "approved" | "failed";
-  plan: {
-    title: string;
-    overviewBullets: string[];
-    detailCards: { label: string; description: string }[];
-    bottomCards: { kind: string; label: string; description: string }[];
-  } | null;
-  layout: SheetLayout;
+  /** "photos": built from the owner's photos; "drawn": an image model drew it (older sheets). */
+  source: "photos" | "drawn";
+  plan: SheetPlanView | null;
+  warnings: string[];
+  cards: SheetCardView[];
+  imageUrl: string | null;
   generation: GenerationView | null;
   approvedAt: string | null;
 };
@@ -55,28 +62,26 @@ export function SheetStudio({
   sheets,
   selectedId,
   crops,
-  models,
-  defaultModelId,
   references,
+  photos,
 }: {
   productId: string;
   dnaApproved: boolean;
   sheets: SheetView[];
   selectedId: string | null;
   crops: CropView[];
-  models: ModelOption[];
-  defaultModelId: string | null;
   references: { id: string; url: string | null; label: string }[];
+  /** Photos (and approved catalogue images) a card can be cut from. */
+  photos: EditorPhoto[];
 }) {
   const t = useTranslations("sheet");
   const router = useRouter();
   const selected = sheets.find((sheet) => sheet.id === selectedId) ?? sheets[0] ?? null;
-  const [modelId, setModelId] = useState<string | null>(defaultModelId);
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [showBoxes, setShowBoxes] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState<null | "generate" | "approve">(null);
+  const [busy, setBusy] = useState<null | "build" | "approve">(null);
   const [, startTransition] = useTransition();
   const { views } = useGenerationPolling(
     sheets.flatMap((sheet) => (sheet.generation ? [sheet.generation] : [])),
@@ -101,14 +106,10 @@ export function SheetStudio({
     );
   }
 
-  function generate(withNote: boolean) {
-    setBusy("generate");
+  function build(withNote: boolean) {
+    setBusy("build");
     startTransition(async () => {
-      const result = await generateSheetAction({
-        productId,
-        modelId,
-        note: withNote ? note : null,
-      });
+      const result = await buildSheetAction({ productId, note: withNote ? note : null });
       setBusy(null);
       if (!result.ok) {
         toast.error(result.error);
@@ -137,7 +138,10 @@ export function SheetStudio({
     });
   }
 
-  const ready = generation?.status === "completed";
+  const fromPhotos = selected?.source === "photos";
+  const ready = fromPhotos ? Boolean(selected?.imageUrl) : generation?.status === "completed";
+  const hasImage = fromPhotos ? Boolean(selected?.imageUrl) : Boolean(generation);
+  const canAdjust = fromPhotos || (selected?.status === "approved" && Boolean(generation?.url));
 
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -165,14 +169,19 @@ export function SheetStudio({
           </div>
         ) : null}
 
-        {selected && generation ? (
+        {selected && hasImage ? (
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle>
                   {selected.plan?.title ?? t("sheetTitle", { version: selected.version })}
                 </CardTitle>
-                <CardDescription>{t(`status.${selected.status}`)}</CardDescription>
+                <CardDescription className="flex flex-wrap items-center gap-2">
+                  {t(`status.${selected.status}`)}
+                  <Badge variant={fromPhotos ? "success" : "muted"}>
+                    {t(`source.${selected.source}`)}
+                  </Badge>
+                </CardDescription>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={showBoxes} onCheckedChange={setShowBoxes} />
@@ -182,15 +191,23 @@ export function SheetStudio({
             </CardHeader>
             <CardContent>
               <div className="relative">
-                <GenerationMedia
-                  view={generation}
-                  alt={t("sheetAlt")}
-                  className="aspect-video w-full"
-                  controls={false}
-                />
+                {fromPhotos ? (
+                  <StorageImage
+                    src={selected.imageUrl}
+                    alt={t("sheetAlt")}
+                    className="aspect-video w-full rounded-(--radius-control)"
+                  />
+                ) : (
+                  <GenerationMedia
+                    view={generation!}
+                    alt={t("sheetAlt")}
+                    className="aspect-video w-full"
+                    controls={false}
+                  />
+                )}
                 {showBoxes && ready ? (
                   <div className="pointer-events-none absolute inset-0" dir="ltr">
-                    {selected.layout.cards
+                    {selected.cards
                       .filter((card) => card.imageRect)
                       .map((card) => (
                         <div
@@ -211,6 +228,19 @@ export function SheetStudio({
                   </div>
                 ) : null}
               </div>
+              {selected.warnings.length > 0 ? (
+                <div className="mt-4 flex gap-2 rounded-(--radius-control) border border-dashed border-warning/60 p-3 text-sm">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                  <div>
+                    <p className="font-medium">{t("warnings")}</p>
+                    <ul className="mt-1 list-disc ps-5 text-muted-foreground">
+                      {selected.warnings.map((warning, index) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-5 flex flex-wrap gap-2">
                 {selected.status !== "approved" ? (
                   <Button onClick={approve} disabled={!ready || busy !== null}>
@@ -227,7 +257,17 @@ export function SheetStudio({
                     {t("isApproved")}
                   </Badge>
                 )}
-                <Button variant="surface" onClick={() => generate(false)} disabled={busy !== null}>
+                {fromPhotos ? (
+                  <Button
+                    variant="surface"
+                    onClick={() => setEditing(true)}
+                    disabled={busy !== null}
+                  >
+                    <Scissors aria-hidden />
+                    {t("adjustCards")}
+                  </Button>
+                ) : null}
+                <Button variant="surface" onClick={() => build(false)} disabled={busy !== null}>
                   <RefreshCw aria-hidden />
                   {t("regenerate")}
                 </Button>
@@ -250,10 +290,10 @@ export function SheetStudio({
                   />
                   <Button
                     className="w-fit"
-                    onClick={() => generate(true)}
+                    onClick={() => build(true)}
                     disabled={!note.trim() || busy !== null}
                   >
-                    {busy === "generate" ? (
+                    {busy === "build" ? (
                       <Loader2 className="animate-spin" aria-hidden />
                     ) : (
                       <Sparkles aria-hidden />
@@ -304,10 +344,10 @@ export function SheetStudio({
                 <CardTitle>{t("crops.title")}</CardTitle>
                 <CardDescription>{t("crops.hint")}</CardDescription>
               </div>
-              {generation?.url ? (
+              {canAdjust ? (
                 <Button variant="surface" onClick={() => setEditing(true)}>
                   <Scissors aria-hidden />
-                  {t("crops.adjust")}
+                  {fromPhotos ? t("adjustCards") : t("crops.adjust")}
                 </Button>
               ) : null}
             </CardHeader>
@@ -318,7 +358,7 @@ export function SheetStudio({
                     <StorageImage
                       src={crop.url}
                       alt={crop.label}
-                      className="aspect-square rounded-(--radius-control) bg-[#FAF8F5]"
+                      className="aspect-square rounded-(--radius-control) stage"
                     />
                     <p className="mt-1.5 truncate text-xs font-medium">{crop.label}</p>
                     <p className="text-xs text-muted-foreground">
@@ -335,30 +375,22 @@ export function SheetStudio({
       <aside className="flex flex-col gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>{t("generate.title")}</CardTitle>
-            <CardDescription>{t("generate.hint")}</CardDescription>
+            <CardTitle>{t("build.title")}</CardTitle>
+            <CardDescription>{t("build.hint")}</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <ModelPicker
-              models={models}
-              value={modelId}
-              onChange={setModelId}
-              label={t("generate.model")}
-              id="sheet-model"
-            />
-            <Button onClick={() => generate(false)} disabled={busy !== null || !modelId}>
-              {busy === "generate" ? (
+          <CardContent>
+            <Button onClick={() => build(false)} disabled={busy !== null} className="w-full">
+              {busy === "build" ? (
                 <Loader2 className="animate-spin" aria-hidden />
               ) : (
                 <Sparkles aria-hidden />
               )}
-              {busy === "generate"
-                ? t("generate.working")
+              {busy === "build"
+                ? t("build.working")
                 : sheets.length > 0
-                  ? t("generate.again")
-                  : t("generate.first")}
+                  ? t("build.again")
+                  : t("build.first")}
             </Button>
-            <p className="text-xs text-muted-foreground">{t("generate.referencesNote")}</p>
           </CardContent>
         </Card>
         {selected?.plan ? (
@@ -390,12 +422,43 @@ export function SheetStudio({
         ) : null}
       </aside>
 
-      {editing && selected && generation?.url ? (
+      {editing && selected && fromPhotos ? (
+        <SourceEditor
+          open={editing}
+          onOpenChange={setEditing}
+          photos={photos}
+          cards={selected.cards
+            .filter((card) => card.imageRect && card.cropKind)
+            .map((card) => ({
+              id: card.id,
+              label: card.label ?? card.id,
+              closeUp: card.role === "detail" || card.cropKind === "swatch",
+              editable: card.sources.length <= 1,
+              source: card.sources[0] ?? null,
+            }))}
+          onSave={async (changes) => {
+            const result = await updateSheetSourcesAction({
+              productId,
+              sheetId: selected.id,
+              cards: changes,
+            });
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
+            toast.success(t("editor.saved"));
+            setEditing(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {editing && selected && !fromPhotos && generation?.url ? (
         <CropEditor
           open={editing}
           onOpenChange={setEditing}
           imageUrl={generation.url}
-          cards={selected.layout.cards}
+          cards={selected.cards}
           onSave={async (boxes) => {
             const result = await recropSheetAction({
               productId,

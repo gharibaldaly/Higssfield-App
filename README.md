@@ -12,7 +12,7 @@ Project rules, architecture and the decisions log live in [`CLAUDE.md`](./CLAUDE
 | Module                 | What it does                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Product intake         | Products (SECRET / HOURS / VOWS, 1–3 pieces), phone photos per piece and view, Garment DNA drafted by the director brain and approved by the owner, colourways from swatch photos or an eyedropper.                                                                                                                                                                                           |
-| Product Sheet          | 16:9 sheet generated after DNA approval. After approval the app auto-crops isolated references (front, back, six details, pieces/swatch cards), with a crop editor.                                                                                                                                                                                                                           |
+| Product Sheet          | 16:9 sheet built from the real photos after DNA approval: the director brain picks the views and six details on the photos, the studio cuts them out at full resolution (nothing is redrawn). The owner can move any card's box or switch its photo; approving cuts the isolated references for the ads.                                                                                      |
 | Ghost Mannequin Studio | **From photos** (default): drop the photos of 30+ models at once; the studio groups them, writes each Garment DNA and renders front, back and two close-ups model by model, then colours once fronts are approved. **From products**: the same jobs for existing products. Every result opens in a compare view (original vs result slider) with Approve / Regenerate / Regenerate with note. |
 | Ads Director           | Director Board with every control from the brief, the editable "Dr. Secret Cinematic" preset, saved presets, LLM shot planning and per-shot image-to-video generation from isolated references, with an optional preview frame.                                                                                                                                                               |
 | Library & Settings     | All generations with filters, favourites and downloads; LLM switch, catalogue style, default and custom models, provider key status, account password, cost summary.                                                                                                                                                                                                                          |
@@ -121,8 +121,9 @@ pnpm dev                     # http://localhost:3000
 - **Model registry**: every image and video workflow documented on docs.higgsfield.ai that the
   studio can feed (68 today: 15 image, 53 video), grouped by family in every picker. Each model
   declares its modes, aspect ratios, resolutions, durations and reference-image count, and the UI
-  only offers valid options. Defaults: **Grok Image 2.0** for ghost images, sheets and preview
-  frames, **Kling 3.0 Pro image-to-video** for ad shots; change them in Settings. Custom models
+  only offers valid options. Defaults: **Grok Image 2.0** for ghost images and preview frames,
+  **Kling 3.0 Pro image-to-video** for ad shots; change them in Settings. (Product sheets use no
+  image model: they are built from the photos.) Custom models
   (JSON in Settings) and an optional remote catalogue (`HIGGSFIELD_MODELS_URL`) still work.
 - **Refreshing the models**: `node scripts/higgsfield/sync-models.mjs` re-reads the model pages
   into `lib/providers/higgsfield/docs/workflows.json` (needs access to docs.higgsfield.ai; behind
@@ -137,8 +138,8 @@ pnpm dev                     # http://localhost:3000
 - Every error shown in the studio ends with Higgsfield's reference id (`[ref …]`); give it to
   Higgsfield support together with the request.
 - Ghost images from photos use an **image-edit model** that takes the photos as references:
-  Grok Image 2.0 (up to 10 references, 2K), Marketing Studio Image (up to 16, 4K) and Qwen Image
-  3 Edit (up to 3). Prompt rewriting is switched off on every model that has the option, so the
+  Grok Image 2.0 (up to 5 references per xAI's docs, 2K), Marketing Studio Image (up to 16, 4K)
+  and Qwen Image 3 Edit (up to 3). Prompt rewriting is switched off on every model that has the option, so the
   model receives the exact product lock; native audio is off on video models, because ads are cut
   to music in the montage.
 

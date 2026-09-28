@@ -5,22 +5,18 @@ import { z } from "zod";
 
 import { requireOwnerForAction } from "@/lib/auth/owner";
 import { fail, ok, type ActionResult } from "@/lib/errors";
-import { approveSheet, generateSheet, recropSheet } from "@/lib/sheet/service";
+import { approveSheet, buildSheet, recropSheet, updateSheetSources } from "@/lib/sheet/service";
 
-const generateSchema = z.object({
+const buildSchema = z.object({
   productId: z.uuid(),
-  modelId: z.string().max(200).nullable().optional(),
   note: z.string().trim().max(1000).nullable().optional(),
 });
 
-export async function generateSheetAction(
-  input: unknown,
-): Promise<ActionResult<{ sheetId: string }>> {
+export async function buildSheetAction(input: unknown): Promise<ActionResult<{ sheetId: string }>> {
   try {
     const { supabase, user } = await requireOwnerForAction();
-    const parsed = generateSchema.parse(input);
-    const sheet = await generateSheet(supabase, user.id, parsed.productId, {
-      modelId: parsed.modelId,
+    const parsed = buildSchema.parse(input);
+    const sheet = await buildSheet(supabase, user.id, parsed.productId, {
       note: parsed.note || null,
     });
     revalidatePath(`/products/${parsed.productId}/sheet`);
@@ -45,6 +41,36 @@ export async function approveSheetAction(
   }
 }
 
+const rectSchema = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
+
+const sourcesSchema = z.object({
+  productId: z.uuid(),
+  sheetId: z.uuid(),
+  cards: z
+    .array(
+      z.object({
+        cardId: z.string().min(1).max(40),
+        path: z.string().min(1).max(500),
+        box: rectSchema,
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
+/** The owner's photo and box for each card of a sheet built from photos. */
+export async function updateSheetSourcesAction(input: unknown): Promise<ActionResult<null>> {
+  try {
+    const { supabase, user } = await requireOwnerForAction();
+    const parsed = sourcesSchema.parse(input);
+    await updateSheetSources(supabase, user.id, parsed.sheetId, parsed.cards);
+    revalidatePath(`/products/${parsed.productId}/sheet`);
+    return ok(null);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 const recropSchema = z.object({
   productId: z.uuid(),
   sheetId: z.uuid(),
@@ -52,13 +78,14 @@ const recropSchema = z.object({
     .array(
       z.object({
         cardId: z.string().min(1).max(40),
-        rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+        rect: rectSchema,
       }),
     )
     .min(1)
     .max(20),
 });
 
+/** New boxes on a sheet an image model drew (sheets from before photo-built sheets). */
 export async function recropSheetAction(input: unknown): Promise<ActionResult<{ crops: number }>> {
   try {
     const { supabase, user } = await requireOwnerForAction();

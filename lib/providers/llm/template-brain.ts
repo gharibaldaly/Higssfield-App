@@ -1,3 +1,4 @@
+import { colourWords } from "@/lib/colorways/words";
 import { adPlanSchema, type AdPlan } from "@/lib/domain/ad-plan";
 import { fidelityReviewSchema, type FidelityReview } from "@/lib/domain/fidelity";
 import { garmentDnaSchema, normalizeGarmentDna, type GarmentDna } from "@/lib/domain/garment-dna";
@@ -9,7 +10,8 @@ import { enforceSheetRules, sheetPhotoPlanSchema, type SheetPhotoPlan } from "@/
 import { AppError, isAppError } from "@/lib/errors";
 import {
   composeGenerationPrompt,
-  NEGATIVE_PROMPT_TERMS,
+  keepColourwayNegatives,
+  negativePromptTerms,
   type LockView,
 } from "@/lib/prompts/blocks";
 import { buildHouseStyle, GHOST_NEGATIVE_TERMS, ghostNegatives } from "@/lib/prompts/house-style";
@@ -39,11 +41,24 @@ const GHOST_LOCK_VIEW: Record<GhostPromptInput["view"], LockView> = {
   colorway: "front",
 };
 
-function negativePrompt(extra: string[]): string {
-  const extras = extra.map((item) => item.trim()).filter(Boolean);
-  return neutralizeWording(
-    extras.length > 0 ? `${NEGATIVE_PROMPT_TERMS}, ${extras.join(", ")}` : NEGATIVE_PROMPT_TERMS,
-  );
+function negativePrompt(extra: string[], colourway = false): string {
+  const trimmed = extra.map((item) => item.trim()).filter(Boolean);
+  const extras = colourway ? keepColourwayNegatives(trimmed) : trimmed;
+  const terms = negativePromptTerms(colourway);
+  return neutralizeWording(extras.length > 0 ? `${terms}, ${extras.join(", ")}` : terms);
+}
+
+/**
+ * The owner's label for a colour ("cashmir") replaced by its plain words
+ * ("dusty rose") wherever the brain wrote it: an image model may not know the
+ * label, or may read it as a fabric. A label that already is those words stays.
+ */
+export function sayColourInWords(text: string, colorway: { name: string; hex: string }): string {
+  const label = colorway.name.trim();
+  const { words } = colourWords(label, colorway.hex);
+  if (label.length < 2 || words.toLowerCase().includes(label.toLowerCase())) return text;
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "giu"), words);
 }
 
 function cleanList(items: string[], max: number): string[] {
@@ -221,7 +236,8 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   async buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt> {
     const scene = await this.askGhostScene(input);
-    const sceneText = composeGhostScene(scene);
+    const composed = composeGhostScene(scene);
+    const sceneText = input.colorway ? sayColourInWords(composed, input.colorway) : composed;
     const detailPiece = input.detail
       ? input.dna.pieces.find((piece) => piece.pieceName === input.detail?.pieceName)
       : undefined;
@@ -237,7 +253,10 @@ export abstract class TemplateBrain implements DirectorBrain {
     });
     return {
       prompt,
-      negativePrompt: negativePrompt([...GHOST_NEGATIVE_TERMS, ...scene.extraNegatives]),
+      negativePrompt: negativePrompt(
+        [...GHOST_NEGATIVE_TERMS, ...scene.extraNegatives],
+        input.colorway !== null,
+      ),
       scene: sceneText,
       rationale: scene.rationale,
       promptVersion: templateVersion(PROMPTS.ghost),

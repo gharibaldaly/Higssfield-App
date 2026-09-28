@@ -515,3 +515,23 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Free-tier content is used to improve Google's products. Turning on billing stops that and lifts the daily limits.
 - **Settings:** with Gemini chosen, the brain card says that the brain moves through the free models, and when the limits reset.
 - **Not verified live:** there is no Gemini key in the sandbox. The fake Gemini in the tests follows Google's documented 429 body.
+
+### 2026-09-28 — Colourways: the colour in words, and no rules that keep the old colour
+- **What happened:** the first real colourways (B20124, Grok Image 2.0, the approved front plus a swatch photo) came out right for black, blue and brown. "cashmir" came back in the original taupe grey, and was approved on its third try; "gray" came back with a green cast. The fidelity checker passed every one of them at 100.
+- **Causes, in the prompts that were sent:**
+  - The PRODUCT LOCK carried the DNA's rule "Retain exact taupe-grey monochrome color-matching…", and the brain added "no colour shift" to the negatives. Both tell the image model to keep the original colour.
+  - The colour was given only as the owner's label and a hex ("cashmir (#B499A0)"). Image models do not read hex codes reliably, and "cashmir" is not a colour word (it may even read as the fabric). Cashmir differs from the original taupe grey mostly in hue, so a model that half-follows the lock returns the original.
+  - The swatch photo reached the image model as the second reference, but nothing said what it was.
+  - The fidelity prompt told the checker to ignore the recolour and never said which colour was asked for.
+- **Colour words** (`lib/colorways/words.ts`, pure and tested):
+  - A swatch hex becomes plain words from its OKLCH lightness, chroma and hue, with bands calibrated on common fashion colours ("dusty rose", "navy blue", "neutral medium grey").
+  - The owner's label refines the words when the swatch agrees in colour group and lightness ("blue" → "navy blue"). It wins when the swatch contradicts it, since phone light skews swatches, and black and white always stay as named. Labels are read in English and Arabic (كحلي، موف، بترولي…).
+  - The change from the garment's original DNA colour is put into words: "Compared with the original taupe grey, it is lighter, pink instead of mauve."
+- **Colourway prompts:**
+  - The lock's colour line gives the words and hex, and the change from the original. When the image model receives the swatch, it adds: "The second reference image is a photo of fabric in this colour: match that colour as it would look in neutral studio daylight, and take nothing else from it." Pieces with contrast colours recolour only their main colour.
+  - Never-alter rules that pin the original colour are dropped, from colourways only. That means rules about colour (colour, tone, dye, monochrome…) that name no contrast colour, and rules naming the main colour in full when its name has two words or more. A one-word name ("Rose") may also name a lace motif, so it alone drops nothing; the colour line says to read any mention of the original colour as the new one.
+  - Negatives say "no colour other than {words} ({hex}) on the recoloured fabric, no trace of the original {colour}". Brain negatives that forbid a colour change ("no colour shift") are dropped, and so is "colour shift" from the separate negative prompt.
+  - The owner's label is replaced by the words wherever the brain wrote it.
+  - The brain template is now `ghost@2.1.0`. It gets the words, the change and the swatch, never writes the label, and never forbids the colour change.
+- **Fidelity:** colourway reviews (`review-fidelity@1.1.0`) get the requested colour in words and against the original. A garment that is not in that colour is a major issue.
+- **Not verified live:** no generation was sent from the sandbox, so the next colourway runs are the test. The recorded cashmir prompt, rebuilt from the real DNA with these changes, reads consistently at 4,836 characters (the failed one had 4,640).

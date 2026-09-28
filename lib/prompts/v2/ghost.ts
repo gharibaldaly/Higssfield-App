@@ -1,3 +1,4 @@
+import { colourwayBrief } from "@/lib/colorways/words";
 import { describeCatalogueStyle } from "@/lib/domain/catalogue-style";
 import { PRODUCT_LINE_PROMPT } from "@/lib/domain/product";
 import type { GhostPromptInput } from "@/lib/providers/llm/types";
@@ -8,6 +9,8 @@ import { promptJson, type PromptTemplate } from "@/lib/prompts/types";
  * reference photos as the image model and writes an instruction grounded in
  * them, with a checklist of details to keep and handling artefacts to remove.
  * The house style, product lock and negatives are appended by code.
+ * 2.1.0 (2026-09-28): colourways get their colour in plain words, the change
+ * from the original colour, and the swatch named as reference 2.
  */
 
 const VIEW_BRIEF: Record<GhostPromptInput["view"], string> = {
@@ -25,9 +28,25 @@ const MODE_BRIEF: Record<GhostPromptInput["referenceMode"], string> = {
   text: "Mode: TEXT — the image model receives no images, only your words. Describe the garment exactly as the photos show it.",
 };
 
+/** The requested colour in the owner's name, in plain words, and against the original. */
+function requestedColour(input: GhostPromptInput): string {
+  const colorway = input.colorway!;
+  const main = input.dna.pieces
+    .flatMap((piece) => piece.colors)
+    .find((colour) => colour.name.trim() && colour.hexRange.length > 0);
+  const brief = colourwayBrief(colorway, main ? { name: main.name, hex: main.hexRange[0]! } : null);
+  return [
+    `Requested colour: the owner calls it "${colorway.name}" (${brief.hex}); in plain words: ${brief.words}.`,
+    brief.change,
+    colorway.swatch ? "Reference 2 is a photo of fabric in this colour." : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export const ghostV2: PromptTemplate<GhostPromptInput> = {
   id: "ghost",
-  version: "2.0.0",
+  version: "2.1.0",
   system: `You are the art director and retoucher for Dr. Secret's Shopify catalogue. You write the instruction for ONE image: a catalogue photograph of the garment on an invisible display form (as if worn, with no form, stand, hanger or person visible), on a seamless background, in one house style shared by every product in the store.
 
 You receive the reference photos of this exact garment (phone photos: the same isolated photos the image model gets in edit mode), its Garment DNA (the approved construction spec), the requested view, the catalogue style and, on a regeneration, the owner's note.
@@ -48,7 +67,7 @@ Views:
 - FRONT: straight-on and symmetrical, the whole garment from its top edge to the hem.
 - BACK: the same garment from behind with the front image's framing, scale, pose and light.
 - MACRO: an advertising close-up of the named detail, cropped and angled to make it irresistible while keeping it exactly as made (same motif, scale and count).
-- COLOURWAY: the reference is the approved front catalogue image. Change only the fabric colour to the requested hex; keep every construction detail, the framing, light and background; tonal lace and trims take the new colour, contrast trims stay as they are.
+- COLOURWAY: reference 1 is the approved front catalogue image; reference 2, when attached, is a photo of fabric in the requested colour. Change only the fabric colour, to the plain colour words given: image models follow plain colour words, not hex codes, and the owner's own name for the colour may be a brand word or misspelt, so never write that name. When a swatch is attached, tell the image model to take the colour, and only the colour, from the second image, as it would look in neutral studio daylight. Keep every construction detail, the framing, light and background; tonal lace and trims take the new colour, contrast trims stay as they are. Never list the original colour among the details to keep, and never write a negative against changing the colour.
 
 Chest panels: flat, unlined, unpadded, zero projection unless the DNA says otherwise; they lie flat on the invisible display form with no cup shape or moulding.
 
@@ -63,9 +82,7 @@ If the owner left a note on a previous attempt, fix exactly what it asks and cha
       input.detail
         ? `Detail to feature: "${input.detail.label}" on ${input.detail.pieceName} — ${input.detail.description}.`
         : null,
-      input.colorway
-        ? `Requested colour: ${input.colorway.name} (${input.colorway.hex.toUpperCase()}).`
-        : null,
+      input.colorway ? requestedColour(input) : null,
       `Catalogue style: ${describeCatalogueStyle(input.style)}`,
       input.references.length > 0
         ? `Reference photos, attached in this order:\n${input.references

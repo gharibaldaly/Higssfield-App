@@ -1,3 +1,4 @@
+import { colourWords, colourwayBrief, type OriginalColour } from "@/lib/colorways/words";
 import type { GarmentDna, PieceDna } from "@/lib/domain/garment-dna";
 import { neutralizeWording } from "@/lib/prompts/wording";
 
@@ -38,7 +39,91 @@ function describeChestPanel(piece: PieceDna): string | null {
   return `Chest panel: ${parts.join(", ")}${panel.notes ? ` (${panel.notes})` : ""} — reproduce exactly, never add more shaping.`;
 }
 
-export type ColorOverride = { name: string; hex: string };
+export type ColorOverride = {
+  name: string;
+  hex: string;
+  /** Whether the image model also receives a photo of the fabric in this colour. */
+  swatch?: boolean;
+};
+
+const SWATCH_LINE =
+  "The second reference image is a photo of fabric in this colour: match that colour as it would look in neutral studio daylight, and take nothing else from it.";
+
+/** The named colours of a piece; the first is its main colour. */
+function namedColours(piece: PieceDna): OriginalColour[] {
+  return piece.colors
+    .filter((colour) => colour.name.trim() && colour.hexRange.length > 0)
+    .map((colour) => ({ name: colour.name.trim(), hex: colour.hexRange[0]! }));
+}
+
+/** Words of a colour name, for spotting it in a rule ("Taupe Grey" → taupe, grey). */
+function nameWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .split(/[^\p{L}]+/u)
+    .filter((word) => word.length >= 3);
+}
+
+/** Whether the text names any of these phrases ("taupe grey" also as "taupe-grey"). */
+function mentions(text: string, phrases: string[][]): boolean {
+  const lower = text.toLowerCase();
+  return phrases.some((words) =>
+    new RegExp(`(?<![\\p{L}])${words.join("[\\s-]+")}(?![\\p{L}])`, "u").test(lower),
+  );
+}
+
+const COLOUR_TERMS =
+  /\b(colou?rs?|colou?r-?(match|matched|matching)|hues?|tones?|tonal|tints?|shades?|dyes?|dyed|monochrome)\b/i;
+
+type ColourNames = { main: string[][]; contrast: string[][] };
+
+/**
+ * Whether a "never alter" rule pins the original colour, which a colourway
+ * must not carry over ("Retain exact taupe-grey color-matching…"): a rule
+ * about colour that names no contrast colour, or one naming the main colour
+ * in full when that name has two words or more. A one-word name ("Rose") may
+ * also name a lace motif, so it alone never drops a rule.
+ */
+function pinsOriginalColour(rule: string, names: ColourNames): boolean {
+  if (mentions(rule, names.main)) return true;
+  return COLOUR_TERMS.test(rule) && !mentions(rule, names.contrast);
+}
+
+/** The main colour names (two words or more) and contrast colour words of the pieces. */
+function colourNamesOf(pieces: PieceDna[]): ColourNames {
+  const main: string[][] = [];
+  const contrast: string[][] = [];
+  for (const piece of pieces) {
+    namedColours(piece).forEach((colour, index) => {
+      const words = nameWords(colour.name);
+      if (index > 0) contrast.push(...words.map((word) => [word]));
+      else if (words.length >= 2) main.push(words);
+    });
+  }
+  return { main, contrast };
+}
+
+function colourwayLine(piece: PieceDna, colorOverride: ColorOverride): string {
+  const [main, ...others] = namedColours(piece);
+  const brief = colourwayBrief(colorOverride, main ?? null);
+  const target =
+    others.length > 0 && main
+      ? `recolour the ${main.name.toLowerCase()} parts to ${brief.words} (${brief.hex}); parts in ${others
+          .map((colour) => colour.name.toLowerCase())
+          .join(", ")} keep their colour`
+      : `recolour the whole piece to ${brief.words} (${brief.hex})`;
+  return [
+    `  Colour — ${target}.`,
+    brief.change,
+    colorOverride.swatch ? SWATCH_LINE : null,
+    "Tonal fabric, lace and trims take the new colour with their original relative tones, sheen and transparency; contrast trims keep their own colour.",
+    brief.original
+      ? `Wherever this lock names the original ${brief.original}, read ${brief.words}.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 function describePiece(
   piece: PieceDna,
@@ -87,9 +172,7 @@ function describePiece(
   if (hardware.length > 0) lines.push(`  Hardware — ${hardware.join("; ")}.`);
 
   if (colorOverride) {
-    lines.push(
-      `  Colour — recolour the whole piece to ${colorOverride.name} ${colorOverride.hex.toUpperCase()}; fabric, lace and trims keep their original relative tones, sheen and transparency. Only the colour changes.`,
-    );
+    lines.push(colourwayLine(piece, colorOverride));
   } else {
     const colours = piece.colors
       .filter((colour) => colour.name.trim())
@@ -104,7 +187,10 @@ function describePiece(
   const chest = describeChestPanel(piece);
   if (chest) lines.push(`  ${chest}`);
 
-  const never = piece.doNotAlter.filter((item) => item.trim());
+  const names = colourNamesOf([piece]);
+  const never = piece.doNotAlter.filter(
+    (item) => item.trim() && !(colorOverride && pinsOriginalColour(item, names)),
+  );
   if (never.length > 0) lines.push(`  Never alter — ${never.join("; ")}.`);
   return lines;
 }
@@ -129,7 +215,10 @@ export function buildProductLock(
     lines.push(`• Set: ${dna.setComposition.trim()}`);
   }
   for (const piece of pieces) lines.push(...describePiece(piece, view, detail, colorOverride));
-  const globalNever = dna.globalDoNotAlter.filter((item) => item.trim());
+  const names = colourNamesOf(dna.pieces);
+  const globalNever = dna.globalDoNotAlter.filter(
+    (item) => item.trim() && !(colorOverride && pinsOriginalColour(item, names)),
+  );
   if (globalNever.length > 0)
     lines.push(`• Never alter (whole product) — ${globalNever.join("; ")}.`);
   return lines.join("\n");
@@ -146,17 +235,46 @@ const NEGATIVE_LINES = [
   "no logos, text or watermarks on the garment.",
 ];
 
-export function buildStrictNegatives(colorOverride: ColorOverride | null = null): string {
+export function buildStrictNegatives(
+  colorOverride: ColorOverride | null = null,
+  dna: GarmentDna | null = null,
+): string {
   const colourLine = colorOverride
-    ? `no colour other than the requested ${colorOverride.hex.toUpperCase()}, no uneven dye, no tint on trims that were tonal;`
+    ? colourwayNegative(colorOverride, dna)
     : "no colour shift, tint or re-grade of the garment colour;";
   return NEGATIVE_LINES.map((line) => (line === "COLOUR_LINE" ? colourLine : line)).join(" ");
+}
+
+function colourwayNegative(colorOverride: ColorOverride, dna: GarmentDna | null): string {
+  const { words } = colourWords(colorOverride.name, colorOverride.hex);
+  const originals = [
+    ...new Set(
+      (dna?.pieces ?? []).flatMap((piece) =>
+        namedColours(piece)
+          .slice(0, 1)
+          .map((colour) => colour.name.toLowerCase()),
+      ),
+    ),
+  ];
+  const trace = originals.length > 0 ? ` no trace of the original ${originals.join(" or ")},` : "";
+  return `no colour other than ${words} (${colorOverride.hex.toUpperCase()}) on the recoloured fabric,${trace} no uneven dye, no tint on trims that were tonal;`;
+}
+
+/**
+ * Negatives from the director brain that forbid the colour change a
+ * colourway asks for ("no colour shift"); they are dropped from colourways.
+ */
+const COLOUR_CHANGE_BAN =
+  /\bcolou?r[\s-]*(shift|change|drift|variation|alteration|difference)s?\b|\brecolou?r|\bre-?grad(e|ing)\b|\bdifferent colou?r|\boriginal colou?r/i;
+
+export function keepColourwayNegatives(items: string[]): string[] {
+  return items.filter((item) => !COLOUR_CHANGE_BAN.test(item));
 }
 
 export const STRICT_NEGATIVES = buildStrictNegatives();
 
 /** Short comma list for providers that accept a separate negative prompt. */
-export const NEGATIVE_PROMPT_TERMS = [
+const NEGATIVE_TERMS = [
   "added details",
   "missing details",
   "redesigned garment",
@@ -178,7 +296,16 @@ export const NEGATIVE_PROMPT_TERMS = [
   "padded chest panel",
   "warped fabric",
   "melted seams",
-].join(", ");
+];
+
+export const NEGATIVE_PROMPT_TERMS = NEGATIVE_TERMS.join(", ");
+
+/** The negative terms for one image; a colourway leaves out "colour shift". */
+export function negativePromptTerms(colourway = false): string {
+  return colourway
+    ? NEGATIVE_TERMS.filter((term) => term !== "colour shift").join(", ")
+    : NEGATIVE_PROMPT_TERMS;
+}
 
 export type ComposeOptions = {
   scene: string;
@@ -198,8 +325,9 @@ export type ComposeOptions = {
  */
 export function composeGenerationPrompt(options: ComposeOptions): string {
   const maxChars = options.maxChars ?? 4000;
-  const extras = (options.extraNegatives ?? []).map((item) => item.trim()).filter(Boolean);
-  const baseNegatives = buildStrictNegatives(options.colorOverride ?? null);
+  const trimmed = (options.extraNegatives ?? []).map((item) => item.trim()).filter(Boolean);
+  const extras = options.colorOverride ? keepColourwayNegatives(trimmed) : trimmed;
+  const baseNegatives = buildStrictNegatives(options.colorOverride ?? null, options.dna);
   const negatives =
     extras.length > 0 ? `${baseNegatives} Also: ${extras.join("; ")}.` : baseNegatives;
   const levels: LockDetail[] = ["full", "compact", "minimal"];

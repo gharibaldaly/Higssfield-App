@@ -174,7 +174,7 @@ describe("TemplateBrain", () => {
     expect(lock).toBeLessThan(negatives);
     expect(built.prompt).toContain("Seamless pure white #FFFFFF background");
     expect(built.prompt).toContain("no hanger, hook, clip, peg or pin anywhere in the image");
-    expect(built.promptVersion).toBe("ghost@2.0.0");
+    expect(built.promptVersion).toBe("ghost@2.1.0");
   });
 
   it("keeps one in-range answer per photo when sorting views", async () => {

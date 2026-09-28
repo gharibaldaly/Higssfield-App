@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // sharp is used server-side for crops/compositing; keep it out of bundles.
   serverExternalPackages: ["sharp"],
+  // The product sheet's text is rendered with these fonts; a function has no system fonts.
+  outputFileTracingIncludes: { "/products/**": ["./assets/fonts/**/*"] },
   experimental: {
     // Notes on regenerate prompts and DNA edits are small JSON payloads; photo
     // uploads go straight from the browser to Supabase Storage (never through

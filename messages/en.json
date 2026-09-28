@@ -446,10 +446,10 @@
   "sheet": {
     "needDna": {
       "title": "Approve the Garment DNA first",
-      "description": "The product sheet is generated from the approved DNA and the isolated reference photos.",
+      "description": "The product sheet is built from the approved DNA and your product photos.",
       "action": "Open Garment DNA"
     },
-    "started": "Sheet generation started.",
+    "started": "Sheet built from your photos.",
     "approved": "Sheet approved — {count} isolated reference crops saved.",
     "sheetTitle": "Sheet v{version}",
     "sheetAlt": "Product sheet",
@@ -463,15 +463,15 @@
     "showBoxes": "Show crop boxes",
     "approve": "Approve & crop",
     "isApproved": "Approved",
-    "regenerate": "Regenerate",
-    "regenerateWithNote": "Regenerate with note",
-    "notePlaceholder": "What should change? e.g. “Hem lace is too dense — match the photo”",
+    "regenerate": "Build again",
+    "regenerateWithNote": "Build again with a note",
+    "notePlaceholder": "What should change? e.g. “Use a sharper close-up of the lace”",
     "empty": {
       "title": "No product sheet yet",
-      "description": "A landscape 16:9 board: hero front, back view, six macro details and matching pieces. Once approved it is cut into isolated references for the video ads.",
-      "step1": "Pick an image model on the right.",
-      "step2": "Generate — the director brain writes the layout and the DNA lock is appended.",
-      "step3": "Compare with the originals, then approve to auto-crop the references."
+      "description": "A landscape 16:9 board built from your real photos: the front and back, six close-ups and the fabrics. Nothing is redrawn. Once approved, it is cut into isolated references for the video ads.",
+      "step1": "Build — the director brain picks the views and six details on your photos.",
+      "step2": "Check every card against the originals; move any box that missed its detail.",
+      "step3": "Approve to cut the references from the full-size photos."
     },
     "comparison": "Original photos",
     "comparisonHint": "Compare every card with these before approving.",
@@ -491,18 +491,34 @@
         "matching": "Matching"
       }
     },
-    "generate": {
-      "title": "Generate sheet",
-      "hint": "Landscape 16:9 at the model's highest resolution.",
-      "model": "Image model",
-      "first": "Generate sheet",
-      "again": "Generate new version",
-      "working": "Planning the sheet…",
-      "referencesNote": "Isolated references are sent (approved catalogue front/back first, then detail photos), up to the model's limit."
-    },
     "plan": {
       "title": "Sheet plan",
       "details": "Macro cards"
+    },
+    "source": {
+      "photos": "Built from your photos",
+      "drawn": "Drawn by an image model (older version)"
+    },
+    "warnings": "Check these cards — the director brain's choice could not be used as given:",
+    "adjustCards": "Adjust cards",
+    "build": {
+      "title": "Build the sheet",
+      "hint": "Every image on the sheet is cut from your photos at full resolution, so every detail is the real garment. Approved catalogue front and back images are used when you have them.",
+      "first": "Build the sheet",
+      "again": "Build a new version",
+      "working": "Building from your photos…"
+    },
+    "editor": {
+      "title": "Adjust the cards",
+      "hint": "Choose a card, then move its box on the photo (drag the round handle to resize) or pick another photo. Detail and fabric boxes grow to the card's shape.",
+      "cards": "Cards",
+      "photos": "Photos",
+      "setCard": "Built from each piece's front photo",
+      "noPhoto": "No photo yet — choose one below",
+      "save": "Save the sheet",
+      "saved": "Sheet saved",
+      "approvedFront": "Approved catalogue front",
+      "approvedBack": "Approved catalogue back"
     }
   },
   "review": {

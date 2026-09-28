@@ -1,10 +1,13 @@
 import { z } from "zod";
 
 /**
- * Product sheet layout (landscape 16:9). The same geometry is used twice:
- * 1. described to the image model so it draws the cards where we expect, and
- * 2. to auto-crop isolated reference images once the sheet is approved.
- * Coordinates are normalised (0–1) relative to the full canvas.
+ * Product sheet layout (landscape 16:9). Coordinates are normalised (0–1)
+ * relative to the full canvas.
+ * - Version 2: the sheet is built from the owner's photos, and every image
+ *   card names the photo regions it shows. The references for the ads are
+ *   cut from those regions at full resolution.
+ * - Version 1: sheets the image model drew before that. Their references are
+ *   cut from the drawn sheet at the cards' positions.
  */
 
 export const normalizedRectSchema = z.object({
@@ -44,6 +47,36 @@ export const sheetLayoutSchema = z.object({
 
 export type SheetCard = z.infer<typeof sheetCardSchema>;
 export type SheetLayout = z.infer<typeof sheetLayoutSchema>;
+
+/** A region of one photo (or of an approved catalogue image) that a card shows. */
+export const cardSourceSchema = z.object({
+  path: z.string().min(1),
+  box: normalizedRectSchema,
+});
+
+export const composedCardSchema = sheetCardSchema.extend({
+  /** One region for most cards; one per piece for a set's "pieces" card; none for text. */
+  sources: z.array(cardSourceSchema),
+});
+
+export const composedLayoutSchema = z.object({
+  version: z.literal(2),
+  aspectRatio: z.literal("16:9"),
+  canvas: z.object({ width: z.number(), height: z.number() }),
+  cards: z.array(composedCardSchema),
+});
+
+export type CardSource = z.infer<typeof cardSourceSchema>;
+export type ComposedCard = z.infer<typeof composedCardSchema>;
+export type ComposedLayout = z.infer<typeof composedLayoutSchema>;
+
+/** A stored layout of either kind. */
+export const anySheetLayoutSchema = z.discriminatedUnion("version", [
+  sheetLayoutSchema,
+  composedLayoutSchema,
+]);
+
+export type AnySheetLayout = z.infer<typeof anySheetLayoutSchema>;
 
 // Reference canvas in pixels; everything is normalised against it.
 const W = 1600;
@@ -179,35 +212,11 @@ export function computeSheetLayout(input: SheetLayoutInput): SheetLayout {
 }
 
 /** Cards that become isolated reference crops. */
-export function croppableCards(layout: SheetLayout): (SheetCard & { imageRect: NormalizedRect })[] {
+export function croppableCards<C extends SheetCard>(layout: {
+  cards: C[];
+}): (C & { imageRect: NormalizedRect })[] {
   return layout.cards.filter(
-    (card): card is SheetCard & { imageRect: NormalizedRect } =>
+    (card): card is C & { imageRect: NormalizedRect } =>
       card.imageRect !== null && card.cropKind !== null,
   );
-}
-
-function pct(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-/** Geometry description included in the sheet image prompt. */
-export function describeLayout(layout: SheetLayout): string {
-  const lines = layout.cards.map((card) => {
-    const where = `left ${pct(card.rect.x)}, top ${pct(card.rect.y)}, width ${pct(card.rect.w)}, height ${pct(card.rect.h)}`;
-    switch (card.role) {
-      case "title":
-        return `Title band (${where}).`;
-      case "hero":
-        return `Hero card with the full front view (${where}).`;
-      case "bullets":
-        return `Overview bullets card (${where}).`;
-      case "back":
-        return `Back-view card labelled "Back" (${where}).`;
-      case "detail":
-        return `Macro detail card "${card.label}" (${where}).`;
-      case "bottom":
-        return `Bottom card "${card.label}" (${where}).`;
-    }
-  });
-  return lines.join("\n");
 }

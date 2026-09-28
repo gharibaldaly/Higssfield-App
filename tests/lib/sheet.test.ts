@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { enforceSheetRules, type SheetPlan } from "@/lib/domain/sheet";
+import { enforceSheetRules, type SheetPhotoPlan } from "@/lib/domain/sheet";
 import {
   computeSheetLayout,
   croppableCards,
-  describeLayout,
   sheetLayoutSchema,
   type NormalizedRect,
 } from "@/lib/sheet/layout";
@@ -93,38 +92,37 @@ describe("computeSheetLayout", () => {
       partial.cards.filter((card) => card.role === "bottom").map((card) => card.cropKind),
     ).toEqual(["swatch", "swatch"]);
   });
-
-  it("describes the geometry for the image prompt", () => {
-    const text = describeLayout(layout);
-    expect(text.split("\n")).toHaveLength(layout.cards.length);
-    expect(text).toContain('Macro detail card "Pearl buttons"');
-    expect(text).toContain('Bottom card "The set"');
-    expect(text).toMatch(
-      /Hero card with the full front view \(left \d+%, top \d+%, width \d+%, height \d+%\)/,
-    );
-  });
 });
 
 describe("enforceSheetRules", () => {
-  const plan: SheetPlan = {
+  const lace = {
+    kind: "swatch" as const,
+    label: "Lace",
+    description: "The corded lace",
+    photo: 3,
+    box: [100, 100, 300, 300],
+  };
+  const satin = { ...lace, label: "Satin", description: "The satin", box: [600, 400, 800, 600] };
+  const plan: SheetPhotoPlan = {
     title: "Blush robe set",
     overviewBullets: ["Scalloped lace", "Liquid satin", "Pearl buttons"],
+    front: { photo: 1, box: [50, 50, 950, 950] },
+    back: null,
     detailCards: DETAIL_LABELS.map((label) => ({
       label,
       description: `${label} close-up`,
-      pieceName: "Robe",
+      photo: 3,
+      box: [100, 100, 400, 400],
     })),
-    bottomCards: [
-      { kind: "swatch", label: "Fabrics", description: "Fabric swatches" },
-      { kind: "matching", label: "Matching", description: "Matching pieces" },
-    ],
-    prompt: "Product sheet",
+    bottomCards: [lace, satin],
   };
 
   it("adds the pieces card first for multi-piece sets", () => {
     const fixed = enforceSheetRules(plan, ["Robe", "Slip dress"]);
     expect(fixed.bottomCards.map((card) => card.kind)).toEqual(["pieces", "swatch"]);
+    expect(fixed.bottomCards[0]).toMatchObject({ photo: null, box: null });
     expect(fixed.bottomCards[0]?.description).toContain("Robe, Slip dress");
+    expect(fixed.bottomCards[1]?.label).toBe("Lace");
   });
 
   it("moves an existing pieces card to the front", () => {
@@ -132,23 +130,37 @@ describe("enforceSheetRules", () => {
       {
         ...plan,
         bottomCards: [
-          { kind: "swatch", label: "Fabrics", description: "Fabric swatches" },
-          { kind: "pieces", label: "Both pieces", description: "Side by side" },
+          lace,
+          {
+            kind: "pieces",
+            label: "Both pieces",
+            description: "Side by side",
+            photo: 2,
+            box: [0, 0, 500, 500],
+          },
         ],
       },
       ["Robe", "Slip dress"],
     );
-    expect(fixed.bottomCards.map((card) => card.label)).toEqual(["Both pieces", "Fabrics"]);
+    expect(fixed.bottomCards.map((card) => card.label)).toEqual(["Both pieces", "Lace"]);
+    // The set card is built from each piece's front photo, never from one region.
+    expect(fixed.bottomCards[0]).toMatchObject({ photo: null, box: null });
   });
 
   it("never shows a pieces card for a single piece", () => {
     const fixed = enforceSheetRules(
       {
         ...plan,
-        bottomCards: [{ kind: "pieces", label: "Pieces", description: "x" }, plan.bottomCards[0]!],
+        bottomCards: [
+          { kind: "pieces", label: "Pieces", description: "x", photo: null, box: null },
+          lace,
+        ],
       },
       ["Robe"],
     );
-    expect(fixed.bottomCards.map((card) => card.kind)).toEqual(["matching", "swatch"]);
+    expect(fixed.bottomCards.map((card) => card.kind)).toEqual(["swatch", "swatch"]);
+    // The same swatch twice would say nothing: the second is left for the studio to place.
+    expect(fixed.bottomCards.map((card) => card.label)).toEqual(["Lace", "Fabric"]);
+    expect(fixed.bottomCards[1]).toMatchObject({ photo: null, box: null });
   });
 });

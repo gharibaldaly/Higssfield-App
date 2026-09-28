@@ -177,11 +177,12 @@ export async function deleteProduct(
   supabase: TypedSupabaseClient,
   productId: string,
 ): Promise<void> {
-  const [photos, colorways, crops, generations] = await Promise.all([
+  const [photos, colorways, crops, generations, sheets] = await Promise.all([
     supabase.from("source_photos").select("storage_path").eq("product_id", productId),
     supabase.from("colorways").select("swatch_path, sample_image_path").eq("product_id", productId),
     supabase.from("reference_crops").select("storage_path").eq("product_id", productId),
     supabase.from("generations").select("storage_path").eq("product_id", productId),
+    supabase.from("product_sheets").select("image_path").eq("product_id", productId),
   ]);
   const photoPaths = (photos.data ?? []).map((row) => row.storage_path);
   const paths = [
@@ -192,6 +193,9 @@ export async function deleteProduct(
     ...(crops.data ?? []).map((row) => row.storage_path),
     ...(generations.data ?? [])
       .map((row) => row.storage_path)
+      .filter((path): path is string => Boolean(path)),
+    ...(sheets.data ?? [])
+      .map((row) => row.image_path)
       .filter((path): path is string => Boolean(path)),
   ];
   const { error } = await supabase.from("products").delete().eq("id", productId);

@@ -37,7 +37,7 @@ export default async function LibraryPage({
       .limit(100),
     supabase
       .from("product_sheets")
-      .select("id, product_id, version, status, generation_id, created_at")
+      .select("id, product_id, version, status, generation_id, image_path, created_at")
       .order("created_at", { ascending: false })
       .limit(60),
     supabase
@@ -54,6 +54,7 @@ export default async function LibraryPage({
     : { data: [] as { id: string; storage_path: string | null }[] };
   const sheetPaths = new Map((sheetGenerations ?? []).map((row) => [row.id, row.storage_path]));
   const signed = await signPaths(supabase, [
+    ...(sheets.data ?? []).map((row) => row.image_path),
     ...(sheetGenerations ?? []).map((row) => row.storage_path),
     ...(colorways.data ?? []).map((row) => row.swatch_path),
   ]);
@@ -83,7 +84,9 @@ export default async function LibraryPage({
           createdAt: row.created_at,
         }))}
         sheets={(sheets.data ?? []).map((row) => {
-          const path = row.generation_id ? sheetPaths.get(row.generation_id) : null;
+          // Built from photos: the board itself; drawn by an image model: its generation.
+          const path =
+            row.image_path ?? (row.generation_id ? sheetPaths.get(row.generation_id) : null);
           return {
             id: row.id,
             productId: row.product_id,

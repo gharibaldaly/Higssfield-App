@@ -2,7 +2,7 @@ import type { AdPlan, PlannedShot } from "@/lib/domain/ad-plan";
 import type { FidelityReview } from "@/lib/domain/fidelity";
 import { DEFAULT_CHEST_PANEL, sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
 import type { PhotoClassification } from "@/lib/domain/photo-classification";
-import type { SheetPlan } from "@/lib/domain/sheet";
+import type { SheetPhotoPlan } from "@/lib/domain/sheet";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type {
   AnalyzeGarmentInput,
@@ -12,7 +12,7 @@ import type {
   PlanAdInput,
   ReviewFidelityInput,
   ScenePrompt,
-  SheetPromptInput,
+  SheetPlanInput,
   ShotPromptInput,
   StructuredRequest,
 } from "@/lib/providers/llm/types";
@@ -86,18 +86,20 @@ export class MockBrain extends TemplateBrain {
     };
   }
 
-  protected override async askSheetPlan(input: SheetPromptInput): Promise<SheetPlan> {
+  /**
+   * Front and back from the captions, six details on a 3×2 grid of the first
+   * detail photo (or the front), and two swatches from the middle of the front.
+   */
+  protected override async askSheetPlan(input: SheetPlanInput): Promise<SheetPhotoPlan> {
+    const numbered = (pattern: RegExp) => {
+      const index = input.photos.findIndex((photo) => pattern.test(photo.caption));
+      return index >= 0 ? index + 1 : null;
+    };
+    const front = numbered(/\bfront\b/i) ?? 1;
+    const back = numbered(/\bback\b/i);
+    const detailPhoto = numbered(/\bdetail\b/i) ?? front;
     const details = sellingDetails(input.dna);
-    const detailCards = Array.from({ length: 6 }, (_, index) => {
-      const detail = details[index % Math.max(1, details.length)];
-      return {
-        label: detail
-          ? `${detail.label}${index >= details.length ? ` ${index + 1}` : ""}`
-          : `Detail ${index + 1}`,
-        description: detail?.description ?? "Close-up of a construction detail",
-        pieceName: detail?.pieceName ?? input.product.pieces[0]?.name ?? "",
-      };
-    });
+    const whole = [40, 40, 960, 960];
     return {
       title: input.product.name,
       overviewBullets: [
@@ -105,16 +107,37 @@ export class MockBrain extends TemplateBrain {
         "True-to-life colour",
         "Premium finish",
       ],
-      detailCards,
+      front: { photo: front, box: whole },
+      back: back ? { photo: back, box: whole } : null,
+      detailCards: Array.from({ length: 6 }, (_, index) => {
+        const detail = details[index % Math.max(1, details.length)];
+        const top = 80 + Math.floor(index / 3) * 440;
+        const left = 40 + (index % 3) * 320;
+        return {
+          label: detail
+            ? `${detail.label}${index >= details.length ? ` ${index + 1}` : ""}`.slice(0, 40)
+            : `Detail ${index + 1}`,
+          description: detail?.description || "Close-up of a construction detail",
+          photo: detailPhoto,
+          box: [top, left, top + 400, left + 280],
+        };
+      }),
       bottomCards: [
         {
-          kind: input.product.pieces.length > 1 ? "pieces" : "matching",
-          label: "Matching",
-          description: "Matching pieces",
+          kind: "swatch",
+          label: "Main fabric",
+          description: MOCK_NOTE,
+          photo: front,
+          box: [420, 380, 580, 620],
         },
-        { kind: "swatch", label: "Fabrics", description: "Fabric swatches" },
+        {
+          kind: "swatch",
+          label: "Fabric detail",
+          description: MOCK_NOTE,
+          photo: front,
+          box: [620, 380, 780, 620],
+        },
       ],
-      prompt: `Product sheet for ${input.product.name} on invisible display forms, photographic garment imagery.`,
     };
   }
 

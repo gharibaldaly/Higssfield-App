@@ -27,8 +27,17 @@ export const storagePaths = {
     `${ownerId}/products/${productId}/sources/${photoId}.${extensionFor(mimeType)}`,
   swatch: (ownerId: string, productId: string, fileId: string, mimeType: string) =>
     `${ownerId}/products/${productId}/swatches/${fileId}.${extensionFor(mimeType)}`,
-  crop: (ownerId: string, productId: string, sheetId: string, cropId: string) =>
-    `${ownerId}/products/${productId}/sheets/${sheetId}/crops/${cropId}.png`,
+  crop: (
+    ownerId: string,
+    productId: string,
+    sheetId: string,
+    cropId: string,
+    mimeType = "image/png",
+  ) =>
+    `${ownerId}/products/${productId}/sheets/${sheetId}/crops/${cropId}.${extensionFor(mimeType)}`,
+  /** The sheet board built from the photos; a new name for every render, so no cache shows an old one. */
+  sheetImage: (ownerId: string, productId: string, sheetId: string, renderId: string) =>
+    `${ownerId}/products/${productId}/sheets/${sheetId}/board-${renderId}.jpg`,
   generation: (ownerId: string, generationId: string, mimeType: string) =>
     `${ownerId}/generations/${generationId}.${extensionFor(mimeType)}`,
   /** Temporary copies of brain images, deleted once the gateway has answered. */

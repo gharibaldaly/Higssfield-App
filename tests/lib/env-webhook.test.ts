@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   higgsfieldCredentials,
+  higgsfieldKeyForm,
   isHiggsfieldMockForced,
   keyStatus,
   resetServerEnvCache,
@@ -40,11 +41,32 @@ describe("Higgsfield credentials", () => {
     expect(higgsfieldCredentials()).toEqual({ keyId: "key-id", keySecret: "key-secret" });
   });
 
+  it("prefers the combined form even when a secret is also set", () => {
+    // The API splits on the colon, so a key id never holds one.
+    setEnv({ HIGGSFIELD_API_KEY: "key-id:key-secret", HIGGSFIELD_API_SECRET: "key-secret" });
+    expect(higgsfieldCredentials()).toEqual({ keyId: "key-id", keySecret: "key-secret" });
+  });
+
+  it("drops pasted quotes and the header's leading Key", () => {
+    setEnv({ HIGGSFIELD_API_KEY: '"key-id"', HIGGSFIELD_API_SECRET: " 'key-secret' " });
+    expect(higgsfieldCredentials()).toEqual({ keyId: "key-id", keySecret: "key-secret" });
+    setEnv({ HIGGSFIELD_API_KEY: "Key key-id:key-secret" });
+    expect(higgsfieldCredentials()).toEqual({ keyId: "key-id", keySecret: "key-secret" });
+  });
+
   it("treats blank or incomplete values as missing", () => {
     setEnv({ HIGGSFIELD_API_KEY: "   " });
     expect(higgsfieldCredentials()).toBeNull();
     setEnv({ HIGGSFIELD_API_KEY: "key-id-only" });
     expect(higgsfieldCredentials()).toBeNull();
+    expect(higgsfieldKeyForm()).toBeNull();
+  });
+
+  it("says which form the key was read in, for Settings", () => {
+    setEnv({ HIGGSFIELD_API_KEY: "key-id:key-secret", HIGGSFIELD_API_SECRET: "old-secret" });
+    expect(higgsfieldKeyForm()).toBe("combined");
+    setEnv({ HIGGSFIELD_API_KEY: "key-id", HIGGSFIELD_API_SECRET: "key-secret" });
+    expect(higgsfieldKeyForm()).toBe("separate");
   });
 
   it("reports the mock provider when no key is set or mock is forced", () => {

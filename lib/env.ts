@@ -75,21 +75,48 @@ export function supabaseEnv(): { url: string; anonKey: string } {
   return { url: env.NEXT_PUBLIC_SUPABASE_URL!, anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY! };
 }
 
+/** A pasted credential without surrounding quotes or the header's leading "Key ". */
+function cleanCredential(value: string | undefined): string {
+  return (value ?? "")
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^Key\s+/i, "")
+    .trim();
+}
+
+/** How the Higgsfield key was read: `KEY_ID:SECRET` in one variable, or two variables. */
+export type HiggsfieldKeyForm = "combined" | "separate";
+
 /**
- * Higgsfield credentials. The API authenticates with `KEY_ID:KEY_SECRET`
- * (per the official SDK). Accept either both halves in separate variables or
- * the combined form in HIGGSFIELD_API_KEY.
+ * Higgsfield credentials. The API authenticates with `Key KEY_ID:KEY_SECRET`
+ * (docs, Authentication). Accept both halves in separate variables, or the
+ * combined form in HIGGSFIELD_API_KEY, which wins even when a secret is also
+ * set: the API splits on the colon, so a key id never contains one.
  */
-export function higgsfieldCredentials(): { keyId: string; keySecret: string } | null {
+function readHiggsfieldKey(): { keyId: string; keySecret: string; form: HiggsfieldKeyForm } | null {
   const env = serverEnv();
-  const key = env.HIGGSFIELD_API_KEY;
+  const key = cleanCredential(env.HIGGSFIELD_API_KEY);
   if (!key) return null;
-  if (env.HIGGSFIELD_API_SECRET) return { keyId: key, keySecret: env.HIGGSFIELD_API_SECRET };
   const separator = key.indexOf(":");
   if (separator > 0 && separator < key.length - 1) {
-    return { keyId: key.slice(0, separator), keySecret: key.slice(separator + 1) };
+    return {
+      keyId: key.slice(0, separator).trim(),
+      keySecret: key.slice(separator + 1).trim(),
+      form: "combined",
+    };
   }
-  return null;
+  const secret = cleanCredential(env.HIGGSFIELD_API_SECRET);
+  return secret ? { keyId: key, keySecret: secret, form: "separate" } : null;
+}
+
+export function higgsfieldCredentials(): { keyId: string; keySecret: string } | null {
+  const key = readHiggsfieldKey();
+  return key ? { keyId: key.keyId, keySecret: key.keySecret } : null;
+}
+
+/** Which form the key was read in, for Settings (never the key itself). */
+export function higgsfieldKeyForm(): HiggsfieldKeyForm | null {
+  return readHiggsfieldKey()?.form ?? null;
 }
 
 /**

@@ -41,7 +41,8 @@ import {
   CATALOGUE_SHADOWS,
   type CatalogueStyle,
 } from "@/lib/domain/catalogue-style";
-import type { KeyStatus } from "@/lib/env";
+import type { HiggsfieldKeyForm, KeyStatus } from "@/lib/env";
+import type { CredentialCheck } from "@/lib/providers/higgsfield/client";
 import { groupByFamily } from "@/lib/providers/higgsfield/model-groups";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 import type { CostSummary } from "@/lib/settings/costs";
@@ -84,6 +85,8 @@ export function SettingsView({
   defaults,
   keys,
   providerMode,
+  higgsfieldKey,
+  higgsfieldKeyForm,
   imageModels,
   videoModels,
   costs,
@@ -95,6 +98,10 @@ export function SettingsView({
   gateway: GatewayInfo;
   keys: KeyStatus;
   providerMode: "higgsfield" | "mock";
+  /** What Higgsfield said about the key (null in mock mode). */
+  higgsfieldKey: CredentialCheck | null;
+  /** How the key was read from the environment (never the key itself). */
+  higgsfieldKeyForm: HiggsfieldKeyForm | null;
   imageModels: ModelOption[];
   videoModels: ModelOption[];
   costs: CostSummary;
@@ -112,11 +119,16 @@ export function SettingsView({
       <ModelsCard
         settings={settings}
         providerMode={providerMode}
+        keyRejected={higgsfieldKey === "rejected"}
         imageModels={imageModels}
         videoModels={videoModels}
       />
       <div className="flex flex-col gap-6">
-        <KeysCard keys={keys} />
+        <KeysCard
+          keys={keys}
+          higgsfieldRejected={higgsfieldKey === "rejected"}
+          higgsfieldForm={higgsfieldKeyForm}
+        />
         <DriveCard drive={settings.drive} configured={keys.googleDrive} />
         <PasswordCard />
       </div>
@@ -393,11 +405,13 @@ function CatalogueStyleCard({ style }: { style: CatalogueStyle }) {
 function ModelsCard({
   settings,
   providerMode,
+  keyRejected,
   imageModels,
   videoModels,
 }: {
   settings: SettingsData;
   providerMode: "higgsfield" | "mock";
+  keyRejected: boolean;
   imageModels: ModelOption[];
   videoModels: ModelOption[];
 }) {
@@ -411,9 +425,13 @@ function ModelsCard({
         <CardTitle className="flex items-center gap-2">
           <Shapes className="size-5 text-accent-ink" aria-hidden />
           {t("title")}
-          <Badge variant={providerMode === "mock" ? "warning" : "success"}>
-            {t(`provider.${providerMode}`)}
-          </Badge>
+          {keyRejected ? (
+            <Badge variant="danger">{t("provider.rejected")}</Badge>
+          ) : (
+            <Badge variant={providerMode === "mock" ? "warning" : "success"}>
+              {t(`provider.${providerMode}`)}
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>{t("hint")}</CardDescription>
       </CardHeader>
@@ -511,12 +529,25 @@ function ModelsCard({
   );
 }
 
-function KeysCard({ keys }: { keys: KeyStatus }) {
+function KeysCard({
+  keys,
+  higgsfieldRejected,
+  higgsfieldForm,
+}: {
+  keys: KeyStatus;
+  higgsfieldRejected: boolean;
+  higgsfieldForm: HiggsfieldKeyForm | null;
+}) {
   const t = useTranslations("settings.keys");
-  const rows: [string, boolean][] = [
+  // A rejected key says how it was read, so a paste slip shows without the key.
+  const rows: [string, boolean | "rejected", string?][] = [
     ["Supabase", keys.supabase],
     [t("serviceRole"), keys.supabaseServiceRole],
-    ["Higgsfield", keys.higgsfield],
+    [
+      "Higgsfield",
+      higgsfieldRejected ? "rejected" : keys.higgsfield,
+      higgsfieldRejected && higgsfieldForm ? t(`readAs.${higgsfieldForm}`) : undefined,
+    ],
     [t("webhook"), keys.higgsfieldWebhook],
     ["Anthropic (Claude)", keys.anthropic],
     ["Google Gemini", keys.gemini],
@@ -535,21 +566,28 @@ function KeysCard({ keys }: { keys: KeyStatus }) {
       </CardHeader>
       <CardContent>
         <ul className="flex flex-col divide-y divide-border">
-          {rows.map(([label, ok]) => (
-            <li key={label} className="flex items-center justify-between py-2.5 text-sm">
-              <span>{label}</span>
+          {rows.map(([label, state, hint]) => (
+            <li key={label} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+              <span className="flex flex-col gap-0.5">
+                <span>{label}</span>
+                {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+              </span>
               <span
                 className={cn(
                   "inline-flex items-center gap-1.5",
-                  ok ? "text-success" : "text-muted-foreground",
+                  state === "rejected"
+                    ? "text-destructive"
+                    : state
+                      ? "text-success"
+                      : "text-muted-foreground",
                 )}
               >
-                {ok ? (
+                {state === true ? (
                   <CheckCircle2 className="size-4" aria-hidden />
                 ) : (
                   <XCircle className="size-4" aria-hidden />
                 )}
-                {ok ? t("configured") : t("missing")}
+                {state === "rejected" ? t("rejected") : state ? t("configured") : t("missing")}
               </span>
             </li>
           ))}

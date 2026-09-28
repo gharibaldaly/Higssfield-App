@@ -84,6 +84,27 @@ describe("HiggsfieldClient", () => {
     });
   });
 
+  it("checks the key without generating anything", async () => {
+    const client = new HiggsfieldClient({
+      keyId: "id",
+      keySecret: "secret",
+      baseUrl: "https://api.test",
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(404, { detail: "Request not found" }));
+    await expect(client.checkCredentials()).resolves.toBe("accepted");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toMatch(/^https:\/\/api\.test\/requests\/[0-9a-f-]{36}\/status$/);
+    expect(init?.method).toBe("GET");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Key id:secret");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, { detail: "Invalid credentials" }));
+    await expect(client.checkCredentials()).resolves.toBe("rejected");
+    fetchMock.mockResolvedValueOnce(jsonResponse(503, { detail: "Not ready" }));
+    await expect(client.checkCredentials()).resolves.toBe("unknown");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    await expect(client.checkCredentials()).resolves.toBe("unknown");
+  });
+
   it("maps HTTP errors to user-facing errors", async () => {
     const client = new HiggsfieldClient({ keyId: "id", keySecret: "secret", retries: 0 });
     fetchMock.mockResolvedValueOnce(jsonResponse(401, { detail: "bad key" }));

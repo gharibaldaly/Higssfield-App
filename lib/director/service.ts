@@ -19,7 +19,7 @@ import { AppError, toUserMessage } from "@/lib/errors";
 import { ownerRegistry, promptBudget, resolveModel } from "@/lib/generations/models";
 import { getGeneration, recordFailedGeneration } from "@/lib/generations/queries";
 import { submitGeneration } from "@/lib/generations/service";
-import { activeProviderMode } from "@/lib/providers/higgsfield";
+import { activeProviderMode, requireHiggsfieldKey } from "@/lib/providers/higgsfield";
 import { capabilitiesOf, highestResolution } from "@/lib/providers/higgsfield/registry";
 import type { ModelSpec } from "@/lib/providers/higgsfield/types";
 import { getDirectorBrain } from "@/lib/providers/llm";
@@ -509,6 +509,7 @@ export async function generateShot(
       : shot.preview_frame_first && !shot.preview_approved
         ? "preview"
         : "video";
+  await requireHiggsfieldKey();
   const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const shotInput = {
     purpose: shot.purpose,

@@ -22,7 +22,7 @@ import {
 import { latestBySlot } from "@/lib/generations/side-effects";
 import { submitGeneration } from "@/lib/generations/service";
 import { toLlmImage } from "@/lib/images/process";
-import { activeProviderMode } from "@/lib/providers/higgsfield";
+import { activeProviderMode, requireHiggsfieldKey } from "@/lib/providers/higgsfield";
 import { highestResolution } from "@/lib/providers/higgsfield/registry";
 import type { GenerationMode, ModelSpec } from "@/lib/providers/higgsfield/types";
 import { getDirectorBrain, type DirectorBrain } from "@/lib/providers/llm";
@@ -170,6 +170,8 @@ async function loadJobContext(
   ownerId: string,
   job: CatalogueJobRow,
 ): Promise<JobContext> {
+  // Before any prompt is written: a rejected key would fail every output anyway.
+  await requireHiggsfieldKey();
   const [product, pieces, photos, settings, dna, colorwaysResult, approvedFront] =
     await Promise.all([
       getProduct(supabase, job.product_id),

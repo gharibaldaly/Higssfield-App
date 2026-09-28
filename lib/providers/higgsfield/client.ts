@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors";
@@ -161,6 +163,15 @@ function detailMessage(payload: unknown): string | undefined {
 /** The docs report the account's concurrency limit as a 400 with this message. */
 const CONCURRENCY_LIMIT = /concurrent requests/i;
 
+/** Higgsfield turned the key away (401): a wrong or malformed key, or one not deployed yet. */
+export function keyRejectedError(reference?: string): AppError {
+  return new AppError(
+    "provider_auth",
+    "Higgsfield rejected the API key. Check HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET in Vercel, then redeploy.",
+    { status: 401, reference },
+  );
+}
+
 /** Maps an error response to a user-facing error, per the docs' error table. */
 export async function higgsfieldError(response: Response): Promise<AppError> {
   let payload: unknown = null;
@@ -191,11 +202,7 @@ export async function higgsfieldError(response: Response): Promise<AppError> {
         base,
       );
     case 401:
-      return new AppError(
-        "provider_auth",
-        "Higgsfield rejected the API key. Check HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET.",
-        { status, reference },
-      );
+      return keyRejectedError(reference);
     case 402:
     case 403:
       return new AppError(
@@ -244,6 +251,9 @@ export function shouldResubmit(error: unknown): boolean {
   return failedBeforeSending(error);
 }
 
+/** What Higgsfield said about the configured key; "unknown" when it could not be asked. */
+export type CredentialCheck = "accepted" | "rejected" | "unknown";
+
 export type HiggsfieldClientOptions = {
   keyId: string;
   keySecret: string;
@@ -262,6 +272,26 @@ export class HiggsfieldClient implements ImageVideoProvider {
     this.baseUrl = (options.baseUrl ?? DEFAULT_HIGGSFIELD_BASE_URL).replace(/\/+$/, "");
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.retries = options.retries ?? 2;
+  }
+
+  /**
+   * Whether Higgsfield accepts these credentials, without generating anything:
+   * the status of a request id that does not exist answers 404 to a valid key
+   * and 401 to an invalid one (docs, Authentication and Errors).
+   */
+  async checkCredentials(): Promise<CredentialCheck> {
+    try {
+      const response = await fetchWithTimeout(this.url(`requests/${randomUUID()}/status`), {
+        method: "GET",
+        headers: this.headers(),
+        timeoutMs: 8000,
+        cache: "no-store",
+      });
+      if (response.status === 401) return "rejected";
+      return response.status < 500 ? "accepted" : "unknown";
+    } catch {
+      return "unknown";
+    }
   }
 
   private headers(): HeadersInit {

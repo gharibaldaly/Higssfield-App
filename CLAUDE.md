@@ -368,3 +368,32 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Flash models are free of charge, with per-project limits; the daily limit resets at midnight Pacific time.
   - Free-tier content is used to improve Google's products. Enabling billing stops that; 3.8 Flash then costs $0.75 per million input tokens and $3.75 per million output tokens until the end of 2026.
 
+### 2026-09-27 — Higgsfield key: tolerant parsing and a live check
+- **Why:** with the brain on Gemini, the first DNA was analysed and approved. The product sheet that followed then failed with "Higgsfield rejected the API key" (401), while Settings still showed "Higgsfield connected", because that badge only checked that the variables were set.
+- **Parsing** (`higgsfieldCredentials`):
+  - The combined `KEY_ID:KEY_SECRET` form in `HIGGSFIELD_API_KEY` now wins even when `HIGGSFIELD_API_SECRET` is also set. Before, the whole combined string was sent as the key ID. The API splits the header on the colon, so a key ID never holds one.
+  - Surrounding quotes and a leading `Key ` (copied from the header example) are dropped.
+- **Live check** (`HiggsfieldClient.checkCredentials`, `higgsfieldKeyCheck`):
+  - The check asks for the status of a random request id, which generates nothing and costs nothing. The docs' Authentication page says invalid credentials return 401, and a request the account does not have returns 404, so 401 means rejected and any other answer below 500 means accepted.
+  - Settings runs it on each visit: the models badge reads "Higgsfield rejected the key", and the keys card marks Higgsfield as rejected.
+  - An accepted key is remembered for five minutes per server instance; a rejected one is asked again each time, so a corrected key shows at once.
+
+
+### 2026-09-28 — Gemini quotas, and a Higgsfield key check before brain calls
+- **Why:** the product sheet failed three times with Higgsfield's 401, and each attempt first spent a Gemini request on the sheet prompt. Then Gemini answered 429 because the free daily limit was used up. The toast cut Google's message before it named the limit, because the detail was the first 300 characters of the raw JSON body.
+- **Free tier** (Google's pricing and rate-limit pages, 2026-09-28):
+  - Limits apply per project and model, and daily limits reset at midnight Pacific time (10:00 in Cairo). AI Studio shows the live numbers.
+  - Google no longer publishes the numbers. A September 2026 summary gives about 20 requests a day for each Flash model (3.8, 3.7, 3.6, 3.5) and about 500 for Flash-Lite.
+- **Reading a 429** (`lib/providers/llm/gemini-errors.ts`):
+  - The SDK's `ApiError` carries Google's JSON body. The brain reads its `QuotaFailure`: the quota id says per minute or per day, and requests or tokens; the limit and model come with it. It also reads `RetryInfo` (the retry delay). The message text is the fallback.
+  - Errors now show Google's own message instead of raw JSON, and a 429 names its limit ("gemini-3.8-flash: 20 requests a day (free tier)").
+- **What the brain does** (this replaces "quota errors never switch models" from the Gemini entry above):
+  - The SDK no longer retries 429s blindly; its retry codes leave 429 out.
+  - A per-minute limit is waited out once when Google's delay is 45 s or less. A longer one moves on.
+  - A daily limit moves to the next Flash model: 3.7, then 3.6 (new), then 3.5, each with its own free limit. A daily 429 is never waited out, even when Google suggests a short retry.
+  - When every model has used its daily limit, the error says when the limit resets (in Cairo time) and that turning on billing lifts it.
+  - The DNA row, sheet plan, fidelity review and ad plan record the model that actually answered, because `GeminiBrain.model` follows the fallback.
+- **Higgsfield key check first:** `requireHiggsfieldKey()` runs the live key check before the product sheet, a catalogue job (runs and regenerations) and an ad shot write their prompts.
+  - A rejected key stops the work with the 401 message and costs no brain call.
+  - An accepted key is remembered for five minutes; an unreachable API lets the work go on.
+- **Settings:** a rejected Higgsfield key also says how the studio read it: `KEY_ID:SECRET` in one variable, or two variables. The key itself is never shown.

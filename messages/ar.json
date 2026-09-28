@@ -1280,7 +1280,8 @@
       "otherModels": "موديلات أخرى",
       "provider": {
         "higgsfield": "Higgsfield متصل",
-        "mock": "مزوّد تجريبي"
+        "mock": "مزوّد تجريبي",
+        "rejected": "Higgsfield رفض المفتاح"
       },
       "default": {
         "image": "موديل الصور الافتراضي",
@@ -1305,6 +1306,11 @@
       "hint": "الحالة فقط — القيم لا تُعرض أبدًا.",
       "configured": "مُعدّ",
       "missing": "ناقص",
+      "rejected": "مرفوض — راجع المفتاح في Vercel",
+      "readAs": {
+        "combined": "يقرأ الاستوديو المفتاح بصيغة KEY_ID:SECRET من HIGGSFIELD_API_KEY، ويتجاهل HIGGSFIELD_API_SECRET.",
+        "separate": "يقرأ الاستوديو معرّف المفتاح من HIGGSFIELD_API_KEY والسر من HIGGSFIELD_API_SECRET."
+      },
       "serviceRole": "Supabase service role (للـ webhooks)",
       "gateway": "بوابة الـ LLM",
       "webhook": "Webhook لـ Higgsfield (السر + APP_URL)",

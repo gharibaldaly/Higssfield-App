@@ -1196,27 +1196,13 @@
   "library": {
     "eyebrow": "Everything you made",
     "title": "Library",
-    "description": "Products, DNA versions, sheets, colourways and every generation — filter, favourite and download.",
+    "description": "Every batch and product with its results, DNA versions, sheets and colourways — open a batch, review it and download it in one go.",
     "tabs": {
-      "generations": "Generations",
+      "generations": "Results",
       "products": "Products",
       "dna": "Garment DNA",
       "sheets": "Sheets",
       "colorways": "Colourways"
-    },
-    "filters": {
-      "kind": "Type",
-      "images": "Images",
-      "videos": "Videos",
-      "purpose": "Purpose",
-      "status": "Status",
-      "completed": "Ready",
-      "pending": "In progress",
-      "failed": "Failed",
-      "product": "Product",
-      "favorites": "Favourites",
-      "approved": "Approved",
-      "all": "all"
     },
     "purposes": {
       "ghost_front": "Ghost front",
@@ -1254,10 +1240,56 @@
       "title": "Nothing here yet",
       "description": "Results appear here as soon as they are generated."
     },
-    "approvedBadge": "Approved",
-    "favorite": "Add to favourites",
-    "unfavorite": "Remove from favourites",
-    "download": "Download"
+    "collections": {
+      "batches": "Batches",
+      "products": "From products",
+      "batchEyebrow": "Batch · {date}",
+      "productEyebrow": "Product",
+      "models": "{count, plural, one {# model} other {# models}}",
+      "images": "{count, plural, one {# image} other {# images}}",
+      "approved": "{count} approved",
+      "paused": "Paused",
+      "empty": {
+        "title": "No results yet",
+        "description": "Each batch, and each product with results of its own, appears here — ready to open and download in one go."
+      }
+    },
+    "collection": {
+      "summary": "{models, plural, one {# model} other {# models}} · {images, plural, one {# image} other {# images}} · {approved} approved",
+      "productSummary": "{images, plural, one {# image} other {# images}} · {approved} approved",
+      "modelSummary": "{images, plural, one {# image} other {# images}} · {approved} approved",
+      "includes": "Finished images only, the latest attempt of each view. The download has one folder per model.",
+      "approvedOnly": "Approved only",
+      "download": "{count, plural, =0 {Nothing to download yet} one {Download # image} other {Download # images}}",
+      "openStudio": "Open in the studio",
+      "openProduct": "Open the product",
+      "listing": "Preparing the list…",
+      "progress": "{done} of {total} · {mb} MB",
+      "progressLabel": "Download progress",
+      "cancel": "Cancel",
+      "saved": "Saved {name}",
+      "cancelled": "Download cancelled.",
+      "failed": "The download stopped: {file} could not be fetched. Try again.",
+      "failedUnknown": "The download stopped. Try again.",
+      "nothing": "Nothing to download for this selection.",
+      "noImages": "No images in this collection yet",
+      "noImagesHint": "They appear here as soon as they are generated.",
+      "noApproved": "No approved images yet",
+      "noApprovedHint": "Turn off “Approved only” to see the rest, or approve images in the studio.",
+      "regenerating": "Regenerating…",
+      "approved": "Approved",
+      "favorite": "Add to favourites",
+      "unfavorite": "Remove from favourites",
+      "downloadOne": "Download this image",
+      "slots": {
+        "front": "Front",
+        "back": "Back",
+        "closeup": "Close-up {n}",
+        "closeupNamed": "Close-up {n} · {label}",
+        "colour": "Colour",
+        "colourNamed": "Colour · {label}"
+      }
+    }
   },
   "settings": {
     "eyebrow": "Studio",

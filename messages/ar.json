@@ -1196,27 +1196,13 @@
   "library": {
     "eyebrow": "كل ما صنعته",
     "title": "المكتبة",
-    "description": "المنتجات، إصدارات الـ DNA، الشيتات، الألوان وكل ما تم توليده — فلترة، مفضلة، وتحميل.",
+    "description": "كل دفعة ومنتج بنتائجه، وإصدارات الـ DNA، والشيتات، والألوان — افتح دفعة وراجعها وحمّلها مرة واحدة.",
     "tabs": {
       "generations": "النتائج",
       "products": "المنتجات",
       "dna": "DNA القطع",
       "sheets": "الشيتات",
       "colorways": "الألوان"
-    },
-    "filters": {
-      "kind": "النوع",
-      "images": "صور",
-      "videos": "فيديوهات",
-      "purpose": "الغرض",
-      "status": "الحالة",
-      "completed": "جاهز",
-      "pending": "قيد التنفيذ",
-      "failed": "فشل",
-      "product": "المنتج",
-      "favorites": "المفضلة",
-      "approved": "المعتمد",
-      "all": "الكل"
     },
     "purposes": {
       "ghost_front": "مانيكان أمام",
@@ -1254,10 +1240,56 @@
       "title": "لا يوجد شيء هنا بعد",
       "description": "تظهر النتائج هنا فور توليدها."
     },
-    "approvedBadge": "معتمد",
-    "favorite": "إضافة إلى المفضلة",
-    "unfavorite": "إزالة من المفضلة",
-    "download": "تحميل"
+    "collections": {
+      "batches": "الدفعات",
+      "products": "من المنتجات",
+      "batchEyebrow": "دفعة · {date}",
+      "productEyebrow": "منتج",
+      "models": "{count, plural, one {موديل واحد} two {موديلان} few {# موديلات} other {# موديل}}",
+      "images": "{count, plural, one {صورة واحدة} two {صورتان} few {# صور} other {# صورة}}",
+      "approved": "{count} معتمد",
+      "paused": "متوقفة مؤقتًا",
+      "empty": {
+        "title": "لا نتائج بعد",
+        "description": "تظهر هنا كل دفعة، وكل منتج له نتائج خاصة به — جاهزة للفتح والتحميل مرة واحدة."
+      }
+    },
+    "collection": {
+      "summary": "{models, plural, one {موديل واحد} two {موديلان} few {# موديلات} other {# موديل}} · {images, plural, one {صورة واحدة} two {صورتان} few {# صور} other {# صورة}} · {approved} معتمد",
+      "productSummary": "{images, plural, one {صورة واحدة} two {صورتان} few {# صور} other {# صورة}} · {approved} معتمد",
+      "modelSummary": "{images, plural, one {صورة واحدة} two {صورتان} few {# صور} other {# صورة}} · {approved} معتمد",
+      "includes": "الصور المكتملة فقط، آخر محاولة لكل زاوية. التحميل فيه مجلد لكل موديل.",
+      "approvedOnly": "المعتمد فقط",
+      "download": "{count, plural, =0 {لا شيء للتحميل بعد} one {تحميل صورة واحدة} two {تحميل صورتين} few {تحميل # صور} other {تحميل # صورة}}",
+      "openStudio": "افتح في الاستوديو",
+      "openProduct": "افتح المنتج",
+      "listing": "جارٍ تجهيز القائمة…",
+      "progress": "{done} من {total} · {mb} MB",
+      "progressLabel": "تقدّم التحميل",
+      "cancel": "إلغاء",
+      "saved": "تم حفظ {name}",
+      "cancelled": "أُلغي التحميل.",
+      "failed": "توقف التحميل: تعذّر جلب {file}. حاول مرة أخرى.",
+      "failedUnknown": "توقف التحميل. حاول مرة أخرى.",
+      "nothing": "لا شيء للتحميل في هذا الاختيار.",
+      "noImages": "لا صور في هذه المجموعة بعد",
+      "noImagesHint": "تظهر هنا فور توليدها.",
+      "noApproved": "لا صور معتمدة بعد",
+      "noApprovedHint": "أوقف «المعتمد فقط» لترى الباقي، أو اعتمد الصور من الاستوديو.",
+      "regenerating": "جارٍ إعادة التوليد…",
+      "approved": "معتمد",
+      "favorite": "إضافة إلى المفضلة",
+      "unfavorite": "إزالة من المفضلة",
+      "downloadOne": "تحميل هذه الصورة",
+      "slots": {
+        "front": "الأمام",
+        "back": "الخلف",
+        "closeup": "كلوز {n}",
+        "closeupNamed": "كلوز {n} · {label}",
+        "colour": "لون",
+        "colourNamed": "لون · {label}"
+      }
+    }
   },
   "settings": {
     "eyebrow": "الاستوديو",

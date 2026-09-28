@@ -79,7 +79,7 @@ Flow: brief (free text) + approved product sheet + controls → LLM plans the sh
 Montage (Phase 2): order/trim clips, upload a music track, render final video via the worker, export.
 
 ### E. Library & Settings
-- Library: products, DNA, sheets, colourways, all generations with filters, favourites, download.
+- Library: results grouped by batch (and by product for results outside batches), each opening to every image with an "approved only" switch and a one-click zip download; products, DNA, sheets, colourways, favourites.
 - Settings: LLM switch, catalogue style, Google Drive connection and target folder, provider key status (configured / missing — never display keys), cost summary.
 
 ### Coming soon (show in nav as disabled "Soon" items, no build yet)
@@ -561,3 +561,18 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - A regeneration cut off before it recorded anything frees the output after 6 minutes (the route runs 5 at most). Only one request can take it over.
   - Tested against the in-memory Supabase with an `updated_at` trigger, and mutation-checked.
 - **Not verified live:** the sandbox cannot open the production site, so the owner's next review session is the test.
+
+### 2026-09-28 — Library: batches as collections, downloaded in one go
+- **Why:** the owner asked for the library not to list images one by one: it should list the batch, open to all of its images, and download the whole batch with one button.
+- **Results tab** (`lib/library/collections.ts`, `components/library/collection-cards.tsx`): every ghost batch is a card (its first models' fronts, the date, models, images, approved), then every product that has results outside batches (its own catalogue runs, sheets, ad shots). The flat grid and its filters are gone.
+  - A batch's generations are found through its catalogue jobs (`catalogue_jobs.batch_id`); everything else files under its product.
+  - "Images" counts finished results that are not being regenerated: for catalogue jobs the latest attempt of each view, otherwise every generation (`lib/library/grouping.ts`, pure and tested).
+  - Rows are fetched in pages of 1,000 (PostgREST's limit per request), so the counts stay right as the library grows.
+- **Collection pages** (`/library/batch/[id]`, `/library/product/[id]`, `components/library/collection-view.tsx`): the models one after another with all their images (approval ring, "Regenerating…" while a new attempt is on its way, favourite, single download), an "Approved only" switch that also decides what the download holds, and a link into the studio.
+- **Download** (`components/library/collection-download.tsx`): the browser builds the zip itself. `GET /api/library/files` lists the finished images with links signed at click time (a page open for hours still downloads); the browser fetches them straight from Storage and streams them into the archive, so nothing passes through a server function (Vercel caps function bodies at a few MB) and a batch of any size works.
+  - On Chromium the save dialog opens from the click (`showSaveFilePicker`) and the archive is written to disk as it is made, so memory stays small. Other browsers build it in memory and hand it to the download.
+  - Three images are fetched ahead of the one being written; each is retried three times; a failure stops the download and names the file. Cancel is a button.
+  - `lib/zip/writer.ts` is the studio's own ZIP writer: files stored as they are (images are already compressed), UTF-8 names (Arabic model names), ZIP64 once an archive passes 4 GB or 65,535 files. Verified with Python's `zipfile` and Info-ZIP `unzip` as well as its own tests.
+  - Names (`lib/library/file-names.ts`): one folder per model, the model's name in every file, the view after it: `B20133/B20133-front.png`, `B20133-back`, `B20133-closeup-1-lace trim`, `B20133-colour-أسود`; sheets and shots by their kind. Characters file systems refuse become `-`, and repeats get ` (2)`.
+- **Not verified live:** the sandbox cannot open Storage, so the first download on production is the test of Storage's CORS answer to `fetch` from the studio's origin (its API serves browsers directly, so it should allow it). If the browser refuses, the error names the file, and the fix is a same-origin route that streams each image.
+

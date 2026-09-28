@@ -147,3 +147,8 @@ export function mergeServerViews(
   }
   return next;
 }
+
+/** A finished result that is not being regenerated: what a catalogue holds now. */
+export function isFinishedResult(view: Pick<GenerationView, "status" | "reviewStatus">): boolean {
+  return view.status === "completed" && view.reviewStatus !== "rejected";
+}

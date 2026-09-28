@@ -728,7 +728,8 @@
       "perModelEvery": "{count, plural, one {Each photo is a model} other {Every # photos}}",
       "newModel": "Move to a new model",
       "tooManyColours": "Over {max} colours",
-      "overLimit": "A model takes up to {photos} garment photos and {colours} colours. Remove the extra photos or move them to a new model."
+      "overLimit": "A model takes up to {photos} garment photos and {colours} colours. Remove the extra photos or move them to a new model.",
+      "duplicates": "{count, plural, one {# photo was} other {# photos were}} already added, so {count, plural, one {it was} other {they were}} skipped."
     },
     "board": {
       "eyebrow": "Batch · {date}",

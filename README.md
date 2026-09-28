@@ -76,8 +76,9 @@ configured / missing and never displays a value.
 **Director brain on NVIDIA** ([build.nvidia.com](https://build.nvidia.com)): create an API key (it
 starts with `nvapi-`), set `LLM_GATEWAY_BASE_URL=https://integrate.api.nvidia.com/v1`,
 `LLM_GATEWAY_API_KEY`, `LLM_GATEWAY_MODEL=moonshotai/kimi-k3`, `LLM_GATEWAY_NAME=NVIDIA`,
-`LLM_GATEWAY_MAX_TOKENS=32000` and `LLM_GATEWAY_REASONING_EFFORT=high`, redeploy, then choose the
-gateway under Settings → Director brain. NVIDIA's free endpoints take up to 40 requests a minute. Under
+`LLM_GATEWAY_MAX_TOKENS=32000` and `LLM_GATEWAY_REASONING_EFFORT=off`, redeploy, then choose the
+gateway under Settings → Director brain. If the studio says the model is too slow, switch the model in
+Settings to `moonshotai/kimi-k2.6`. NVIDIA's free endpoints take up to 40 requests a minute. Under
 the NVIDIA API Trial Terms of Service they are for testing and evaluation (production use needs a
 subscription), and NVIDIA may use what is sent to improve its models.
 

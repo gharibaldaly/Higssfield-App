@@ -136,6 +136,12 @@ describe("planNextStep", () => {
     expect(
       planNextStep(snapshot({ items: [item(0, "analyzing", { claimed_at: fresh })] }), config).step,
     ).toEqual({ kind: "wait" });
+    // After sorting the photos, the runner releases the claim (1970) for the DNA step.
+    const released = new Date(0).toISOString();
+    expect(
+      planNextStep(snapshot({ items: [item(0, "analyzing", { claimed_at: released })] }), config)
+        .step,
+    ).toEqual({ kind: "analyze", itemId: "item-0" });
   });
 
   it("settles models whose front, back and close-ups are finished", () => {

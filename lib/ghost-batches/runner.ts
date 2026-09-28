@@ -286,8 +286,14 @@ async function analyzeItem(
         // Sorting is a convenience: the photo order still gives usable views.
         console.error("Photo sorting failed", item.id, error);
       }
-      meta.classified = true;
-      await updateItem(supabase, item.id, { meta });
+      // The DNA is the next step, so each brain call gets a whole function run
+      // (300 s). The claim is released at once (an old claim is taken over), and
+      // the DNA starts with a fresh count of attempts.
+      await updateItem(supabase, item.id, {
+        claimed_at: new Date(0).toISOString(),
+        meta: { ...meta, classified: true, attempts: 0 },
+      });
+      return report(snapshot, "analyzing", { modelName: productName ?? null });
     }
 
     const dnaRow = await analyzeProduct(supabase, ownerId, item.product_id);

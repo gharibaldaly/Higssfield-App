@@ -89,15 +89,20 @@ const KEYWORDS: Record<IntakeTag, string[]> = {
   ],
 };
 
-/** Lower case, Arabic letter variants folded, diacritics and trailing digits dropped. */
+/**
+ * Lower case, Arabic letter variants folded, diacritics dropped, and a
+ * trailing number dropped from a word ("back2" → "back"). A number after one
+ * or two letters stays, since that is a model code: "B20124" is not "b" (back).
+ */
 export function normalizeToken(token: string): string {
-  return token
+  const folded = token
     .toLowerCase()
     .replace(/[ً-ْٰـ]/g, "")
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
-    .replace(/\d+$/, "");
+    .replace(/ة/g, "ه");
+  const word = folded.replace(/\d+$/, "");
+  return word.length >= 3 ? word : folded;
 }
 
 const KEYWORD_TAG = new Map<string, IntakeTag>(

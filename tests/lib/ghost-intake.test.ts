@@ -36,6 +36,11 @@ describe("keywords", () => {
     expect(tagOfToken("ألوان")).toBe("colour");
     expect(tagOfToken("لون")).toBe("colour");
     expect(tagOfToken("robe")).toBeNull();
+    // A model code is never a role, even when it starts with a role letter.
+    expect(tagOfToken("B20124")).toBeNull();
+    expect(tagOfToken("F1023")).toBeNull();
+    expect(tagOfToken("b")).toBe("back");
+    expect(tagOfToken("front01")).toBe("front");
     expect(normalizeToken("إضاءة")).toBe("اضاءه");
   });
 
@@ -150,6 +155,14 @@ describe("planIntake", () => {
     expect(summary(plan)).toEqual([
       { name: "Rose robe", tags: ["detail:order", "back:name", "front:name"] },
     ]);
+  });
+
+  it("keeps numbered copies of a code-named photo together", () => {
+    const plan = planIntake(
+      files(["B20124 (1).jpg", "B20124 (2).jpg", "B20124 (3).jpg", "B20124 (4).jpg"]),
+    );
+    expect(plan.models.map((model) => [model.name, model.photos.length])).toEqual([["B20124", 4]]);
+    expect(modelKeyOfName("B20124_back.jpg")).toBe("b20124");
   });
 
   it("splits by names only when they name several models", () => {

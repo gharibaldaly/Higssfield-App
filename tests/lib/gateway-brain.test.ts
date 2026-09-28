@@ -22,6 +22,18 @@ class TestGateway extends GatewayBrain {
   run<T>(request: StructuredRequest<T>): Promise<T> {
     return this.structured(request);
   }
+  protected override pause(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+/** A gateway whose calls and route tests run out of time quickly. */
+class HurriedGateway extends TestGateway {
+  protected override readonly callTimeoutMs = 300;
+  protected override readonly testTimeoutMs = 200;
+  protected override pause(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 /** Every gateway is new (its own URL), so nothing learned in one test leaks into another. */
@@ -394,7 +406,8 @@ describe("GatewayBrain photos", () => {
 
     const all = calls();
     const checks = all.filter((call) => isVisionCheck(call.body));
-    expect(checks).toHaveLength(8);
+    // The link route read both test images; the other routes were no longer needed.
+    expect(checks.filter((call) => isLink(call) && !isMessagesApi(call.url))).toHaveLength(2);
     expect(checks.every((call) => imageRefs(call.body).length === 1)).toBe(true);
     const real = all.at(-1);
     expect(real!.url).toMatch(/\/chat\/completions$/);
@@ -404,7 +417,8 @@ describe("GatewayBrain photos", () => {
     );
     // Twelve photos by link stay a few kilobytes, whatever their size.
     expect(JSON.stringify(real!.body).length).toBeLessThan(4000);
-    expect(released.map((urls) => urls.length).sort((a, b) => a - b)).toEqual([1, 1, 1, 1, 12]);
+    expect(released.filter((urls) => urls.length === 12)).toHaveLength(1);
+    expect(released.every((urls) => urls.length === 1 || urls.length === 12)).toBe(true);
   });
 
   it("reads photos through the Anthropic format when chat completions drop them", async () => {
@@ -419,9 +433,9 @@ describe("GatewayBrain photos", () => {
 
     const all = calls();
     const checks = all.filter((call) => isVisionCheck(call.body));
-    // Each chat route failed its first test; each Anthropic route passed two.
-    expect(checks.filter((call) => !isMessagesApi(call.url))).toHaveLength(2);
-    expect(checks.filter((call) => isMessagesApi(call.url))).toHaveLength(4);
+    // Chat links failed its first test, and Anthropic links then passed two.
+    expect(checks.filter((call) => !isMessagesApi(call.url) && isLink(call))).toHaveLength(1);
+    expect(checks.filter((call) => isMessagesApi(call.url) && isLink(call))).toHaveLength(2);
     const real = all.at(-1)!;
     expect(isMessagesApi(real.url)).toBe(true);
     const blocks = userContent(real.body) as Part[];
@@ -646,7 +660,131 @@ describe("answer parsing", () => {
   });
 });
 
+/** A request that only ends when it is cancelled or runs out of time. */
+function hang(init?: RequestInit): Promise<Response> {
+  return new Promise((_, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+  });
+}
+
 describe("NVIDIA's API", () => {
+  it("follows a 202 and polls the status until the answer is ready", async () => {
+    let polls = 0;
+    fetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/chat/completions")) {
+        return new Response("{}", { status: 202, headers: { "NVCF-REQID": "req-7" } });
+      }
+      polls += 1;
+      return polls < 3
+        ? new Response("{}", { status: 202, headers: { "NVCF-REQID": "req-7" } })
+        : completion('{"verdict":"late","score":9}');
+    });
+    await expect(gateway("moonshotai/kimi-k3").run(request)).resolves.toEqual({
+      verdict: "late",
+      score: 9,
+    });
+    // Status polls are GETs without a body.
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls[0]).toMatch(/\/v1\/chat\/completions$/);
+    expect(urls.slice(1)).toEqual(
+      Array(3).fill(urls[0]!.replace("/chat/completions", "/status/req-7")),
+    );
+    const poll = fetchMock.mock.calls[1]![1]!;
+    expect(poll.method).toBe("GET");
+    expect((poll.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+  });
+
+  it("stops at the call's time budget with a message that names the model", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("{}", { status: 202, headers: { "NVCF-REQID": "req-8" } }),
+    );
+    serial += 1;
+    const brain = new HurriedGateway({
+      baseUrl: `https://gateway${serial}.test/v1`,
+      apiKey: "sk-test",
+      model: "moonshotai/kimi-k3",
+      name: "NVIDIA",
+      maxTokens: 16_000,
+    });
+    await expect(brain.run(request)).rejects.toMatchObject({
+      code: "provider_timeout",
+      message: expect.stringContaining("moonshotai/kimi-k3 may be too slow there"),
+    });
+  });
+
+  it("rules out a route that does not answer a test image in time, and uses the next", async () => {
+    const { host } = fakeHost();
+    fetchMock.mockImplementation(async (url, init) => {
+      const call = toCall(url, init);
+      if (isMessagesApi(call.url)) return failure(404, "Not Found");
+      if (isVisionCheck(call.body)) return isLink(call) ? hang(init) : readTestImage(call);
+      return completion('{"verdict":"inline","score":1}');
+    });
+    serial += 1;
+    const brain = new HurriedGateway(
+      {
+        baseUrl: `https://gateway${serial}.test/v1`,
+        apiKey: "sk-test",
+        model: "moonshotai/kimi-k3",
+        name: "NVIDIA",
+        maxTokens: 16_000,
+      },
+      host,
+    );
+    await expect(brain.run(withPhotos(2))).resolves.toEqual({ verdict: "inline", score: 1 });
+    expect(imageRefs(calls().at(-1)!.body)[0]).toMatch(/^data:/);
+  });
+
+  it("says the model is too slow when no route answers a test image in time", async () => {
+    fetchMock.mockImplementation(async (_url, init) => hang(init));
+    serial += 1;
+    const brain = new HurriedGateway({
+      baseUrl: `https://gateway${serial}.test/v1`,
+      apiKey: "sk-test",
+      model: "moonshotai/kimi-k3",
+      name: "NVIDIA",
+      maxTokens: 16_000,
+    });
+    await expect(brain.run(withPhotos(1))).rejects.toMatchObject({
+      code: "provider_timeout",
+      message: expect.stringContaining("too slow for the garment photos"),
+    });
+  });
+
+  it("asks for as little thinking as possible in a test image, dropping what the model refuses", async () => {
+    serve(['{"verdict":"ok","score":2}'], async (call) => {
+      // Like Kimi K3 on NVIDIA: no Anthropic format, reasoning_effort but no chat_template_kwargs.
+      if (isMessagesApi(call.url)) return failure(404, "Not Found");
+      if (call.body.chat_template_kwargs) return refusedFields("chat_template_kwargs");
+      return readTestImage(call);
+    });
+    await expect(gateway("moonshotai/kimi-k3").run(withPhotos(1))).resolves.toEqual({
+      verdict: "ok",
+      score: 2,
+    });
+    const checks = calls()
+      .filter((call) => isVisionCheck(call.body) && !isMessagesApi(call.url))
+      .map((call) => call.body);
+    expect(checks[0]).toMatchObject({
+      reasoning_effort: "low",
+      chat_template_kwargs: { thinking: false, enable_thinking: false },
+    });
+    expect(checks.at(-1)).toMatchObject({ reasoning_effort: "low" });
+    expect(checks.at(-1)).not.toHaveProperty("chat_template_kwargs");
+    // Without a configured effort, the real call leaves the model's own default.
+    const real = sentBodies().at(-1)!;
+    expect(real).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("turns thinking off for every call when the effort is off", async () => {
+    fetchMock.mockResolvedValueOnce(completion('{"verdict":"ok","score":3}'));
+    await gateway("google/gemma-4-31b-it", undefined, "off").run(request);
+    expect(sentBodies()[0]).toMatchObject({
+      reasoning_effort: "low",
+      chat_template_kwargs: { thinking: false, enable_thinking: false },
+    });
+  });
+
   it("reads NVIDIA's error envelope and FastAPI validation lists", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

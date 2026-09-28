@@ -470,3 +470,22 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Reasoning written in `<think>` tags is dropped before the JSON is read.
   - The vision test image is 640 px, because DeepSeek's encoder needs at least 544 × 544 (295,936 px). It has 16,000 tokens of room for models that always reason.
 - **Not verified live:** there is no NVIDIA key in the sandbox, so the first analysis on production is the test. The vision check shows whether the model reads the photos.
+
+### 2026-09-28 — NVIDIA answers slowly: status polling and quicker checks
+- **What happened:** the first batch on NVIDIA (one model, `B20124`, on Kimi K3) sat in "reading the model". Supabase's request log shows why:
+  - Every brain call ran exactly 150 s, the gateway's timeout: first the photo-route test, then the DNA. The model failed with "The provider did not respond in time", and a retry did the same.
+  - Test-image copies were left in `tmp/brain`, because the function was cut off mid-call.
+  - The model's 10 photos were 5 files added twice: a folder dropped twice merges by its name.
+- **NVIDIA's protocol:** each model's API reference documents `202 Result is pending` with an `NVCF-REQID` header, polled at `GET /v1/status/{requestId}` until it answers `200`. The brain now follows it within the call's 150 s, polling every 1–5 s.
+- **Vision check:**
+  - Test images ask for as little thinking as the model allows: `reasoning_effort: "low"` and `chat_template_kwargs: {thinking: false, enable_thinking: false}`. Kimi K2 templates read `thinking`; Gemma and Qwen read `enable_thinking`. Each field is dropped where refused.
+  - A route has 75 s per test image. A route that does not answer is ruled out, instead of failing the whole check.
+  - The first passing route in preference order is used at once, and the tests still running on later routes are cancelled.
+  - When no route answers in time, the error says the model is too slow and suggests a faster model or less reasoning.
+- **`LLM_GATEWAY_REASONING_EFFORT=off`** sends the same least-thinking fields with every call.
+- **Batch runner:** photo sorting and the DNA are separate steps, so each brain call gets a whole function run (300 s). After sorting, the claim is released at once and the DNA starts with a fresh count of attempts.
+- **Intake:**
+  - A photo already added (same name, size and date) is skipped, with a notice.
+  - A trailing number is dropped from a keyword only when three letters or more remain. So a model code like `B20124` is no longer read as `b` (back), and `B20124 (1).jpg`, `B20124 (2).jpg`… make one model.
+- **Advice to the owner:** set `LLM_GATEWAY_REASONING_EFFORT=off`. If Kimi K3 is still too slow, choose `moonshotai/kimi-k2.6` in Settings.
+- **Not verified live:** there is still no NVIDIA key in the sandbox; the fake NVIDIA in the tests follows the documented 202 and status responses.

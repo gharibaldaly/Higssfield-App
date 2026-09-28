@@ -27,8 +27,11 @@ import { createVisionTest, passesVisionTest } from "@/lib/providers/llm/vision-c
  *   the prompt (the answer is still validated with Zod either way);
  * - output cap: `max_tokens`, or `max_completion_tokens` when the gateway asks
  *   for it, halved when the model's limit is lower;
- * - reasoning effort: `reasoning_effort` when configured, dropped for a model
- *   whose API refuses the field (NVIDIA's hosted APIs refuse unknown fields).
+ * - reasoning effort: `reasoning_effort` when configured ("off" also asks the
+ *   chat template to skip thinking), each field dropped for a model whose API
+ *   refuses it (NVIDIA's hosted APIs refuse unknown fields);
+ * - slow answers: an answer still pending comes back as 202 with NVCF-REQID
+ *   (NVIDIA), and is polled at {baseUrl}/status/{id} within the call's time.
  */
 
 type JsonMode = "json_schema" | "json_object" | "prompt";
@@ -38,9 +41,22 @@ type Learned = {
   mode: JsonMode;
   tokenField: "max_tokens" | "max_completion_tokens";
   maxTokens: number | null;
-  /** Whether the configured reasoning effort is sent. */
+  /** Whether `reasoning_effort` is sent. */
   reasoning: boolean;
+  /** Whether `chat_template_kwargs` (thinking off) is sent. */
+  templateKwargs: boolean;
 };
+
+/** How long one brain call may take, polling included; a function run has 300 s. */
+const CALL_TIMEOUT_MS = 150_000;
+/** A test image is answered in seconds by a usable route. */
+const TEST_TIMEOUT_MS = 75_000;
+
+/**
+ * One call: its time budget, whether it asks for as little thinking as the
+ * model allows, and a signal that cancels it (a route test no longer needed).
+ */
+type CallOptions = { timeoutMs: number; quick: boolean; signal?: AbortSignal };
 
 /** What each gateway model accepted, so later calls skip the failed attempts. */
 const learned = new Map<string, Learned>();
@@ -302,7 +318,48 @@ export class GatewayBrain extends TemplateBrain {
     return `${this.baseUrl}|${this.model}`;
   }
 
-  private async post(body: Record<string, unknown>, format: ApiFormat): Promise<GatewayReply> {
+  private normalCall(): CallOptions {
+    return { timeoutMs: this.callTimeoutMs, quick: false };
+  }
+
+  /** How long one call may take; tests shorten it. */
+  protected readonly callTimeoutMs: number = CALL_TIMEOUT_MS;
+  /** How long a test image may take on one route; tests shorten it. */
+  protected readonly testTimeoutMs: number = TEST_TIMEOUT_MS;
+
+  /** Waits between status polls; tests make it instant. */
+  protected pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private slowAnswer(timeoutMs: number, cause?: unknown): AppError {
+    return new AppError(
+      "provider_timeout",
+      `${this.name} did not answer within ${Math.round(timeoutMs / 1000)} s. ${this.model} may be too slow there: choose a faster model in Settings, or less reasoning.`,
+      { retryable: true, cause },
+    );
+  }
+
+  /** The reply, read before the call's time runs out. */
+  private async replyOf(response: Response, timeoutMs: number): Promise<GatewayReply> {
+    try {
+      return (await response.json()) as GatewayReply;
+    } catch (error) {
+      if (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)) {
+        throw this.slowAnswer(timeoutMs, error);
+      }
+      throw new AppError("llm_output", `${this.name} returned an unreadable answer.`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async post(
+    body: Record<string, unknown>,
+    format: ApiFormat,
+    call: CallOptions,
+  ): Promise<GatewayReply> {
+    const { timeoutMs, signal } = call;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       "Content-Type": "application/json",
@@ -313,17 +370,32 @@ export class GatewayBrain extends TemplateBrain {
       headers["anthropic-version"] = "2023-06-01";
     }
     const path = format === "messages" ? "/messages" : "/chat/completions";
+    const deadline = Date.now() + timeoutMs;
     return withRetry(
       async () => {
-        const response = await fetchWithTimeout(`${this.baseUrl}${path}`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          timeoutMs: 150_000,
-          cache: "no-store",
-        });
+        signal?.throwIfAborted();
+        const left = deadline - Date.now();
+        if (left <= 0) throw this.slowAnswer(timeoutMs);
+        let response: Response;
+        try {
+          response = await fetchWithTimeout(`${this.baseUrl}${path}`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            timeoutMs: left,
+            signal,
+            cache: "no-store",
+          });
+        } catch (error) {
+          if (error instanceof AppError && error.code === "provider_timeout") {
+            throw this.slowAnswer(timeoutMs, error);
+          }
+          throw error;
+        }
+        const pending = response.status === 202 ? response.headers.get("nvcf-reqid") : null;
+        if (pending) return this.pollResult(pending, deadline, call);
         if (!response.ok) throw await gatewayError(response, this.name, this.model);
-        return (await response.json()) as GatewayReply;
+        return this.replyOf(response, timeoutMs);
       },
       {
         retries: 1,
@@ -335,11 +407,65 @@ export class GatewayBrain extends TemplateBrain {
     );
   }
 
+  /**
+   * NVIDIA answers 202 with an NVCF-REQID while the model is still working;
+   * GET {baseUrl}/status/{id} then answers 202 until the reply is ready.
+   */
+  private async pollResult(
+    requestId: string,
+    deadline: number,
+    call: CallOptions,
+  ): Promise<GatewayReply> {
+    const { timeoutMs, signal } = call;
+    const url = `${this.baseUrl}/status/${encodeURIComponent(requestId)}`;
+    for (let wait = 1000; ; wait = Math.min(Math.round(wait * 1.5), 5000)) {
+      if (deadline - Date.now() <= 0) throw this.slowAnswer(timeoutMs);
+      await this.pause(Math.min(wait, Math.max(0, deadline - Date.now())));
+      signal?.throwIfAborted();
+      const left = deadline - Date.now();
+      if (left <= 0) throw this.slowAnswer(timeoutMs);
+      let response: Response;
+      try {
+        response = await fetchWithTimeout(url, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json" },
+          timeoutMs: left,
+          signal,
+          cache: "no-store",
+        });
+      } catch (error) {
+        if (error instanceof AppError && error.code === "provider_timeout") {
+          throw this.slowAnswer(timeoutMs, error);
+        }
+        // A dropped poll leaves the request running; ask again.
+        if (error instanceof AppError && error.code === "provider_unavailable") continue;
+        throw error;
+      }
+      if (response.status === 202) continue;
+      if (!response.ok) throw await gatewayError(response, this.name, this.model);
+      return this.replyOf(response, timeoutMs);
+    }
+  }
+
+  /** Fields that set how long the model reasons; "off" asks for as little as it allows. */
+  private thinking(settings: Learned, quick: boolean): Record<string, unknown> {
+    const level = quick ? "off" : this.reasoningEffort;
+    if (!level) return {};
+    return {
+      ...(settings.reasoning ? { reasoning_effort: level === "off" ? "low" : level } : {}),
+      // Chat templates read different keys: Kimi K2 "thinking", Gemma and Qwen "enable_thinking".
+      ...(level === "off" && settings.templateKwargs
+        ? { chat_template_kwargs: { thinking: false, enable_thinking: false } }
+        : {}),
+    };
+  }
+
   private body(
     request: StructuredRequest<unknown>,
     settings: Learned,
     imageUrls: string[] | null,
     format: ApiFormat,
+    call: CallOptions,
   ): Record<string, unknown> {
     const schema = gatewayJsonSchema(request.schema);
     const hint =
@@ -383,9 +509,7 @@ export class GatewayBrain extends TemplateBrain {
         { role: "user", content: request.images.length > 0 ? content : request.user + hint },
       ],
       [settings.tokenField]: cap,
-      ...(this.reasoningEffort && settings.reasoning
-        ? { reasoning_effort: this.reasoningEffort }
-        : {}),
+      ...this.thinking(settings, call.quick),
       ...(settings.mode === "json_schema"
         ? {
             response_format: {
@@ -408,8 +532,13 @@ export class GatewayBrain extends TemplateBrain {
     settings: Learned,
     imageUrls: string[] | null,
     format: ApiFormat,
+    call: CallOptions,
   ): Promise<string> {
-    const payload = await this.post(this.body(request, settings, imageUrls, format), format);
+    const payload = await this.post(
+      this.body(request, settings, imageUrls, format, call),
+      format,
+      call,
+    );
     if (Array.isArray(payload.content)) {
       if (payload.stop_reason === "refusal") {
         throw new AppError(
@@ -474,13 +603,18 @@ export class GatewayBrain extends TemplateBrain {
     // An API that refuses unknown fields can name several at once.
     const refused = FIELD_REFUSED.test(detail);
     const adjusted = { ...settings };
-    if (settings.reasoning && this.reasoningEffort && detail.includes("reasoning_effort")) {
-      adjusted.reasoning = false;
+    if (settings.reasoning && detail.includes("reasoning_effort")) adjusted.reasoning = false;
+    if (settings.templateKwargs && detail.includes("chat_template_kwargs")) {
+      adjusted.templateKwargs = false;
     }
     if (settings.mode !== "prompt" && refused && detail.includes("response_format")) {
       adjusted.mode = "prompt";
     }
-    if (adjusted.reasoning !== settings.reasoning || adjusted.mode !== settings.mode) {
+    if (
+      adjusted.reasoning !== settings.reasoning ||
+      adjusted.templateKwargs !== settings.templateKwargs ||
+      adjusted.mode !== settings.mode
+    ) {
       return adjusted;
     }
     if (!/response_format|json/.test(detail) && /image|download|fetch|url/.test(detail)) {
@@ -491,10 +625,10 @@ export class GatewayBrain extends TemplateBrain {
   }
 
   protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
-    if (request.images.length === 0) return this.ask(request, null);
+    if (request.images.length === 0) return this.ask(request, null, this.normalCall());
     const checked = await this.imageRoute();
     try {
-      return await this.ask(request, checked.route);
+      return await this.ask(request, checked.route, this.normalCall());
     } catch (error) {
       const inlineOverflow =
         checked.failed &&
@@ -533,59 +667,102 @@ export class GatewayBrain extends TemplateBrain {
   }
 
   /**
-   * Tests every route (links need an image host) and keeps the first, in the
+   * Tests every route (links need an image host) side by side, because a
+   * gateway can take many seconds per answer, and keeps the first, in the
    * order of IMAGE_ROUTES, through which the model named the colours of the
-   * test images. Routes are tested side by side, because a gateway can take
-   * many seconds per answer. When none works, the error lists every route.
+   * test images; it does not wait for the routes after it. A route that does
+   * not answer in time is ruled out like one that cannot see. When none works,
+   * the error lists every route.
    */
   private async checkImageRoutes(): Promise<CheckedRoute> {
     const routes = IMAGE_ROUTES.filter((route) => route.images === "data" || this.imageHost);
-    const problems = await Promise.all(routes.map((route) => this.testRoute(route)));
-    const chosen = problems.findIndex((problem) => problem === null);
-    const failed = routes.flatMap((route, index) =>
-      problems[index] && (chosen === -1 || index < chosen)
-        ? [`${route.label}: ${problems[index]}`]
-        : [],
-    );
+    const cancel = new AbortController();
+    const tests = routes.map((route) => this.testRoute(route, cancel.signal));
+    // Routes after the chosen one are cancelled; their failures must not surface as unhandled.
+    for (const test of tests) test.catch(() => undefined);
+    const failed: string[] = [];
+    let slow = 0;
+    try {
+      for (const [index, test] of tests.entries()) {
+        const outcome = await test;
+        if (outcome === null) {
+          for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
+          return {
+            route: routes[index]!,
+            at: Date.now(),
+            failed: failed.length > 0 ? failed.join("; ") : undefined,
+          };
+        }
+        if (outcome.slow) slow += 1;
+        failed.push(`${routes[index]!.label}: ${outcome.problem}`);
+      }
+    } finally {
+      // A route was chosen, or a key or quota error ended the check: stop the rest.
+      cancel.abort();
+    }
     for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
-    if (chosen === -1) {
+    const detail = failed.join("; ").slice(0, 600);
+    if (slow === routes.length) {
       throw new AppError(
-        "provider_bad_input",
-        `${this.model} at ${this.name} could not read a test image through any route, so it cannot see the garment photos. Choose another model in Settings.`,
-        { detail: failed.join("; ").slice(0, 600) },
+        "provider_timeout",
+        `${this.model} at ${this.name} did not answer a small test image within ${this.testTimeoutMs / 1000} s, so it is too slow for the garment photos. Choose a faster model in Settings, or less reasoning.`,
+        { detail },
       );
     }
-    return {
-      route: routes[chosen]!,
-      at: Date.now(),
-      failed: failed.length > 0 ? failed.join("; ") : undefined,
-    };
+    throw new AppError(
+      "provider_bad_input",
+      `${this.model} at ${this.name} could not read a test image through any route, so it cannot see the garment photos. Choose another model in Settings.`,
+      { detail },
+    );
   }
 
-  /** Null when the model names the colours of every test image sent this way; else why not. */
-  private async testRoute(route: ImageRoute): Promise<string | null> {
+  /**
+   * Null when the model names the colours of every test image sent this way;
+   * otherwise what went wrong, and whether it was only too slow.
+   */
+  private async testRoute(
+    route: ImageRoute,
+    signal: AbortSignal,
+  ): Promise<{ problem: string; slow: boolean } | null> {
     for (let pass = 0; pass < TEST_PASSES; pass += 1) {
+      // Another route was chosen meanwhile.
+      if (signal.aborted) return { problem: "not needed", slow: false };
       const test = await createVisionTest();
       try {
-        const answer = await this.ask(test.request, route);
+        const answer = await this.ask(test.request, route, {
+          timeoutMs: this.testTimeoutMs,
+          quick: true,
+          signal,
+        });
         if (!passesVisionTest(answer, test.expected)) {
-          return `named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`;
+          return {
+            problem: `named ${answer.topLeft} / ${answer.bottomRight} for ${test.expected.topLeft} / ${test.expected.bottomRight}`,
+            slow: false,
+          };
         }
       } catch (error) {
+        if (error instanceof AppError && error.code === "provider_timeout") {
+          return { problem: `no answer within ${this.testTimeoutMs / 1000} s`, slow: true };
+        }
         if (!(error instanceof AppError) || !rulesOutRoute(error, route)) throw error;
-        return (error.detail ?? error.message).slice(0, 140);
+        return { problem: (error.detail ?? error.message).slice(0, 140), slow: false };
       }
     }
     return null;
   }
 
   /** One structured call, with the photos sent the given way (links are deleted afterwards). */
-  private async ask<T>(request: StructuredRequest<T>, route: ImageRoute | null): Promise<T> {
-    if (!route) return this.attempt(request, null, "chat");
-    if (route.images === "data") return this.askInline(request, route.format);
+  private async ask<T>(
+    request: StructuredRequest<T>,
+    route: ImageRoute | null,
+    call: CallOptions,
+  ): Promise<T> {
+    call.signal?.throwIfAborted();
+    if (!route) return this.attempt(request, null, "chat", call);
+    if (route.images === "data") return this.askInline(request, route.format, call);
     const hosted = this.imageHost ? await this.imageHost(request.images) : null;
     try {
-      return await this.attempt(request, hosted?.urls ?? null, route.format);
+      return await this.attempt(request, hosted?.urls ?? null, route.format, call);
     } finally {
       await hosted?.release().catch(() => undefined);
     }
@@ -596,11 +773,15 @@ export class GatewayBrain extends TemplateBrain {
    * limit it reports is learned and the photos are re-encoded smaller (twice
    * at most); later calls fit them before sending.
    */
-  private async askInline<T>(request: StructuredRequest<T>, format: ApiFormat): Promise<T> {
+  private async askInline<T>(
+    request: StructuredRequest<T>,
+    format: ApiFormat,
+    call: CallOptions,
+  ): Promise<T> {
     for (let round = 0; ; round += 1) {
       const sent = { ...request, images: await this.fitInline(request, format) };
       try {
-        return await this.attempt(sent, null, format);
+        return await this.attempt(sent, null, format, call);
       } catch (error) {
         const retry =
           round < 2 && sent.images.length > 0 && error instanceof AppError && isOverflow(error);
@@ -667,6 +848,7 @@ export class GatewayBrain extends TemplateBrain {
     request: StructuredRequest<T>,
     imageUrls: string[] | null,
     format: ApiFormat,
+    call: CallOptions,
   ): Promise<T> {
     const key = `${this.key}|${format}`;
     let settings: Learned = learned.get(key) ?? {
@@ -674,11 +856,12 @@ export class GatewayBrain extends TemplateBrain {
       tokenField: "max_tokens",
       maxTokens: null,
       reasoning: true,
+      templateKwargs: true,
     };
     let text: string | null = null;
     for (let attempt = 0; attempt < 6 && text === null; attempt += 1) {
       try {
-        text = await this.complete(request, settings, imageUrls, format);
+        text = await this.complete(request, settings, imageUrls, format, call);
       } catch (error) {
         const next =
           error instanceof AppError && error.code === "provider_bad_input"

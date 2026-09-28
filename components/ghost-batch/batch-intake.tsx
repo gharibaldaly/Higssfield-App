@@ -56,6 +56,7 @@ import {
   planIntake,
   type IntakeGrouping,
   type IntakeTag,
+  type PhotosPerModel,
   type TagSource,
 } from "@/lib/ghost-batches/intake";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
@@ -121,11 +122,44 @@ function coloursOf(model: ModelDraft) {
   return model.photos.filter((photo) => photo.tag === "colour");
 }
 
+function overLimit(model: ModelDraft) {
+  return (
+    garmentOf(model).length > MAX_GARMENT_PHOTOS_PER_MODEL ||
+    coloursOf(model).length > MAX_COLOUR_PHOTOS_PER_MODEL
+  );
+}
+
+/** A drop's models join the list; a folder or name dropped again adds to its model. */
+function mergeDrop(
+  current: ModelDraft[],
+  incoming: ModelDraft[],
+  grouping: IntakeGrouping,
+): ModelDraft[] {
+  const merged = [...current];
+  for (const model of incoming) {
+    const index = merged.findIndex(
+      (candidate) => candidate.name.toLowerCase() === model.name.toLowerCase(),
+    );
+    if (index >= 0 && grouping !== "sequence") {
+      merged[index] = { ...merged[index]!, photos: [...merged[index]!.photos, ...model.photos] };
+    } else {
+      merged.push(model);
+    }
+  }
+  return merged;
+}
+
+const PER_MODEL_CHOICES: PhotosPerModel[] = [
+  "all",
+  ...Array.from({ length: MAX_GARMENT_PHOTOS_PER_MODEL }, (_, index) => index + 1),
+];
+
 /**
- * Drop the photos of many garment models at once. The page groups them into
- * models (folders, file names, or in order), guesses each photo's role, lets
- * the owner correct anything, then uploads straight to Storage model by model
- * and hands each model to the batch runner as soon as its photos are in.
+ * Drop the photos of one garment model, or of many at once. Each drop is one
+ * model unless its folders or file names clearly name several; the owner can
+ * split, merge and re-tag before anything is uploaded. Photos then go straight
+ * to Storage model by model, and each model reaches the batch runner as soon
+ * as its photos are in.
  */
 export function BatchIntake({
   ownerId,
@@ -150,9 +184,11 @@ export function BatchIntake({
   const folderInput = useRef<HTMLInputElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<Map<string, LocalFile>>(() => new Map());
+  // The file ids of each drop, in order: every drop is planned on its own.
+  const [drops, setDrops] = useState<string[][]>([]);
   const [drafts, setDrafts] = useState<ModelDraft[]>([]);
   const [grouping, setGrouping] = useState<IntakeGrouping>("names");
-  const [perModel, setPerModel] = useState(DEFAULT_PHOTOS_PER_MODEL);
+  const [perModel, setPerModel] = useState<PhotosPerModel>(DEFAULT_PHOTOS_PER_MODEL);
   const [rejected, setRejected] = useState(0);
   const [reading, setReading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -236,22 +272,8 @@ export function BatchIntake({
       for (const local of added) next.set(local.id, local);
       return next;
     });
-    setDrafts((current) => {
-      const incoming = toDrafts(plan, current.length);
-      // A second drop of the same folder or name adds to the model it already made.
-      const merged = [...current];
-      for (const model of incoming) {
-        const existing = merged.find(
-          (candidate) => candidate.name.toLowerCase() === model.name.toLowerCase(),
-        );
-        if (existing && plan.grouping !== "sequence") {
-          existing.photos = [...existing.photos, ...model.photos];
-        } else {
-          merged.push(model);
-        }
-      }
-      return merged;
-    });
+    setDrops((current) => [...current, added.map((local) => local.id)]);
+    setDrafts((current) => mergeDrop(current, toDrafts(plan, current.length), plan.grouping));
     // Thumbnails, two at a time, so a hundred phone photos never decode at full size at once.
     await runPool(added, 2, async (local) => {
       const thumb = await makeThumbnail(local.file);
@@ -266,20 +288,43 @@ export function BatchIntake({
     });
   }
 
-  function regroup(nextPerModel: number) {
+  /** Plans every drop again with a new split; removed photos stay out, manual tags stay. */
+  function regroup(nextPerModel: PhotosPerModel) {
     setPerModel(nextPerModel);
-    const all = [...files.values()];
-    const plan = planIntake(
-      all.map((local) => ({ id: local.id, name: local.file.name, path: local.path })),
-      { perModel: nextPerModel },
+    const kept = new Map(
+      drafts.flatMap((model) => model.photos.map((photo) => [photo.fileId, photo] as const)),
     );
-    setGrouping(plan.grouping);
-    setDrafts(toDrafts(plan, 0));
+    let next: ModelDraft[] = [];
+    let lastGrouping: IntakeGrouping = grouping;
+    for (const drop of drops) {
+      const locals = drop.flatMap((id) => {
+        const local = files.get(id);
+        return local && kept.has(id) ? [local] : [];
+      });
+      if (locals.length === 0) continue;
+      const plan = planIntake(
+        locals.map((local) => ({ id: local.id, name: local.file.name, path: local.path })),
+        { perModel: nextPerModel },
+      );
+      lastGrouping = plan.grouping;
+      next = mergeDrop(next, toDrafts(plan, next.length), plan.grouping);
+    }
+    setGrouping(lastGrouping);
+    setDrafts(
+      next.map((model) => ({
+        ...model,
+        photos: model.photos.map((photo) => {
+          const before = kept.get(photo.fileId);
+          return before?.tagSource === "manual" ? before : photo;
+        }),
+      })),
+    );
   }
 
   function clearAll() {
     for (const local of files.values()) if (local.thumb) URL.revokeObjectURL(local.thumb);
     setFiles(new Map());
+    setDrops([]);
     setDrafts([]);
     setRejected(0);
   }
@@ -333,6 +378,30 @@ export function BatchIntake({
     });
   }
 
+  /** Starts a new model, right after this one, with the photo. */
+  function splitPhoto(modelIndex: number, fileId: string) {
+    setDrafts((current) => {
+      const source = current[modelIndex];
+      const photo = source?.photos.find((candidate) => candidate.fileId === fileId);
+      if (!source || !photo || source.photos.length < 2) return current;
+      const next = [...current];
+      next[modelIndex] = {
+        ...source,
+        photos: source.photos.filter((candidate) => candidate.fileId !== fileId),
+      };
+      const names = new Set(current.map((model) => model.name.toLowerCase()));
+      let number = current.length + 1;
+      while (names.has(t("sequenceName", { number }).toLowerCase())) number += 1;
+      next.splice(modelIndex + 1, 0, {
+        key: `split-${crypto.randomUUID()}`,
+        name: t("sequenceName", { number }),
+        productLine: source.productLine,
+        photos: [photo],
+      });
+      return next;
+    });
+  }
+
   function removePhoto(modelIndex: number, fileId: string) {
     setDrafts((current) =>
       current
@@ -372,6 +441,7 @@ export function BatchIntake({
         0,
       ),
       invalid: drafts.filter((model) => garmentOf(model).length === 0).length,
+      overLimit: drafts.filter(overLimit).length,
     }),
     [drafts],
   );
@@ -379,6 +449,7 @@ export function BatchIntake({
   const canStart =
     drafts.length > 0 &&
     totals.invalid === 0 &&
+    totals.overLimit === 0 &&
     !tooManyModels &&
     Boolean(modelId || target) &&
     name.trim().length > 0 &&
@@ -563,30 +634,38 @@ export function BatchIntake({
               <p className="font-medium">
                 {t("summary", { models: drafts.length, photos: totals.photos })}
               </p>
-              <Badge variant="muted">{t(`grouping.${grouping}`)}</Badge>
+              <Badge variant="muted">
+                {grouping === "sequence" && perModel === "all"
+                  ? t("grouping.drop")
+                  : t(`grouping.${grouping}`)}
+              </Badge>
               {grouping === "sequence" ? (
-                <label className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">{t("perModel")}</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={MAX_GARMENT_PHOTOS_PER_MODEL}
-                    value={perModel}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      if (
-                        Number.isInteger(value) &&
-                        value >= 1 &&
-                        value <= MAX_GARMENT_PHOTOS_PER_MODEL
-                      ) {
-                        regroup(value);
-                      }
-                    }}
-                    className="h-8 w-16"
-                    dir="ltr"
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground" id="batch-per-model">
+                    {t("perModel")}
+                  </span>
+                  <Select
+                    value={String(perModel)}
+                    onValueChange={(value) => regroup(value === "all" ? "all" : Number(value))}
                     disabled={Boolean(upload)}
-                  />
-                </label>
+                  >
+                    <SelectTrigger
+                      className="h-8 w-auto min-w-40"
+                      aria-labelledby="batch-per-model"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PER_MODEL_CHOICES.map((choice) => (
+                        <SelectItem key={choice} value={String(choice)}>
+                          {choice === "all"
+                            ? t("perModelAll")
+                            : t("perModelEvery", { count: choice })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               ) : null}
               <Button
                 variant="ghost"
@@ -607,6 +686,14 @@ export function BatchIntake({
                 {t("tooManyModels", { max: MAX_MODELS_PER_BATCH })}
               </p>
             ) : null}
+            {totals.overLimit > 0 ? (
+              <p className="text-sm text-destructive">
+                {t("overLimit", {
+                  photos: MAX_GARMENT_PHOTOS_PER_MODEL,
+                  colours: MAX_COLOUR_PHOTOS_PER_MODEL,
+                })}
+              </p>
+            ) : null}
 
             <ol className="flex flex-col gap-3">
               {drafts.map((model, modelIndex) => {
@@ -616,7 +703,7 @@ export function BatchIntake({
                     key={model.key}
                     className={cn(
                       "rounded-(--radius-panel) p-4 surface",
-                      garment.length === 0 && "surface-warning",
+                      (garment.length === 0 || overLimit(model)) && "surface-warning",
                     )}
                   >
                     <div className="flex flex-wrap items-center gap-3">
@@ -652,8 +739,13 @@ export function BatchIntake({
                       {garment.length === 0 ? (
                         <Badge variant="danger">{t("noGarment")}</Badge>
                       ) : garment.length > MAX_GARMENT_PHOTOS_PER_MODEL ? (
-                        <Badge variant="warning">
+                        <Badge variant="danger">
                           {t("tooMany", { max: MAX_GARMENT_PHOTOS_PER_MODEL })}
+                        </Badge>
+                      ) : null}
+                      {coloursOf(model).length > MAX_COLOUR_PHOTOS_PER_MODEL ? (
+                        <Badge variant="danger">
+                          {t("tooManyColours", { max: MAX_COLOUR_PHOTOS_PER_MODEL })}
                         </Badge>
                       ) : null}
                       <DropdownMenu>
@@ -746,6 +838,12 @@ export function BatchIntake({
                                   onSelect={() => movePhoto(modelIndex, photo.fileId, 1)}
                                 >
                                   {t("moveDown")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={model.photos.length < 2}
+                                  onSelect={() => splitPhoto(modelIndex, photo.fileId)}
+                                >
+                                  {t("newModel")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   variant="destructive"

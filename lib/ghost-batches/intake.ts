@@ -4,9 +4,13 @@
  *
  * Grouping, best signal first:
  * 1. folders: one sub-folder per model ("DS-1024/front.jpg"); role folders
- *    inside a model ("DS-1024/colours/red.jpg") tag their photos;
- * 2. file names: "DS1024_front.jpg", "DS1024-back-2.jpg" share the model "DS1024";
- * 3. sequence: camera names (IMG_2231.jpg) are split in order, N photos per model.
+ *    inside a model ("DS-1024/colours/red.jpg") tag their photos, and a folder
+ *    holding only role folders is one model;
+ * 2. file names, when they clearly name several models: "DS1024_front.jpg",
+ *    "DS1024-back-2.jpg" share the model "DS1024";
+ * 3. otherwise the whole drop is one model (camera names such as IMG_2231.jpg
+ *    say nothing about the model); the owner can split it in order, N photos
+ *    per model.
  * Roles come from keywords (English and Arabic); untagged photos default to
  * front, then back, then details, and the director brain re-sorts them later.
  */
@@ -40,10 +44,16 @@ export type IntakeModelPlan = {
 
 export type IntakeGrouping = "folders" | "names" | "sequence";
 
+/**
+ * How photos that only their order can group are split: "all" keeps the
+ * whole drop as one model, a number starts a new model every N photos.
+ */
+export type PhotosPerModel = number | "all";
+
 export const MAX_MODELS_PER_BATCH = 100;
 export const MAX_GARMENT_PHOTOS_PER_MODEL = 16;
 export const MAX_COLOUR_PHOTOS_PER_MODEL = 8;
-export const DEFAULT_PHOTOS_PER_MODEL = 3;
+export const DEFAULT_PHOTOS_PER_MODEL: PhotosPerModel = "all";
 
 const KEYWORDS: Record<IntakeTag, string[]> = {
   front: ["front", "frontal", "fr", "f", "امام", "الامام", "قدام", "فرونت", "وش"],
@@ -94,8 +104,12 @@ const KEYWORD_TAG = new Map<string, IntakeTag>(
   INTAKE_TAGS.flatMap((tag) => KEYWORDS[tag].map((word) => [normalizeToken(word), tag] as const)),
 );
 
+/** Image extensions, repeated ones included ("IMG_5124.JPG.jpg", "IMG_5124.HEIC.jpeg"). */
+const IMAGE_EXTENSIONS = /(?:\.(?:jpe?g|png|webp|heic|heif|avif|gif|tiff?|bmp|dng))+$/i;
+
 export function stemOf(name: string): string {
-  return name.replace(/\.[^./\\]+$/, "");
+  const stem = name.replace(IMAGE_EXTENSIONS, "");
+  return stem !== name ? stem : name.replace(/\.[^./\\]+$/, "");
 }
 
 export function tokensOf(text: string): string[] {
@@ -119,11 +133,19 @@ function tagFromText(text: string): IntakeTag | null {
   return null;
 }
 
+/**
+ * Names that cameras, phones, chat apps and image tools make up: IMG_2231,
+ * IMG_E2231 (edited on an iPhone), PXL_…, 20260927_101010, WhatsApp images,
+ * screenshots, ChatGPT and Gemini images. They say nothing about the model.
+ */
 const CAMERA_NAME =
-  /^(?:img|dsc|dscn|dscf|pxl|mvimg|photo|image|snapchat|signal)[\s_-]*[\d_\-\s.()]*$|^(?:whatsapp image|screenshot|screen shot)\b|^[\d_\-\s.()]+$|^\d{8}[_-]\d{6}/i;
+  /^(?:img|dsc|dscn|dscf|pxl|mvimg|photo|image|picture|snapchat|signal|download|untitled)[\s_-]*e?[\d_\-\s.()]*$|^(?:whatsapp image|screenshot|screen shot|chatgpt image|gemini[_ ]generated[_ ]image)(?![a-z])|^[\d_\-\s.()]+$|^\d{8}[_-]\d{6}/i;
+
+/** Copy and edit marks a computer adds to a camera name ("IMG_2231 - Copy (2)", "IMG_2231.MP"). */
+const COPY_MARKS = /(?:[\s_-]*(?:copy|edited|نسخة|نسخه|\(\d+\)|\.mp))+$/i;
 
 export function isCameraName(name: string): boolean {
-  return CAMERA_NAME.test(stemOf(name).trim());
+  return CAMERA_NAME.test(stemOf(name).trim().replace(COPY_MARKS, ""));
 }
 
 /**
@@ -223,9 +245,16 @@ function finish(drafts: Draft[]): IntakeModelPlan[] {
     }));
 }
 
-function groupBySequence(files: IntakeFileInfo[], perModel: number, startAt: number): Draft[] {
-  const size = Math.max(1, Math.min(MAX_GARMENT_PHOTOS_PER_MODEL, Math.round(perModel)));
+function groupBySequence(
+  files: IntakeFileInfo[],
+  perModel: PhotosPerModel,
+  startAt: number,
+): Draft[] {
   const sorted = [...files].sort((a, b) => naturalCompare(a.path, b.path));
+  const size =
+    perModel === "all"
+      ? Math.max(1, sorted.length)
+      : Math.max(1, Math.min(MAX_GARMENT_PHOTOS_PER_MODEL, Math.round(perModel)));
   const drafts: Draft[] = [];
   for (let index = 0; index < sorted.length; index += size) {
     const number = startAt + drafts.length;
@@ -238,16 +267,19 @@ function groupBySequence(files: IntakeFileInfo[], perModel: number, startAt: num
   return drafts;
 }
 
+/**
+ * Splits a drop by model names only when the names clearly name several
+ * models; otherwise the drop is one model. A name counts as a model when it
+ * has a digit (a code such as "DS1024") or two photos share it; a lone word
+ * ("lace.jpg") describes a photo of the same garment.
+ */
 function groupByNames(
   files: IntakeFileInfo[],
-  perModel: number,
+  perModel: PhotosPerModel,
 ): { drafts: Draft[]; grouping: IntakeGrouping } {
-  const keyed = files.map((file) => ({ file, tokens: modelTokensOfName(file.name) }));
-  const named = keyed.filter((entry) => entry.tokens.length > 0);
-  const unnamed = keyed.filter((entry) => entry.tokens.length === 0).map((entry) => entry.file);
-  if (named.length < files.length / 2) {
-    return { drafts: groupBySequence(files, perModel, 1), grouping: "sequence" };
-  }
+  const named = files
+    .map((file) => ({ file, tokens: modelTokensOfName(file.name) }))
+    .filter((entry) => entry.tokens.length > 0);
   // A name that extends another model's name is a descriptor of that model
   // ("DS1024 lace" belongs to "DS1024"), so the shortest matching key wins.
   const keys = [...new Set(named.map((entry) => entry.tokens.join("-").toLowerCase()))].sort(
@@ -266,35 +298,86 @@ function groupByNames(
     draft.files.push({ file, roleTag: null });
     byKey.set(key, draft);
   }
-  const drafts = [...byKey.values()].sort((a, b) => naturalCompare(a.name, b.name));
-  return {
-    drafts: [...drafts, ...groupBySequence(unnamed, perModel, drafts.length + 1)],
-    grouping: "names",
-  };
+  const models = [...byKey.values()]
+    .filter((draft) => draft.files.length >= 2 || /\d/.test(draft.key))
+    .sort((a, b) => naturalCompare(a.name, b.name));
+  const grouped = new Set(models.flatMap((draft) => draft.files.map(({ file }) => file.id)));
+  if (models.length >= 2 && grouped.size >= files.length / 2) {
+    const rest = files.filter((file) => !grouped.has(file.id));
+    return {
+      drafts: [...models, ...groupBySequence(rest, perModel, models.length + 1)],
+      grouping: "names",
+    };
+  }
+  const drafts = groupBySequence(files, perModel, 1);
+  if (models.length === 1 && drafts.length === 1 && grouped.size >= files.length / 2) {
+    // One model name on most of the photos names the whole drop.
+    return {
+      drafts: [{ ...drafts[0]!, key: models[0]!.key, name: models[0]!.name }],
+      grouping: "names",
+    };
+  }
+  return { drafts, grouping: "sequence" };
+}
+
+/** The role named by the first role folder in a path ("DS-1024/تفاصيل/…" → detail). */
+function roleOfFolders(folders: string[]): IntakeTag | null {
+  return folders.map((folder) => tagFromText(folder)).find((tag) => tag !== null) ?? null;
 }
 
 /**
- * Plans the models for a drop of photo files (already filtered to accepted
- * image types). `perModel` only matters when photos can only be grouped in sequence.
+ * A folder that only says which view its photos show ("أمام", "Back", "colours"),
+ * never a model: no digits and more than one letter, so "B1" stays a model.
+ */
+function isRoleFolder(name: string): boolean {
+  return tagFromText(name) !== null && !/\d/.test(name) && normalizeToken(name).length > 1;
+}
+
+/**
+ * Plans the models for one drop of photo files (already filtered to accepted
+ * image types). `perModel` only matters when photos can only be grouped in order.
  */
 export function planIntake(
   files: IntakeFileInfo[],
-  options: { perModel?: number } = {},
+  options: { perModel?: PhotosPerModel } = {},
 ): { models: IntakeModelPlan[]; grouping: IntakeGrouping } {
   const perModel = options.perModel ?? DEFAULT_PHOTOS_PER_MODEL;
   if (files.length === 0) return { models: [], grouping: "names" };
   const parts = files.map((file) => file.path.split(/[\\/]+/).filter(Boolean));
   const root = commonFolder(parts);
   const inFolders = parts.some((segments) => segments.length - root >= 2);
+  // The folders every photo sits in, nearest first: role folders ("أمام")
+  // tag the photos, and the nearest other folder names the model.
+  const above = parts[0]!.slice(0, root).reverse();
+  const nameIndex = above.findIndex((folder) => !isRoleFolder(folder));
+  const nameFolder = nameIndex >= 0 ? above[nameIndex] : undefined;
+  const aboveRole = roleOfFolders(above.slice(0, nameIndex >= 0 ? nameIndex : above.length));
   if (!inFolders) {
     const { drafts, grouping } = groupByNames(files, perModel);
     // One folder holding one model's photos: the folder names the model.
-    const folder = root > 0 ? parts[0]![root - 1] : undefined;
-    if (drafts.length === 1 && folder && grouping === "sequence") {
-      drafts[0] = { ...drafts[0]!, key: `folder-${folder}`, name: folder };
+    if (drafts.length === 1 && grouping === "sequence" && (nameFolder || aboveRole)) {
+      const draft = drafts[0]!;
+      drafts[0] = {
+        key: nameFolder ? `folder-${nameFolder}` : draft.key,
+        name: nameFolder ?? draft.name,
+        files: draft.files.map(({ file }) => ({ file, roleTag: aboveRole })),
+      };
       return { models: finish(drafts), grouping: "folders" };
     }
     return { models: finish(drafts), grouping };
+  }
+
+  // Only role folders below the common folder ("DS-1024/أمام", "DS-1024/خلف"): one model.
+  if (parts.every((segments) => segments.length - root < 2 || isRoleFolder(segments[root]!))) {
+    const draft: Draft = {
+      key: nameFolder ? `folder-${nameFolder}` : "sequence-1",
+      name: nameFolder ?? "#1",
+      files: files.map((file, index) => ({
+        file,
+        roleTag: roleOfFolders(parts[index]!.slice(root, -1)) ?? aboveRole,
+      })),
+    };
+    return { models: finish([draft]), grouping: "folders" };
   }
 
   const byFolder = new Map<string, Draft>();
@@ -306,11 +389,7 @@ export function planIntake(
       return;
     }
     const modelFolder = segments[0]!;
-    const roleTag =
-      segments
-        .slice(1, -1)
-        .map((folder) => tagFromText(folder))
-        .find((tag) => tag !== null) ?? null;
+    const roleTag = roleOfFolders(segments.slice(1, -1));
     const draft = byFolder.get(modelFolder) ?? {
       key: `folder-${modelFolder}`,
       name: modelFolder,

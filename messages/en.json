@@ -664,10 +664,10 @@
     "intake": {
       "title": "New batch from photos",
       "addTitle": "Add models to {name}",
-      "drop": "Drop your model folders here",
+      "drop": "Drop one model's photos here",
       "dropActive": "Release to add the photos",
       "reading": "Reading the folders…",
-      "hint": "Best: one folder per model — the folder name becomes the model name. Put colour swatches in a “colours” folder or add “colour” to their names. Front, back and detail are read from names like “front”, “back”, “detail” (أمام، خلف، تفاصيل); the director brain sorts unnamed photos.",
+      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest.",
       "chooseFolder": "Choose a folder",
       "choosePhotos": "Choose photos",
       "rejected": "{count, plural, one {# file was skipped} other {# files were skipped}}: only JPEG, PNG or WebP up to 25 MB. Export HEIC photos as JPEG.",
@@ -675,10 +675,11 @@
       "grouping": {
         "folders": "Grouped by folder",
         "names": "Grouped by file name",
-        "sequence": "Grouped in order"
+        "sequence": "Split in order",
+        "drop": "One model per drop"
       },
       "perModel": "Photos per model",
-      "perModelHint": "The file names don't say which model a photo belongs to, so the photos are split in order. Set how many you took of each model.",
+      "perModelHint": "The file names don't say which model a photo shows, so each drop is one model. Drop the next model's photos separately, or split them in order here.",
       "sequenceName": "Model {number}",
       "modelName": "Model name",
       "line": "Product line",
@@ -700,7 +701,7 @@
       "mergeUp": "Merge into the previous model",
       "removeModel": "Remove model",
       "noGarment": "No garment photo",
-      "tooMany": "Only the first {max} photos are used",
+      "tooMany": "Over {max} photos",
       "tooManyModels": "A batch takes up to {max} models. Start another batch for the rest.",
       "clear": "Clear",
       "settings": "Batch settings",
@@ -722,7 +723,12 @@
       "uploadingModel": "Model {index} of {count} · {name}",
       "keepOpen": "Keep this tab open until the upload finishes. The first models start while the rest upload.",
       "uploadFailed": "{count, plural, one {# photo} other {# photos}} could not be uploaded",
-      "started": "Batch started. The studio works through the models one by one."
+      "started": "Batch started. The studio works through the models one by one.",
+      "perModelAll": "All: one model",
+      "perModelEvery": "{count, plural, one {Each photo is a model} other {Every # photos}}",
+      "newModel": "Move to a new model",
+      "tooManyColours": "Over {max} colours",
+      "overLimit": "A model takes up to {photos} garment photos and {colours} colours. Remove the extra photos or move them to a new model."
     },
     "board": {
       "eyebrow": "Batch · {date}",

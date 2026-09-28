@@ -41,7 +41,7 @@ import {
   CATALOGUE_SHADOWS,
   type CatalogueStyle,
 } from "@/lib/domain/catalogue-style";
-import type { KeyStatus } from "@/lib/env";
+import type { HiggsfieldKeyForm, KeyStatus } from "@/lib/env";
 import type { CredentialCheck } from "@/lib/providers/higgsfield/client";
 import { groupByFamily } from "@/lib/providers/higgsfield/model-groups";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
@@ -86,6 +86,7 @@ export function SettingsView({
   keys,
   providerMode,
   higgsfieldKey,
+  higgsfieldKeyForm,
   imageModels,
   videoModels,
   costs,
@@ -99,6 +100,8 @@ export function SettingsView({
   providerMode: "higgsfield" | "mock";
   /** What Higgsfield said about the key (null in mock mode). */
   higgsfieldKey: CredentialCheck | null;
+  /** How the key was read from the environment (never the key itself). */
+  higgsfieldKeyForm: HiggsfieldKeyForm | null;
   imageModels: ModelOption[];
   videoModels: ModelOption[];
   costs: CostSummary;
@@ -121,7 +124,11 @@ export function SettingsView({
         videoModels={videoModels}
       />
       <div className="flex flex-col gap-6">
-        <KeysCard keys={keys} higgsfieldRejected={higgsfieldKey === "rejected"} />
+        <KeysCard
+          keys={keys}
+          higgsfieldRejected={higgsfieldKey === "rejected"}
+          higgsfieldForm={higgsfieldKeyForm}
+        />
         <DriveCard drive={settings.drive} configured={keys.googleDrive} />
         <PasswordCard />
       </div>
@@ -522,12 +529,25 @@ function ModelsCard({
   );
 }
 
-function KeysCard({ keys, higgsfieldRejected }: { keys: KeyStatus; higgsfieldRejected: boolean }) {
+function KeysCard({
+  keys,
+  higgsfieldRejected,
+  higgsfieldForm,
+}: {
+  keys: KeyStatus;
+  higgsfieldRejected: boolean;
+  higgsfieldForm: HiggsfieldKeyForm | null;
+}) {
   const t = useTranslations("settings.keys");
-  const rows: [string, boolean | "rejected"][] = [
+  // A rejected key says how it was read, so a paste slip shows without the key.
+  const rows: [string, boolean | "rejected", string?][] = [
     ["Supabase", keys.supabase],
     [t("serviceRole"), keys.supabaseServiceRole],
-    ["Higgsfield", higgsfieldRejected ? "rejected" : keys.higgsfield],
+    [
+      "Higgsfield",
+      higgsfieldRejected ? "rejected" : keys.higgsfield,
+      higgsfieldRejected && higgsfieldForm ? t(`readAs.${higgsfieldForm}`) : undefined,
+    ],
     [t("webhook"), keys.higgsfieldWebhook],
     ["Anthropic (Claude)", keys.anthropic],
     ["Google Gemini", keys.gemini],
@@ -546,9 +566,12 @@ function KeysCard({ keys, higgsfieldRejected }: { keys: KeyStatus; higgsfieldRej
       </CardHeader>
       <CardContent>
         <ul className="flex flex-col divide-y divide-border">
-          {rows.map(([label, state]) => (
-            <li key={label} className="flex items-center justify-between py-2.5 text-sm">
-              <span>{label}</span>
+          {rows.map(([label, state, hint]) => (
+            <li key={label} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+              <span className="flex flex-col gap-0.5">
+                <span>{label}</span>
+                {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+              </span>
               <span
                 className={cn(
                   "inline-flex items-center gap-1.5",

@@ -10,6 +10,12 @@ import { photoClassificationSchema } from "@/lib/domain/photo-classification";
 import { AppError } from "@/lib/errors";
 import { mapAnthropicError } from "@/lib/providers/llm/claude";
 import { GeminiBrain, geminiJsonSchema, mapGeminiError } from "@/lib/providers/llm/gemini";
+import {
+  cairoTime,
+  describeQuota,
+  geminiQuota,
+  nextPacificMidnight,
+} from "@/lib/providers/llm/gemini-errors";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import { ghostScenePromptSchema, type StructuredRequest } from "@/lib/providers/llm/types";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
@@ -246,8 +252,13 @@ describe("Gemini brain", () => {
   };
 
   class TestGemini extends GeminiBrain {
+    readonly pauses: number[] = [];
     run<T>(structured: StructuredRequest<T>): Promise<T> {
       return this.structured(structured);
+    }
+    protected override pause(ms: number): Promise<void> {
+      this.pauses.push(ms);
+      return Promise.resolve();
     }
   }
 
@@ -309,8 +320,9 @@ describe("Gemini brain", () => {
     expect(calls.map((call) => call.model)).toEqual([
       "gemini-flash-latest",
       "gemini-3.7-flash",
-      "gemini-3.5-flash",
+      "gemini-3.6-flash",
     ]);
+    expect(brain.model).toBe("gemini-3.6-flash");
   });
 
   it("reports what Google said when no Flash model answers", async () => {
@@ -318,20 +330,206 @@ describe("Gemini brain", () => {
     await expect(brain.run(request)).rejects.toMatchObject({
       code: "provider_unavailable",
       status: 503,
-      detail: expect.stringMatching(
-        /^The model is overloaded\. · gemini-3\.7-flash: The model is overloaded\. · gemini-3\.5-flash:/,
-      ),
+      detail:
+        "gemini-flash-latest: The model is overloaded. · gemini-3.7-flash: The model is overloaded. · " +
+        "gemini-3.6-flash: The model is overloaded. · gemini-3.5-flash: The model is overloaded.",
     });
   });
 
-  it("does not switch models for a key or quota problem", async () => {
+  it("does not switch models for a key problem", async () => {
     const { brain, calls } = gemini(
-      () => new ApiError({ message: "Quota exceeded for requests per day", status: 429 }),
+      () => new ApiError({ message: "API key not valid.", status: 403 }),
     );
-    await expect(brain.run(request)).rejects.toMatchObject({
-      code: "provider_rate_limit",
-      detail: "Quota exceeded for requests per day",
-    });
+    await expect(brain.run(request)).rejects.toMatchObject({ code: "provider_auth" });
     expect(calls).toHaveLength(1);
+  });
+
+  it("moves to the next Flash model when the chosen one has used up its daily quota", async () => {
+    const { brain, calls } = gemini((call) =>
+      call.model === "gemini-flash-latest"
+        ? quotaExceeded("gemini-3.8-flash", "Day", "5s")
+        : '{"verdict":"ok"}',
+    );
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(calls.map((call) => call.model)).toEqual(["gemini-flash-latest", "gemini-3.7-flash"]);
+    // A daily limit is not waited out, even though Google suggests a short retry.
+    expect(brain.pauses).toEqual([]);
+    // What the brain wrote is recorded under the model that wrote it.
+    expect(brain.model).toBe("gemini-3.7-flash");
+  });
+
+  it("waits out a short per-minute limit and asks the same model again", async () => {
+    let limited = true;
+    const { brain, calls } = gemini(() => {
+      if (!limited) return '{"verdict":"ok"}';
+      limited = false;
+      return quotaExceeded("gemini-3.8-flash", "Minute", "12s");
+    });
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(brain.pauses).toEqual([13_000]);
+    expect(calls.map((call) => call.model)).toEqual(["gemini-flash-latest", "gemini-flash-latest"]);
+    expect(brain.model).toBe("gemini-flash-latest");
+  });
+
+  it("asks the next model instead of waiting out a long per-minute limit", async () => {
+    const { brain, calls } = gemini((call) =>
+      call.model === "gemini-flash-latest"
+        ? quotaExceeded("gemini-3.8-flash", "Minute", "58s")
+        : '{"verdict":"ok"}',
+    );
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok" });
+    expect(brain.pauses).toEqual([]);
+    expect(calls.map((call) => call.model)).toEqual(["gemini-flash-latest", "gemini-3.7-flash"]);
+  });
+
+  it("says when the daily limit resets once every Flash model has used it up", async () => {
+    const { brain, calls } = gemini((call) =>
+      quotaExceeded(call.model === "gemini-flash-latest" ? "gemini-3.8-flash" : call.model, "Day"),
+    );
+    const error = await brain.run(request).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "provider_rate_limit",
+      status: 429,
+      detail:
+        "gemini-3.8-flash: 20 requests a day (free tier) · gemini-3.7-flash: 20 requests a day (free tier) · " +
+        "gemini-3.6-flash: 20 requests a day (free tier) · gemini-3.5-flash: 20 requests a day (free tier)",
+    });
+    expect((error as AppError).message).toMatch(
+      /^Gemini's daily limit is used up for every Flash model the studio tries\. It resets at midnight Pacific time \(\d\d:\d\d Cairo time\)\./,
+    );
+    expect(calls).toHaveLength(4);
+  });
+});
+
+/** Google's 429 body, as the Gemini API sends it and the SDK passes it on. */
+function quotaExceeded(model: string, window: "Day" | "Minute", retryDelay = "41s") {
+  return new ApiError({
+    status: 429,
+    message: JSON.stringify({
+      error: {
+        code: 429,
+        message:
+          "You exceeded your current quota, please check your plan and billing details. For more " +
+          "information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. " +
+          "To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for " +
+          `metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: ${model}\n` +
+          `Please retry in ${retryDelay.replace("s", ".53s")}.`,
+        status: "RESOURCE_EXHAUSTED",
+        details: [
+          {
+            "@type": "type.googleapis.com/google.rpc.Help",
+            links: [
+              {
+                description: "Learn more about Gemini API quotas",
+                url: "https://ai.google.dev/gemini-api/docs/rate-limits",
+              },
+            ],
+          },
+          {
+            "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+            violations: [
+              {
+                quotaMetric:
+                  "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                quotaId: `GenerateRequestsPer${window}PerProjectPerModel-FreeTier`,
+                quotaDimensions: { location: "global", model },
+                quotaValue: "20",
+              },
+            ],
+          },
+          { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay },
+        ],
+      },
+    }),
+  });
+}
+
+describe("Gemini quota errors", () => {
+  it("reads the limit, window, model and retry delay from Google's 429", () => {
+    expect(geminiQuota(quotaExceeded("gemini-3.8-flash", "Day", "5s"))).toEqual({
+      window: "day",
+      unit: "requests",
+      limit: 20,
+      model: "gemini-3.8-flash",
+      freeTier: true,
+      retryAfterMs: 5000,
+    });
+    expect(geminiQuota(quotaExceeded("gemini-3.8-flash", "Minute", "12s"))).toMatchObject({
+      window: "minute",
+      retryAfterMs: 12_000,
+    });
+  });
+
+  it("prefers the daily limit when a request hits both", () => {
+    const body = JSON.parse(quotaExceeded("gemini-3.8-flash", "Minute").message);
+    body.error.details[1].violations.push({
+      quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+      quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+      quotaValue: "20",
+    });
+    const error = new ApiError({ status: 429, message: JSON.stringify(body) });
+    expect(geminiQuota(error)?.window).toBe("day");
+  });
+
+  it("falls back to the message when the details are missing", () => {
+    const error = new ApiError({
+      status: 429,
+      message:
+        "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 250000, model: gemini-3.8-flash\nPlease retry in 548ms.",
+    });
+    expect(geminiQuota(error)).toEqual({
+      window: null,
+      unit: "tokens",
+      limit: 250_000,
+      model: "gemini-3.8-flash",
+      freeTier: true,
+      retryAfterMs: 548,
+    });
+    expect(geminiQuota(new ApiError({ status: 500, message: "x" }))).toBeNull();
+  });
+
+  it("names the limit in the error instead of Google's boilerplate", () => {
+    const daily = mapGeminiError(quotaExceeded("gemini-3.8-flash", "Day")) as AppError;
+    expect(daily).toMatchObject({
+      code: "provider_rate_limit",
+      detail: "gemini-3.8-flash: 20 requests a day (free tier)",
+      retryable: true,
+    });
+    expect(daily.message).toMatch(/^Gemini's daily limit for this model is used up\./);
+    const minute = mapGeminiError(quotaExceeded("gemini-3.8-flash", "Minute")) as AppError;
+    expect(minute.message).toBe("Gemini's per-minute limit was reached. Try again in a minute.");
+    expect(describeQuota({ ...geminiQuota(quotaExceeded("m", "Minute"))!, model: null })).toBe(
+      "20 requests a minute (free tier)",
+    );
+  });
+
+  it("shows Google's message rather than the raw JSON for other errors", () => {
+    const error = new ApiError({
+      status: 503,
+      message: JSON.stringify({
+        error: {
+          code: 503,
+          message: "The model is overloaded. Please try again later.",
+          status: "UNAVAILABLE",
+        },
+      }),
+    });
+    expect(mapGeminiError(error)).toMatchObject({
+      code: "provider_unavailable",
+      detail: "The model is overloaded. Please try again later.",
+    });
+  });
+
+  it("knows when the daily limit resets, in Cairo time", () => {
+    // Summer: Pacific midnight is 07:00 UTC, 10:00 in Cairo.
+    const summer = nextPacificMidnight(new Date("2026-09-28T06:59:00Z"));
+    expect(summer.toISOString()).toBe("2026-09-28T07:00:00.000Z");
+    expect(cairoTime(summer)).toBe("10:00 Cairo time");
+    const later = nextPacificMidnight(new Date("2026-09-28T07:00:01Z"));
+    expect(later.toISOString()).toBe("2026-09-29T07:00:00.000Z");
+    // Winter: Pacific midnight is 08:00 UTC, 10:00 in Cairo.
+    const winter = nextPacificMidnight(new Date("2026-12-15T12:00:00Z"));
+    expect(winter.toISOString()).toBe("2026-12-16T08:00:00.000Z");
+    expect(cairoTime(winter)).toBe("10:00 Cairo time");
   });
 });

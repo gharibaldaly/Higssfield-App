@@ -1307,6 +1307,10 @@
       "configured": "Configured",
       "missing": "Missing",
       "rejected": "Rejected — check the key in Vercel",
+      "readAs": {
+        "combined": "Read as KEY_ID:SECRET from HIGGSFIELD_API_KEY; HIGGSFIELD_API_SECRET is ignored.",
+        "separate": "Read as the key ID from HIGGSFIELD_API_KEY and the secret from HIGGSFIELD_API_SECRET."
+      },
       "serviceRole": "Supabase service role (webhooks)",
       "gateway": "LLM gateway",
       "webhook": "Higgsfield webhook (secret + APP_URL)",

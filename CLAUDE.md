@@ -378,3 +378,22 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
   - Settings runs it on each visit: the models badge reads "Higgsfield rejected the key", and the keys card marks Higgsfield as rejected.
   - An accepted key is remembered for five minutes per server instance; a rejected one is asked again each time, so a corrected key shows at once.
 
+
+### 2026-09-28 — Gemini quotas, and a Higgsfield key check before brain calls
+- **Why:** the product sheet failed three times with Higgsfield's 401, and each attempt first spent a Gemini request on the sheet prompt. Then Gemini answered 429 because the free daily limit was used up. The toast cut Google's message before it named the limit, because the detail was the first 300 characters of the raw JSON body.
+- **Free tier** (Google's pricing and rate-limit pages, 2026-09-28):
+  - Limits apply per project and model, and daily limits reset at midnight Pacific time (10:00 in Cairo). AI Studio shows the live numbers.
+  - Google no longer publishes the numbers. A September 2026 summary gives about 20 requests a day for each Flash model (3.8, 3.7, 3.6, 3.5) and about 500 for Flash-Lite.
+- **Reading a 429** (`lib/providers/llm/gemini-errors.ts`):
+  - The SDK's `ApiError` carries Google's JSON body. The brain reads its `QuotaFailure`: the quota id says per minute or per day, and requests or tokens; the limit and model come with it. It also reads `RetryInfo` (the retry delay). The message text is the fallback.
+  - Errors now show Google's own message instead of raw JSON, and a 429 names its limit ("gemini-3.8-flash: 20 requests a day (free tier)").
+- **What the brain does** (this replaces "quota errors never switch models" from the Gemini entry above):
+  - The SDK no longer retries 429s blindly; its retry codes leave 429 out.
+  - A per-minute limit is waited out once when Google's delay is 45 s or less. A longer one moves on.
+  - A daily limit moves to the next Flash model: 3.7, then 3.6 (new), then 3.5, each with its own free limit. A daily 429 is never waited out, even when Google suggests a short retry.
+  - When every model has used its daily limit, the error says when the limit resets (in Cairo time) and that turning on billing lifts it.
+  - The DNA row, sheet plan, fidelity review and ad plan record the model that actually answered, because `GeminiBrain.model` follows the fallback.
+- **Higgsfield key check first:** `requireHiggsfieldKey()` runs the live key check before the product sheet, a catalogue job (runs and regenerations) and an ad shot write their prompts.
+  - A rejected key stops the work with the 401 message and costs no brain call.
+  - An accepted key is remembered for five minutes; an unreachable API lets the work go on.
+- **Settings:** a rejected Higgsfield key also says how the studio read it: `KEY_ID:SECRET` in one variable, or two variables. The key itself is never shown.

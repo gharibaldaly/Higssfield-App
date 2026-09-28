@@ -3,7 +3,11 @@ import "server-only";
 import { higgsfieldCredentials, isHiggsfieldMockForced, serverEnv } from "@/lib/env";
 import { fetchWithTimeout } from "@/lib/http/retry";
 import { specsFromCatalog } from "@/lib/providers/higgsfield/catalog";
-import { type CredentialCheck, HiggsfieldClient } from "@/lib/providers/higgsfield/client";
+import {
+  type CredentialCheck,
+  HiggsfieldClient,
+  keyRejectedError,
+} from "@/lib/providers/higgsfield/client";
 import { MockProvider } from "@/lib/providers/higgsfield/mock";
 import { buildRegistry } from "@/lib/providers/higgsfield/registry";
 import type { ImageVideoProvider, ModelSpec } from "@/lib/providers/higgsfield/types";
@@ -45,6 +49,15 @@ export async function higgsfieldKeyCheck(): Promise<CredentialCheck | null> {
   }).checkCredentials();
   acceptedKey = result === "accepted" ? { keyId: credentials.keyId, at: Date.now() } : null;
   return result;
+}
+
+/**
+ * Stops work bound for Higgsfield while it rejects the key, before the director
+ * brain spends a call (and the owner's LLM quota) on a prompt that could not be
+ * sent. Only a rejection stops it: an unreachable API lets the work go on.
+ */
+export async function requireHiggsfieldKey(): Promise<void> {
+  if ((await higgsfieldKeyCheck()) === "rejected") throw keyRejectedError();
 }
 
 let catalogCache: { at: number; specs: ModelSpec[] } | null = null;

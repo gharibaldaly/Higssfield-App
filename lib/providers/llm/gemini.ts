@@ -4,6 +4,13 @@ import { ApiError, FinishReason, GoogleGenAI, type Part } from "@google/genai";
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors";
+import {
+  cairoTime,
+  describeQuota,
+  geminiQuota,
+  googleMessage,
+  nextPacificMidnight,
+} from "@/lib/providers/llm/gemini-errors";
 import { TemplateBrain } from "@/lib/providers/llm/template-brain";
 import type { StructuredRequest } from "@/lib/providers/llm/types";
 
@@ -11,11 +18,18 @@ import type { StructuredRequest } from "@/lib/providers/llm/types";
 export const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 
 /**
- * Earlier Flash models (free tier, per the Gemini pricing page on 2026-09-27),
- * tried in turn when the chosen model stays overloaded or failing. One that no
- * longer exists is skipped.
+ * Earlier Flash models (free tier, per the Gemini pricing page on 2026-09-28),
+ * tried in turn when the chosen model stays overloaded or has used up its
+ * quota; free-tier limits apply per project and model. One that no longer
+ * exists is skipped.
  */
-export const FALLBACK_GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.5-flash"];
+export const FALLBACK_GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+
+/** The longest per-minute limit worth waiting out before asking the same model again. */
+const MAX_QUOTA_WAIT_MS = 45_000;
+
+/** Errors of the chosen model that another Flash model may not have. */
+const SWITCHABLE = new Set(["provider_unavailable", "provider_rate_limit"]);
 
 /** JSON Schema for Gemini's responseJsonSchema (inlined, no $schema key). */
 export function geminiJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -31,7 +45,7 @@ export function mapGeminiError(error: unknown): unknown {
   if (error instanceof AppError) return error;
   if (error instanceof ApiError) {
     // Google's own message says what happened (overloaded, quota, bad schema…).
-    const base = { detail: error.message.slice(0, 300), status: error.status, cause: error };
+    const base = { detail: googleMessage(error).slice(0, 300), status: error.status, cause: error };
     if (error.status === 401 || error.status === 403) {
       return new AppError(
         "provider_auth",
@@ -46,13 +60,7 @@ export function mapGeminiError(error: unknown): unknown {
         base,
       );
     }
-    if (error.status === 429) {
-      return new AppError(
-        "provider_rate_limit",
-        "Gemini is rate limiting requests or the daily free quota is used up. Try again later.",
-        { ...base, retryable: true },
-      );
-    }
+    if (error.status === 429) return quotaError(error, base);
     if (error.status >= 500) {
       return new AppError("provider_unavailable", "Gemini is temporarily unavailable. Try again.", {
         ...base,
@@ -70,19 +78,51 @@ export function mapGeminiError(error: unknown): unknown {
   return error;
 }
 
+/** A 429 that names its limit: which window, how many requests, and when it lifts. */
+function quotaError(
+  error: ApiError,
+  base: { detail: string; status: number; cause: unknown },
+): AppError {
+  const quota = geminiQuota(error);
+  const detail = (quota && describeQuota(quota)) ?? base.detail;
+  const message =
+    quota?.window === "day"
+      ? `Gemini's daily limit for this model is used up. It resets at midnight Pacific time (${cairoTime(nextPacificMidnight())}).`
+      : quota?.window === "minute"
+        ? `Gemini's per-minute ${quota.unit === "tokens" ? "token " : ""}limit was reached. Try again in a minute.`
+        : "Gemini is rate limiting requests or the daily free quota is used up. Try again later.";
+  return new AppError("provider_rate_limit", message, { ...base, detail, retryable: true });
+}
+
 export class GeminiBrain extends TemplateBrain {
   readonly provider = "gemini" as const;
   private readonly ai: GoogleGenAI;
+  /** The model that wrote the last answer, when a fallback had to step in. */
+  private answeredBy: string | null = null;
 
   constructor(
     apiKey: string,
-    readonly model: string = DEFAULT_GEMINI_MODEL,
+    private readonly chosenModel: string = DEFAULT_GEMINI_MODEL,
   ) {
     super();
     this.ai = new GoogleGenAI({
       apiKey,
-      httpOptions: { timeout: 240_000, retryOptions: { attempts: 3 } },
+      // Quota errors (429) are handled below, where Google's retry delay is known.
+      httpOptions: {
+        timeout: 240_000,
+        retryOptions: { attempts: 3, httpStatusCodes: [408, 500, 502, 503, 504] },
+      },
     });
+  }
+
+  /** The model recorded next to what the brain wrote: the one that answered last. */
+  get model(): string {
+    return this.answeredBy ?? this.chosenModel;
+  }
+
+  /** Waits out a per-minute limit (replaced in tests). */
+  protected pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async call(
@@ -138,33 +178,47 @@ export class GeminiBrain extends TemplateBrain {
   }
 
   /**
-   * Asks the chosen model; when it stays overloaded or failing (after the
-   * SDK's own retries), asks the earlier Flash models in turn. If none
-   * answers, the chosen model's error is reported with what the others said.
+   * Asks the chosen model. When it stays overloaded (after the SDK's own
+   * retries) or has used up its quota, asks the earlier Flash models in turn,
+   * since free-tier limits apply per model. If none answers, the error says
+   * what each model reported.
    */
   protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
-    let first: AppError | null = null;
-    const others: string[] = [];
-    for (const model of [this.model, ...FALLBACK_GEMINI_MODELS.filter((m) => m !== this.model)]) {
+    const failures: { model: string; error: AppError }[] = [];
+    const models = [
+      this.chosenModel,
+      ...FALLBACK_GEMINI_MODELS.filter((model) => model !== this.chosenModel),
+    ];
+    for (const model of models) {
       try {
-        const result = await this.generateWith(model, request);
-        if (first) console.warn(`Gemini ${this.model} was unavailable; ${model} answered instead`);
+        const result = await this.generateOn(model, request);
+        if (failures.length > 0) {
+          console.warn(
+            `Gemini ${this.chosenModel} could not answer (${failures[0]!.error.code}); ${model} answered instead`,
+          );
+        }
+        this.answeredBy = model;
         return result;
       } catch (error) {
         if (!(error instanceof AppError)) throw error;
-        if (!first) {
-          if (error.code !== "provider_unavailable") throw error;
-          first = error;
-        } else {
-          others.push(`${model}: ${error.detail ?? error.message}`.slice(0, 160));
-        }
+        if (failures.length === 0 && !SWITCHABLE.has(error.code)) throw error;
+        failures.push({ model, error });
       }
     }
-    throw new AppError(first!.code, first!.message, {
-      detail: [first!.detail, ...others].filter(Boolean).join(" · "),
-      status: first!.status,
-      retryable: true,
-    });
+    throw noModelAnswered(failures);
+  }
+
+  /** One model. A short per-minute limit is waited out once before asking again. */
+  private async generateOn<T>(model: string, request: StructuredRequest<T>): Promise<T> {
+    try {
+      return await this.generateWith(model, request);
+    } catch (error) {
+      const quota = error instanceof AppError ? geminiQuota(error.cause) : null;
+      const wait = quota?.window === "minute" ? (quota.retryAfterMs ?? 30_000) : null;
+      if (wait === null || wait > MAX_QUOTA_WAIT_MS) throw error;
+      await this.pause(wait + 1000);
+      return this.generateWith(model, request);
+    }
   }
 
   private async generateWith<T>(model: string, request: StructuredRequest<T>): Promise<T> {
@@ -204,4 +258,37 @@ export class GeminiBrain extends TemplateBrain {
     }
     return parsed.data;
   }
+}
+
+/**
+ * The error once every Flash model failed. When each one had used up its daily
+ * limit, it says so and when the limit resets; otherwise the chosen model's
+ * error stands, with what the others said. A fallback model that no longer
+ * exists is only listed.
+ */
+function noModelAnswered(failures: { model: string; error: AppError }[]): AppError {
+  const first = failures[0]!.error;
+  const reasons = failures.map(({ model, error }) => {
+    const quota = geminiQuota(error.cause);
+    const described = quota ? describeQuota(quota, model) : null;
+    return described ?? `${model}: ${error.detail ?? error.message}`.slice(0, 160);
+  });
+  const detail = reasons.join(" · ");
+  const counted = failures.filter(({ error }) => error.code !== "not_found");
+  const windows = counted.map(({ error }) => geminiQuota(error.cause)?.window ?? null);
+  if (windows.length > 0 && windows.every((window) => window === "day")) {
+    return new AppError(
+      "provider_rate_limit",
+      `Gemini's daily limit is used up for every Flash model the studio tries. It resets at midnight Pacific time (${cairoTime(nextPacificMidnight())}). Turning on billing for the Google project lifts the daily limit.`,
+      { detail, status: 429, retryable: true },
+    );
+  }
+  if (counted.length > 0 && counted.every(({ error }) => error.code === "provider_rate_limit")) {
+    return new AppError(
+      "provider_rate_limit",
+      "Gemini is rate limiting every Flash model the studio tries. Try again in a few minutes.",
+      { detail, status: 429, retryable: true },
+    );
+  }
+  return new AppError(first.code, first.message, { detail, status: first.status, retryable: true });
 }

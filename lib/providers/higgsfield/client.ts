@@ -163,6 +163,15 @@ function detailMessage(payload: unknown): string | undefined {
 /** The docs report the account's concurrency limit as a 400 with this message. */
 const CONCURRENCY_LIMIT = /concurrent requests/i;
 
+/** Higgsfield turned the key away (401): a wrong or malformed key, or one not deployed yet. */
+export function keyRejectedError(reference?: string): AppError {
+  return new AppError(
+    "provider_auth",
+    "Higgsfield rejected the API key. Check HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET in Vercel, then redeploy.",
+    { status: 401, reference },
+  );
+}
+
 /** Maps an error response to a user-facing error, per the docs' error table. */
 export async function higgsfieldError(response: Response): Promise<AppError> {
   let payload: unknown = null;
@@ -193,11 +202,7 @@ export async function higgsfieldError(response: Response): Promise<AppError> {
         base,
       );
     case 401:
-      return new AppError(
-        "provider_auth",
-        "Higgsfield rejected the API key. Check HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET.",
-        { status, reference },
-      );
+      return keyRejectedError(reference);
     case 402:
     case 403:
       return new AppError(

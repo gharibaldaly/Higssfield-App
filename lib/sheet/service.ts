@@ -13,6 +13,7 @@ import { submitGeneration } from "@/lib/generations/service";
 import { cropRegions, toLlmImage } from "@/lib/images/process";
 import { getPhotos, getPieces, getProduct, photoCaption } from "@/lib/products/service";
 import { NEGATIVE_PROMPT_TERMS } from "@/lib/prompts/blocks";
+import { requireHiggsfieldKey } from "@/lib/providers/higgsfield";
 import { highestResolution } from "@/lib/providers/higgsfield/registry";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import {
@@ -103,6 +104,8 @@ export async function generateSheet(
 
   const references = await sheetReferences(supabase, productId);
   if (references.length === 0) throw new AppError("validation", "Upload product photos first.");
+  // Before the brain writes the prompt: a rejected key would fail the sheet anyway.
+  await requireHiggsfieldKey();
   const generationRefs = references.slice(0, referenceBudget(model, mode));
   const llmRefs = await Promise.all(
     references

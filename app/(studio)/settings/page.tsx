@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/common/page-header";
 import { SettingsView } from "@/components/settings/settings-view";
 import { requireOwner } from "@/lib/auth/owner";
-import { keyStatus, llmGatewayConfig } from "@/lib/env";
+import { higgsfieldKeyForm, keyStatus, llmGatewayConfig } from "@/lib/env";
 import { ownerRegistry } from "@/lib/generations/models";
 import { toModelOptions } from "@/lib/providers/higgsfield/options";
 import { activeProviderMode, higgsfieldKeyCheck } from "@/lib/providers/higgsfield";
@@ -57,6 +57,7 @@ export default async function SettingsPage() {
         keys={keyStatus()}
         providerMode={activeProviderMode()}
         higgsfieldKey={higgsfieldKey}
+        higgsfieldKeyForm={higgsfieldKeyForm()}
         imageModels={toModelOptions(registry, "image", ["image-to-image", "text-to-image"])}
         videoModels={toModelOptions(registry, "video", ["image-to-video"])}
         costs={costs}

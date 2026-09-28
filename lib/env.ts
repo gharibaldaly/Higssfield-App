@@ -40,6 +40,13 @@ const serverEnvSchema = z.object({
   LLM_GATEWAY_MAX_TOKENS: optionalString,
   LLM_GATEWAY_REASONING_EFFORT: optionalString,
 
+  MISTRAL_API_KEY: optionalString,
+  MISTRAL_MODEL: optionalString,
+  ZAI_API_KEY: optionalString,
+  ZAI_MODEL: optionalString,
+  OPENROUTER_API_KEY: optionalString,
+  OPENROUTER_MODEL: optionalString,
+
   GOOGLE_DRIVE_CLIENT_ID: optionalString,
   GOOGLE_DRIVE_CLIENT_SECRET: optionalString,
 });
@@ -135,7 +142,11 @@ export function isHiggsfieldMockForced(): boolean {
   return flag === "1" || flag === "true" || flag === "yes";
 }
 
+/** The known free services, plus the owner's own gateway (LLM_GATEWAY_*). */
+export type LlmGatewayId = "mistral" | "zai" | "openrouter" | "custom";
+
 export type LlmGatewayConfig = {
+  id: LlmGatewayId;
   /** Base URL including the version path, e.g. https://example.com/v1. */
   baseUrl: string;
   apiKey: string;
@@ -150,6 +161,19 @@ export type LlmGatewayConfig = {
    * and dropped for a model that refuses the field.
    */
   reasoningEffort?: string | null;
+  /** Request fields the service wants with every call (Z.ai: thinking off). */
+  extraBody?: Record<string, unknown>;
+  /** Request headers the service wants (OpenRouter: the app's name and URL). */
+  headers?: Record<string, string>;
+  /** Images the service takes per request; a call with more sends the first ones. */
+  maxImages?: number | null;
+  /**
+   * Whether the generic reasoning fields (`reasoning_effort`,
+   * `chat_template_kwargs`) may be sent. On for the owner's own gateway, whose
+   * model is unknown; off for a known service, whose model has its own
+   * defaults (and `extraBody` its switch, where it needs one).
+   */
+  thinkingFields?: boolean;
 };
 
 /**
@@ -164,6 +188,7 @@ export function llmGatewayConfig(): LlmGatewayConfig | null {
   if (!/^https:\/\//i.test(baseUrl)) return null;
   const maxTokens = Number.parseInt(env.LLM_GATEWAY_MAX_TOKENS ?? "", 10);
   return {
+    id: "custom",
     baseUrl,
     apiKey: env.LLM_GATEWAY_API_KEY,
     model: env.LLM_GATEWAY_MODEL ?? null,
@@ -175,6 +200,91 @@ export function llmGatewayConfig(): LlmGatewayConfig | null {
   };
 }
 
+type GatewayPreset = {
+  id: Exclude<LlmGatewayId, "custom">;
+  name: string;
+  baseUrl: string;
+  model: string;
+  maxImages: number | null;
+  extraBody?: Record<string, unknown>;
+};
+
+/**
+ * Free services with OpenAI-compatible chat completions that read images
+ * (checked 2026-09-28, see the Decisions log). Each needs only its key.
+ */
+const GATEWAY_PRESETS: GatewayPreset[] = [
+  {
+    // The Free plan includes API credits every month; Mistral Small 4 reads images.
+    id: "mistral",
+    name: "Mistral",
+    baseUrl: "https://api.mistral.ai/v1",
+    model: "mistral-small-latest",
+    maxImages: 8,
+  },
+  {
+    // GLM-4.6V-Flash is free, one request at a time. Its reasoning is off: the
+    // brain's answers are JSON and reasoning would eat the output.
+    id: "zai",
+    name: "Z.ai",
+    baseUrl: "https://api.z.ai/api/paas/v4",
+    model: "glm-4.6v-flash",
+    maxImages: 150,
+    extraBody: { thinking: { type: "disabled" } },
+  },
+  {
+    // Free models (":free"), 50 requests a day, 1,000 once $10 of credits were bought.
+    id: "openrouter",
+    name: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "google/gemma-4-31b-it:free",
+    maxImages: null,
+  },
+];
+
+const PRESET_KEYS: Record<GatewayPreset["id"], { key: keyof ServerEnv; model: keyof ServerEnv }> = {
+  mistral: { key: "MISTRAL_API_KEY", model: "MISTRAL_MODEL" },
+  zai: { key: "ZAI_API_KEY", model: "ZAI_MODEL" },
+  openrouter: { key: "OPENROUTER_API_KEY", model: "OPENROUTER_MODEL" },
+};
+
+/**
+ * Every configured gateway, in the order the brain asks them: the free
+ * services first (Mistral, Z.ai, OpenRouter), then the owner's own gateway.
+ */
+export function llmGatewayConfigs(): LlmGatewayConfig[] {
+  const env = serverEnv();
+  const presets = GATEWAY_PRESETS.flatMap((preset): LlmGatewayConfig[] => {
+    const vars = PRESET_KEYS[preset.id];
+    const apiKey = env[vars.key];
+    if (!apiKey) return [];
+    return [
+      {
+        id: preset.id,
+        name: preset.name,
+        baseUrl: preset.baseUrl,
+        apiKey,
+        model: env[vars.model] ?? preset.model,
+        maxTokens: 16_000,
+        reasoningEffort: null,
+        thinkingFields: false,
+        extraBody: preset.extraBody,
+        maxImages: preset.maxImages,
+        // OpenRouter asks apps to name themselves.
+        headers:
+          preset.id === "openrouter"
+            ? {
+                "X-Title": "Dr. Secret Studio",
+                ...(env.APP_URL ? { "HTTP-Referer": env.APP_URL } : {}),
+              }
+            : undefined,
+      },
+    ];
+  });
+  const custom = llmGatewayConfig();
+  return custom ? [...presets, custom] : presets;
+}
+
 export type KeyStatus = {
   supabase: boolean;
   supabaseServiceRole: boolean;
@@ -183,6 +293,9 @@ export type KeyStatus = {
   higgsfieldWebhook: boolean;
   anthropic: boolean;
   gemini: boolean;
+  mistral: boolean;
+  zai: boolean;
+  openrouter: boolean;
   gateway: boolean;
   googleDrive: boolean;
   ownerEmail: boolean;
@@ -200,6 +313,9 @@ export function keyStatus(): KeyStatus {
     higgsfieldWebhook: Boolean(env.HIGGSFIELD_WEBHOOK_SECRET && env.APP_URL),
     anthropic: Boolean(env.ANTHROPIC_API_KEY),
     gemini: Boolean(env.GEMINI_API_KEY),
+    mistral: Boolean(env.MISTRAL_API_KEY),
+    zai: Boolean(env.ZAI_API_KEY),
+    openrouter: Boolean(env.OPENROUTER_API_KEY),
     gateway: llmGatewayConfig() !== null,
     googleDrive: Boolean(env.GOOGLE_DRIVE_CLIENT_ID && env.GOOGLE_DRIVE_CLIENT_SECRET),
     ownerEmail: Boolean(env.APP_OWNER_EMAIL),

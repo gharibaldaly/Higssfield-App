@@ -1303,15 +1303,18 @@
       "providers": {
         "claude": "Claude (Anthropic)",
         "gemini": "Gemini (Google)",
-        "gateway": "Gateway (OpenAI-compatible)"
+        "gateway": "Free gateways (OpenAI-compatible)"
       },
       "keyConfigured": "Key configured",
       "keyMissing": "Key missing",
       "claudeModel": "Claude model ID",
       "geminiModel": "Gemini model ID",
-      "gatewayModel": "Gateway model ID",
+      "gatewayModel": "Own gateway model ID (LLM_GATEWAY_*)",
       "gatewayHint": "Use a model that accepts images: the studio sends garment photos with most requests.",
-      "gatewayMissing": "Set LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY in Vercel to use a gateway.",
+      "gatewayMissing": "Set LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY in Vercel to add your own gateway.",
+      "gatewayChain": "The brain asks the configured gateways in this order — Mistral, Z.ai, OpenRouter, then your own gateway — and moves to the next when one hits its limit or fails. Keys: MISTRAL_API_KEY, ZAI_API_KEY, OPENROUTER_API_KEY in Vercel.",
+      "gatewayNone": "No gateway key set",
+      "chain": "Order:",
       "geminiHint": "Free: when one model's daily limit runs out, the brain moves on to the next free model (Gemini Flash, Flash-Lite, then Gemma 4). Google resets the limits every day at midnight Pacific time (about 10:00 in Cairo).",
       "save": "Save",
       "active": "Active: {provider} · {model}"
@@ -1371,7 +1374,7 @@
         "separate": "Read as the key ID from HIGGSFIELD_API_KEY and the secret from HIGGSFIELD_API_SECRET."
       },
       "serviceRole": "Supabase service role (webhooks)",
-      "gateway": "LLM gateway",
+      "gateway": "Own LLM gateway (LLM_GATEWAY_*)",
       "webhook": "Higgsfield webhook (secret + APP_URL)",
       "ownerEmail": "Owner email lock"
     },

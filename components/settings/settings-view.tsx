@@ -93,7 +93,7 @@ export function SettingsView({
   gateway,
 }: {
   settings: SettingsData;
-  brain: { provider: string; model: string };
+  brain: { provider: string; model: string; chain: string[] };
   defaults: { claude: string; gemini: string; gateway: string };
   gateway: GatewayInfo;
   keys: KeyStatus;
@@ -137,8 +137,15 @@ export function SettingsView({
   );
 }
 
-/** The OpenAI-compatible gateway, when configured: its name and the models it lists. */
-type GatewayInfo = { name: string | null; models: string[] };
+/**
+ * The owner's own gateway, when configured (its name and the models it
+ * lists), and every configured gateway in the order the brain asks them.
+ */
+type GatewayInfo = {
+  name: string | null;
+  models: string[];
+  configured: { id: string; name: string; model: string | null }[];
+};
 
 const BRAIN_PROVIDERS = ["claude", "gemini", "gateway"] as const;
 
@@ -150,7 +157,7 @@ function BrainCard({
   gateway,
 }: {
   settings: SettingsData;
-  brain: { provider: string; model: string };
+  brain: { provider: string; model: string; chain: string[] };
   defaults: { claude: string; gemini: string; gateway: string };
   keys: KeyStatus;
   gateway: GatewayInfo;
@@ -161,7 +168,11 @@ function BrainCard({
   const [claudeModel, setClaudeModel] = useState(settings.claudeModel ?? "");
   const [geminiModel, setGeminiModel] = useState(settings.geminiModel ?? "");
   const [gatewayModel, setGatewayModel] = useState(settings.gatewayModel ?? "");
-  const configured = { claude: keys.anthropic, gemini: keys.gemini, gateway: keys.gateway };
+  const configured = {
+    claude: keys.anthropic,
+    gemini: keys.gemini,
+    gateway: gateway.configured.length > 0,
+  };
   return (
     <Card>
       <CardHeader>
@@ -184,12 +195,12 @@ function BrainCard({
               value={option}
               className="rounded-(--radius-control) border border-border p-4 text-start transition-[border-color,background-color] outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=checked]:border-primary data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
             >
-              <span className="block font-heading text-lg">
-                {option === "gateway" && gateway.name ? gateway.name : t(`providers.${option}`)}
-              </span>
-              {option === "gateway" && gateway.name ? (
+              <span className="block font-heading text-lg">{t(`providers.${option}`)}</span>
+              {option === "gateway" ? (
                 <span className="block text-xs text-muted-foreground">
-                  {t("providers.gateway")}
+                  {gateway.configured.length > 0
+                    ? gateway.configured.map((item) => item.name).join(" · ")
+                    : t("gatewayNone")}
                 </span>
               ) : null}
               <span className={cn("text-xs", configured[option] ? "text-success" : "text-warning")}>
@@ -242,6 +253,7 @@ function BrainCard({
         <p id="gateway-model-hint" className="text-xs text-muted-foreground">
           {keys.gateway ? t("gatewayHint") : t("gatewayMissing")}
         </p>
+        <p className="text-xs text-muted-foreground">{t("gatewayChain")}</p>
         {provider === "gemini" ? (
           <p className="text-xs text-muted-foreground">{t("geminiHint")}</p>
         ) : null}
@@ -264,6 +276,11 @@ function BrainCard({
             {t("active", { provider: brain.provider, model: brain.model })}
           </Badge>
         </div>
+        {brain.chain.length > 1 ? (
+          <p className="text-xs text-muted-foreground">
+            {t("chain")} <bdi dir="ltr">{brain.chain.join(" → ")}</bdi>
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -554,6 +571,9 @@ function KeysCard({
     [t("webhook"), keys.higgsfieldWebhook],
     ["Anthropic (Claude)", keys.anthropic],
     ["Google Gemini", keys.gemini],
+    ["Mistral", keys.mistral],
+    ["Z.ai (GLM)", keys.zai],
+    ["OpenRouter", keys.openrouter],
     [t("gateway"), keys.gateway],
     ["Google Drive", keys.googleDrive],
     [t("ownerEmail"), keys.ownerEmail],

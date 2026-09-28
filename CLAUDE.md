@@ -54,7 +54,7 @@ Three job types, each clearly separated in the UI:
 - **Colourways** → the approved front image re-rendered in each colourway; only the colour changes, every construction detail identical.
 Rules: consistent background, lighting and framing across the whole catalogue (store as a "catalogue style" setting: background colour, aspect ratio default 4:5, padding, shadow). Batch mode: queue multiple products and their colourways in one go; also single-product mode. Every result goes through the compare view (original vs result, slider) with Approve / Regenerate / Regenerate with note.
 
-**Batch from photos** (the Ghost page's default view, added 2026-09-27 at the owner's request): the owner drops the photos of many models (30 or more) without creating products first. The studio works through them one by one: stage 1 is front, back and two close-ups for every model; stage 2 renders the colours once the owner approves the fronts. White background, one house style for every image, and prompts that keep every detail of the model. The product-based studio stays under "From products".
+**Batch from photos** (the Ghost page's default view, added 2026-09-27 at the owner's request): the owner drops the photos of many models (30 or more) without creating products first. The studio works through them one by one: stage 1 is front, back and two close-ups for every model; stage 2 renders the colours once the owner approves the fronts. White background, one house style for every image, and prompts that keep every detail of the model. The product-based studio stays under "From products". Since 2026-09-28, at the owner's request, **each drop of photos is one model**: every photo the owner drops together serves that model's four images and its colours. Only folders (one per model) or file names that clearly name several models split a drop.
 
 ### C. Product Sheet
 Built after DNA approval; this is the reference used by the ad module. Since 2026-09-28 (the owner's decision, after an image model redrew every detail wrongly) the sheet is **built from the owner's real photos, never drawn**: the director brain chooses the views and six details and where each one is on which photo, and the studio cuts those regions out at full resolution and lays them out. Approved ghost front/back images stand in for the phone photos. The owner can move any card's box or switch its photo. Layout system (landscape 16:9, 4K):
@@ -429,3 +429,26 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
     - An approved sheet's references are cut again.
 - **Data:** migration `20260928081146_sheet_image_path` adds `product_sheets.image_path`. Sheets an image model drew keep `generation_id` and their version 1 layout; they stay viewable and approvable, and so does the old crop editor for them.
 - **Cost:** a sheet uses no Higgsfield credits at all, only one brain request.
+
+### 2026-09-28 — Ghost batches: one model per drop
+- **Why:** the owner's first real batch turned 15 photos of one garment into 15 models, each with its own front, back and two close-ups: 60 images instead of 4. The owner wants all the photos they upload to make one model: a front, a back and two close-ups, then the colours.
+- **Cause:**
+  - The photos were HEIC exports named like `IMG_5124.JPG.jpg`. Only the last extension was stripped, so `IMG_5124.JPG` did not read as a camera name, and each photo became a model named after itself ("IMG 5124 JPG").
+  - Read as camera names, they would still have been split in order, three photos per model (the old default).
+  - A ChatGPT image in the same drop made a model of its own, like any name the studio did not recognise.
+- **Grouping** (`planIntake`; this replaces the grouping rule in the 2026-09-27 batch entry):
+  - Each drop is one model by default. Folders still make one model per sub-folder, and a folder that holds only role folders (أمام، خلف، تفاصيل، ألوان) is one model.
+  - File names split a drop only when they clearly name several models. That takes at least two names, each with a digit (a code like DS1024) or shared by two photos, covering at least half the drop. A lone word ("lace.jpg") describes a photo of the same model; one name on most photos names the model.
+  - Camera names now include doubled extensions (`.JPG.jpg`, `.HEIC.jpeg`), iPhone edits (`IMG_E…`), copies (`- Copy (2)`), Pixel motion photos (`.MP`), downloads, and ChatGPT or Gemini images.
+  - A role folder has no digits and more than one letter, so a model folder called `B1` is never read as "back".
+- **Preview:**
+  - "Photos per model" defaults to "All: one model" and can still split a drop in order.
+  - Each drop is planned on its own, so a second drop is the next model. Regrouping keeps removed photos out and keeps manual tags.
+  - Every photo has "Move to a new model".
+  - A model with more than 16 garment photos or 8 colours now blocks the start with a message. Before, the extra photos were dropped silently.
+- **The first batch** ("دفعة · 28 سبتمبر"):
+  - Three close-ups completed (US$0.27 by the estimate). The other requests failed without a charge, for a missing back photo or Gemini's daily limit, which the fifteen models used up.
+  - It stays as it is for the owner to delete from the batch menu, with its models. Nothing more is submitted for it unless a model is retried.
+- **Verification:**
+  - Unit tests cover the owner's 15 file names, descriptive names, several named models, role folders and letter-code folders.
+  - A local lab page (not committed) was driven by Playwright in Arabic and English, on desktop and phone. The 15 photos made one model, "every 5 photos" made three, and a second drop made a second model. It found no console errors and no horizontal overflow.

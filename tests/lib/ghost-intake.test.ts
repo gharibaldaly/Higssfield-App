@@ -5,6 +5,7 @@ import {
   modelKeyOfName,
   normalizeToken,
   planIntake,
+  stemOf,
   tagOfToken,
   type IntakeFileInfo,
 } from "@/lib/ghost-batches/intake";
@@ -43,7 +44,19 @@ describe("keywords", () => {
     expect(isCameraName("PXL_20260927_101010.jpg")).toBe(true);
     expect(isCameraName("20260927_101010.jpg")).toBe(true);
     expect(isCameraName("WhatsApp Image 2026-09-27 at 10.10.10 (2).jpeg")).toBe(true);
+    // Doubled extensions, iPhone edits, copies and image tools.
+    expect(isCameraName("IMG_5124.JPG.jpg")).toBe(true);
+    expect(isCameraName("IMG_5124.HEIC.jpeg")).toBe(true);
+    expect(isCameraName("IMG_E5124.JPG")).toBe(true);
+    expect(isCameraName("IMG_5124 - Copy (2).JPG")).toBe(true);
+    expect(isCameraName("PXL_20260927_101010123.MP.jpg")).toBe(true);
+    expect(isCameraName("ChatGPT Image Sep 27, 2026, 10_05_26 AM.png")).toBe(true);
+    expect(isCameraName("Gemini_Generated_Image_x1y2z3.png")).toBe(true);
+    expect(isCameraName("Screenshot_20260927-101010.png")).toBe(true);
+    expect(isCameraName("Screenshots of lace.png")).toBe(false);
     expect(isCameraName("DS1024_front.jpg")).toBe(false);
+    expect(stemOf("DS1024 front.JPG.jpeg")).toBe("DS1024 front");
+    expect(stemOf("notes.v2.txt")).toBe("notes.v2");
     expect(modelKeyOfName("DS1024_front.jpg")).toBe("ds1024");
     expect(modelKeyOfName("DS-1024-back-2.jpg")).toBe("ds-1024");
     expect(modelKeyOfName("DS-1024.jpg")).toBe("ds-1024");
@@ -93,7 +106,73 @@ describe("planIntake", () => {
     expect(plan.models[1]!.photos[0]!.colourName).toBe("كحلي");
   });
 
-  it("splits camera names in order when nothing else groups them", () => {
+  it("keeps a drop of camera photos together as one model", () => {
+    // The owner's first batch: fourteen phone photos with doubled extensions and
+    // one ChatGPT image became fifteen models of one photo each.
+    const names = [
+      "IMG_5124.JPG.jpg",
+      "IMG_5126.JPG.jpg",
+      "IMG_5128.JPG.jpg",
+      "IMG_5129.JPG.jpg",
+      "IMG_5130.JPG.jpg",
+      "IMG_5131.JPG.jpg",
+      "IMG_5134.JPG.jpg",
+      "IMG_5135.JPG.jpg",
+      "IMG_5137.JPG.jpg",
+      "IMG_5138.JPG.jpg",
+      "IMG_5139.JPG.jpg",
+      "IMG_5140.JPG.jpg",
+      "IMG_5142.JPG.jpg",
+      "IMG_5143.JPG.jpg",
+      "ChatGPT Image Sep 27, 2026, 10_05_26 AM.png",
+    ];
+    const plan = planIntake(files(names));
+    expect(plan.grouping).toBe("sequence");
+    expect(plan.models).toHaveLength(1);
+    expect(plan.models[0]!.photos).toHaveLength(15);
+    expect(
+      plan.models[0]!.photos.slice(0, 3).map((photo) => `${photo.tag}:${photo.tagSource}`),
+    ).toEqual(["front:order", "back:order", "detail:order"]);
+  });
+
+  it("reads lone descriptive names as photos of the same model", () => {
+    const plan = planIntake(
+      files(["front.jpg", "back.jpg", "lace 1.jpg", "lace 2.jpg", "strap.jpg", "IMG_7.jpg"]),
+    );
+    expect(plan.grouping).toBe("sequence");
+    expect(plan.models).toHaveLength(1);
+    expect(plan.models[0]!.photos).toHaveLength(6);
+  });
+
+  it("names the drop after its one model name", () => {
+    const plan = planIntake(files(["Rose robe front.jpg", "Rose robe back.jpg", "IMG_1.jpg"]));
+    expect(plan.grouping).toBe("names");
+    expect(summary(plan)).toEqual([
+      { name: "Rose robe", tags: ["detail:order", "back:name", "front:name"] },
+    ]);
+  });
+
+  it("splits by names only when they name several models", () => {
+    const plan = planIntake(
+      files([
+        "DS1024_front.jpg",
+        "DS1024_back.jpg",
+        "DS1025_front.jpg",
+        "DS1025_back.jpg",
+        "IMG_7.jpg",
+      ]),
+    );
+    expect(plan.grouping).toBe("names");
+    expect(plan.models.map((model) => [model.name, model.photos.length])).toEqual([
+      ["DS1024", 2],
+      ["DS1025", 2],
+      ["#3", 1],
+    ]);
+    // Model codes count even with one photo each.
+    expect(planIntake(files(["DS1024.jpg", "DS1025.jpg"])).models).toHaveLength(2);
+  });
+
+  it("splits camera names in order when the owner asks for it", () => {
     const plan = planIntake(
       files(["IMG_10.jpg", "IMG_2.jpg", "IMG_3.jpg", "IMG_4.jpg", "IMG_5.jpg", "IMG_1.jpg"]),
       { perModel: 3 },
@@ -107,6 +186,43 @@ describe("planIntake", () => {
   it("keeps a lone model folder with loose files as one model", () => {
     const plan = planIntake(files(["DS-1030/IMG_1.jpg", "DS-1030/IMG_2.jpg"]));
     expect(summary(plan)).toEqual([{ name: "DS-1030", tags: ["front:order", "back:order"] }]);
+  });
+
+  it("keeps a model folder that only holds role folders as one model", () => {
+    const plan = planIntake(
+      files([
+        "DS-1024/أمام/IMG_1.jpg",
+        "DS-1024/خلف/IMG_2.jpg",
+        "DS-1024/IMG_3.jpg",
+        "DS-1024/ألوان/red.jpg",
+      ]),
+    );
+    expect(plan.grouping).toBe("folders");
+    expect(plan.models).toHaveLength(1);
+    expect(plan.models[0]!.name).toBe("DS-1024");
+    const tags = new Map(
+      plan.models[0]!.photos.map((photo) => [photo.fileId, `${photo.tag}:${photo.tagSource}`]),
+    );
+    expect(Object.fromEntries(tags)).toEqual({
+      f0: "front:name",
+      f1: "back:name",
+      f2: "detail:order",
+      f3: "colour:name",
+    });
+    expect(plan.models[0]!.photos.find((photo) => photo.fileId === "f3")?.colourName).toBe("red");
+
+    // Role folders dragged in on their own, and one photo inside a role folder.
+    const loose = planIntake(files(["front/IMG_1.jpg", "back/IMG_2.jpg"]));
+    expect(loose.models.map((model) => model.name)).toEqual(["#1"]);
+    expect(loose.models[0]!.photos.map((photo) => photo.tag).sort()).toEqual(["back", "front"]);
+    expect(summary(planIntake(files(["DS-1030/front/IMG_1.jpg"])))).toEqual([
+      { name: "DS-1030", tags: ["front:name"] },
+    ]);
+  });
+
+  it("never reads a model folder with a letter code as a role folder", () => {
+    const plan = planIntake(files(["Batch/B1/IMG_1.jpg", "Batch/B2/IMG_2.jpg"]));
+    expect(plan.models.map((model) => model.name)).toEqual(["B1", "B2"]);
   });
 
   it("returns nothing for an empty drop", () => {

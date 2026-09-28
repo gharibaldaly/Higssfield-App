@@ -145,9 +145,14 @@ pnpm dev                     # http://localhost:3000
 
 ## Ghost batches (from photos)
 
-- One folder per model is the easiest way in; the folder name becomes the model name. Colour
-  swatches go in a `colours` folder or carry "colour"/"لون" in their name. Without folders the
-  studio groups by file name, or in order (N photos per model) for camera names like `IMG_2231`.
+- **Each drop is one model**: drop (or choose) all the photos of one garment, and the studio makes
+  its front, back and two close-ups, then its colours. Drop the next model's photos separately.
+- For many models at once, drop a folder with one sub-folder per model; the folder name becomes
+  the model name. File names split a drop only when they clearly name several models
+  (`DS1024_front`, `DS1025_back`). Camera names like `IMG_2231` (even `IMG_2231.JPG.jpg` after a
+  HEIC export) never split a drop; the preview can still split it in order or move a photo to a
+  new model. A model takes up to 16 garment photos and 8 colour swatches.
+- Colour swatches go in a `colours` folder or carry "colour"/"لون" in their name.
 - Each model becomes a one-piece product, so its DNA, colourways and images also appear under
   Products and can be used for sheets and ads.
 - The work runs **while a studio tab is open**: the browser calls

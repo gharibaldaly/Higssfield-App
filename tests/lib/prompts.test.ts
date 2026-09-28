@@ -9,7 +9,7 @@ import {
   negativePromptTerms,
   STRICT_NEGATIVES,
 } from "@/lib/prompts/blocks";
-import { ghostV2 } from "@/lib/prompts/v2/ghost";
+import { ghostV3 } from "@/lib/prompts/v3/ghost";
 import { findForbiddenWords, neutralizeWording } from "@/lib/prompts/wording";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
 
@@ -197,7 +197,7 @@ describe("colourway prompts", () => {
   });
 
   it("tells the director brain the words, the change and the swatch", () => {
-    const text = ghostV2.render({
+    const text = ghostV3.render({
       product: { name: "Bralette", productLine: "SECRET", notes: null, pieces: [] },
       dna: BRALETTE_DNA,
       view: "colorway",
@@ -212,10 +212,11 @@ describe("colourway prompts", () => {
     expect(text).toContain(
       'Requested colour: the owner calls it "cashmir" (#B499A0); in plain words: dusty rose.',
     );
+    expect(text).toContain('Write exactly "dusty rose" as the colour.');
     expect(text).toContain("it is lighter, pink instead of mauve.");
     expect(text).toContain("Reference 2 is a photo of fabric in this colour.");
-    expect(ghostV2.system).toContain("never write that name");
-    expect(ghostV2.system).toContain("never write a negative against changing the colour");
+    expect(ghostV3.system).toContain("never the owner's name for it");
+    expect(ghostV3.system).toContain("never write a negative against changing the colour");
   });
 });
 

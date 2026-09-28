@@ -1,4 +1,4 @@
-import { colourWords } from "@/lib/colorways/words";
+import { colourWords, colourwayBrief } from "@/lib/colorways/words";
 import { adPlanSchema, type AdPlan } from "@/lib/domain/ad-plan";
 import { fidelityReviewSchema, type FidelityReview } from "@/lib/domain/fidelity";
 import { garmentDnaSchema, normalizeGarmentDna, type GarmentDna } from "@/lib/domain/garment-dna";
@@ -14,7 +14,12 @@ import {
   negativePromptTerms,
   type LockView,
 } from "@/lib/prompts/blocks";
-import { buildHouseStyle, GHOST_NEGATIVE_TERMS, ghostNegatives } from "@/lib/prompts/house-style";
+import {
+  composeGhostParagraph,
+  GHOST_NEGATIVE_TERMS,
+  ghostNegatives,
+  mainColourOf,
+} from "@/lib/prompts/house-style";
 import { PROMPTS, templateVersion } from "@/lib/prompts";
 import type {
   AnalyzeGarmentInput,
@@ -59,28 +64,6 @@ export function sayColourInWords(text: string, colorway: { name: string; hex: st
   if (label.length < 2 || words.toLowerCase().includes(label.toLowerCase())) return text;
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "giu"), words);
-}
-
-function cleanList(items: string[], max: number): string[] {
-  return items
-    .map((item) => item.trim().replace(/[.;]+$/, ""))
-    .filter(Boolean)
-    .slice(0, max);
-}
-
-/** Instruction, then the "keep exactly" and "clean up" checklists written for this image. */
-export function composeGhostScene(scene: GhostScenePrompt): string {
-  const keep = cleanList(scene.mustKeep, 8);
-  const cleanUp = cleanList(scene.cleanUp, 5);
-  return [
-    scene.instruction.trim(),
-    keep.length > 0 ? `KEEP EXACTLY — ${keep.join("; ")}.` : null,
-    cleanUp.length > 0
-      ? `LEAVE OUT (photo artefacts only, never design details) — ${cleanUp.join("; ")}.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
 }
 
 /**
@@ -236,8 +219,23 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   async buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt> {
     const scene = await this.askGhostScene(input);
-    const composed = composeGhostScene(scene);
-    const sceneText = input.colorway ? sayColourInWords(composed, input.colorway) : composed;
+    // The house system writes the prompt; the brain's answer fills its garment slots.
+    const paragraph = composeGhostParagraph({
+      view: input.view,
+      scene,
+      dna: input.dna,
+      style: input.style,
+      productLine: input.product.productLine,
+      referenceMode: input.referenceMode,
+      detail: input.detail,
+      colourway: input.colorway
+        ? {
+            ...colourwayBrief(input.colorway, mainColourOf(input.dna)),
+            swatch: Boolean(input.colorway.swatch),
+          }
+        : null,
+    });
+    const sceneText = input.colorway ? sayColourInWords(paragraph, input.colorway) : paragraph;
     const detailPiece = input.detail
       ? input.dna.pieces.find((piece) => piece.pieceName === input.detail?.pieceName)
       : undefined;
@@ -246,7 +244,6 @@ export abstract class TemplateBrain implements DirectorBrain {
       dna: input.dna,
       view: GHOST_LOCK_VIEW[input.view],
       piecePositions: detailPiece ? [detailPiece.position] : undefined,
-      style: buildHouseStyle(input.style, input.view),
       extraNegatives: [...ghostNegatives(input.style, input.view), ...scene.extraNegatives],
       colorOverride: input.colorway,
       maxChars: input.promptBudget,

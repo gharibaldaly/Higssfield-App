@@ -40,7 +40,8 @@ describe("model registry", () => {
     expect(registry.some((model) => model.source === "mock")).toBe(false);
     const grok = capabilitiesOf(spec(GROK));
     expect(grok.modes).toEqual(["text-to-image", "image-to-image"]);
-    expect(grok.maxReferenceImages).toBe(10);
+    // xAI documents five source images per edit (Higgsfield's schema says ten).
+    expect(grok.maxReferenceImages).toBe(5);
     expect(grok.aspectRatios).toContain("3:4");
     expect(grok.resolutions).toEqual(["1k", "2k"]);
     const kling = capabilitiesOf(spec(KLING));

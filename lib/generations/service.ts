@@ -362,14 +362,20 @@ async function updateRow(
   return data;
 }
 
-function failureMessage(state: ProviderState): string {
+/** The docs' generic failure text, which adds nothing to the status itself. */
+const GENERIC_FAILURE = /^generation failed\.?$/i;
+
+export function failureMessage(state: ProviderState): string {
   if (state.status === "nsfw") {
     return "The provider's content filter rejected this result (credits are refunded). Try neutral wording or a tighter reference crop.";
   }
   if (state.status === "canceled") return "The request was canceled.";
-  return state.error
-    ? `Generation failed: ${state.error}`
-    : "Generation failed at the provider (credits are refunded). Try again.";
+  // The request id lets Higgsfield support find the request.
+  const request = state.requestId ? ` [request ${state.requestId}]` : "";
+  const reason = state.error && !GENERIC_FAILURE.test(state.error.trim()) ? state.error : null;
+  return reason
+    ? `Generation failed: ${reason}${request}`
+    : `Higgsfield could not make this and gave no reason (nothing is charged). Try again, or choose another model.${request}`;
 }
 
 async function downloadResult(url: string): Promise<{ data: Buffer; mimeType: string | null }> {

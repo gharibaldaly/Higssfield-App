@@ -45,12 +45,15 @@ describe("models from the Higgsfield docs", () => {
   it("reads references, ratios, tiers and durations from each schema", () => {
     const grok = byEndpoint("xai/grok-imagine-image-2.0");
     expect(grok.modes).toEqual(["text-to-image", "image-to-image"]);
+    // Higgsfield's schema allows ten references; xAI documents five for an edit.
     expect(grok.params.image).toEqual({
       field: "image_urls",
       format: "url_array",
-      max: 10,
+      max: 5,
       required: false,
     });
+    expect(grok.sourceNote).toContain("at most 5 references");
+    expect(grok.sourceNote).toContain("the schema allows 10");
     expect(grok.params.resolution?.options.map((option) => option.label)).toEqual(["1k", "2k"]);
 
     const qwen = byEndpoint("alibaba/qwen-image-3/edit");

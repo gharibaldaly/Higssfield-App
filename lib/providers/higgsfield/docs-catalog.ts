@@ -109,8 +109,10 @@ const DEFAULT_REFERENCE_CAP = 4;
 const MAX_REFERENCES = 16;
 
 /**
- * Limits stated in the usage notes but not in the JSON schemas, keyed by
- * endpoint (a trailing "/" matches every endpoint under that path).
+ * Limits stated in the usage notes but not in the JSON schemas, or tighter
+ * limits the model's own maker documents, keyed by endpoint (a trailing "/"
+ * matches every endpoint under that path). A reference limit here wins over a
+ * larger schema maximum.
  */
 const NOTED_LIMITS: Record<
   string,
@@ -141,6 +143,9 @@ const NOTED_LIMITS: Record<
   "wan/v2.7/reference-to-video": { references: 5, requiresReferences: true },
   // "When image_urls or audio_url is provided, resolution must be 480p or 720p."
   "xai/grok-imagine-video/v1.5/reference-to-video": { resolutions: ["480p", "720p"] },
+  // xAI's docs (Multi-Image Editing): "Use up to five source images for a single image edit."
+  // Higgsfield's schema allows ten; the studio's first edit, with eight, failed at once.
+  "xai/grok-imagine-image-2.0": { references: 5 },
 };
 
 function notedLimits(endpoint: string) {
@@ -245,9 +250,18 @@ export function specFromWorkflow(
     const minItems = numberOf(property, "minItems") ?? 0;
     let max = 1;
     if (isArray(property)) {
-      const documented = numberOf(property, "maxItems") ?? limits.references ?? null;
-      if (documented === null)
+      const schemaMax = numberOf(property, "maxItems");
+      const stated = [schemaMax, limits.references ?? null].filter(
+        (value): value is number => value !== null,
+      );
+      const documented = stated.length > 0 ? Math.min(...stated) : null;
+      if (documented === null) {
         notes.push(`no documented maximum; the studio sends at most ${DEFAULT_REFERENCE_CAP}`);
+      } else if (schemaMax !== null && documented < schemaMax) {
+        notes.push(
+          `at most ${documented} references, as the model's maker documents; the schema allows ${schemaMax}`,
+        );
+      }
       max = Math.min(documented ?? DEFAULT_REFERENCE_CAP, MAX_REFERENCES);
     }
     image = {

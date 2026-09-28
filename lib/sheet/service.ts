@@ -22,6 +22,7 @@ import {
   sheetLayoutSchema,
   type SheetLayout,
 } from "@/lib/sheet/layout";
+import { orderSheetReferences, type SheetReference } from "@/lib/sheet/references";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject, removeObjects, uploadObject } from "@/lib/storage/objects";
@@ -29,43 +30,30 @@ import { storagePaths } from "@/lib/storage/paths";
 import type { Json, ProductSheetRow, ReferenceCropRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
-type Reference = { path: string; caption: string };
-
 /**
- * Isolated references for the sheet, most important first: front view,
- * back view, then detail photos. Approved ghost images are preferred over
- * raw phone photos for the front/back views.
+ * Isolated references for the sheet, most informative first (see
+ * orderSheetReferences). Approved ghost images are preferred over raw phone
+ * photos for the front/back views.
  */
 async function sheetReferences(
   supabase: TypedSupabaseClient,
   productId: string,
-): Promise<Reference[]> {
+): Promise<SheetReference[]> {
   const [pieces, photos, frontRow, backRow] = await Promise.all([
     getPieces(supabase, productId),
     getPhotos(supabase, productId),
     approvedCatalogueImage(supabase, productId, "ghost_front"),
     approvedCatalogueImage(supabase, productId, "ghost_back"),
   ]);
-  const ghostFront = frontRow?.storage_path ?? null;
-  const ghostBack = backRow?.storage_path ?? null;
   const pieceById = new Map(pieces.map((piece) => [piece.id, piece]));
-  const references: Reference[] = [];
-  const add = (path: string, caption: string) => {
-    if (!references.some((reference) => reference.path === path))
-      references.push({ path, caption });
-  };
-  if (ghostFront) add(ghostFront, "Approved catalogue front view");
-  for (const photo of photos.filter((item) => item.kind === "front")) {
-    if (!ghostFront) add(photo.storage_path, photoCaption(photo, pieceById.get(photo.piece_id)));
-  }
-  if (ghostBack) add(ghostBack, "Approved catalogue back view");
-  for (const photo of photos.filter((item) => item.kind === "back")) {
-    if (!ghostBack) add(photo.storage_path, photoCaption(photo, pieceById.get(photo.piece_id)));
-  }
-  for (const photo of photos.filter((item) => item.kind === "detail")) {
-    add(photo.storage_path, photoCaption(photo, pieceById.get(photo.piece_id)));
-  }
-  return references;
+  return orderSheetReferences(
+    photos,
+    (photo) => photoCaption(photo, pieceById.get(photo.piece_id)),
+    {
+      front: frontRow?.storage_path ?? null,
+      back: backRow?.storage_path ?? null,
+    },
+  );
 }
 
 export async function listSheets(

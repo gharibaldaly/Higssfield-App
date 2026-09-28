@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import type * as Env from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import { refreshGeneration, submitGeneration } from "@/lib/generations/service";
+import { failureMessage, refreshGeneration, submitGeneration } from "@/lib/generations/service";
 import type { ProviderState, SubmitContext } from "@/lib/providers/higgsfield/types";
 import { modelSpecSchema } from "@/lib/providers/higgsfield/types";
 import type { GenerationRow } from "@/lib/supabase/database.types";
@@ -282,6 +282,24 @@ describe("the Higgsfield waiting room", () => {
     await pollAll();
     expect(rowById(good.id)).toMatchObject({ status: "completed", cost: 0.04 });
     expect(rowById(bad.id)).toMatchObject({ status: "failed", cost: 0 });
+    // Higgsfield's bare "Generation failed" is not echoed; the request id is kept for support.
+    expect(rowById(bad.id).error).toMatch(/^Higgsfield could not make this and gave no reason/);
+    expect(rowById(bad.id).error).toContain(`[request ${rowById(bad.id).provider_request_id}]`);
+  });
+
+  it("passes on a failure reason Higgsfield does give", () => {
+    const state: ProviderState = {
+      requestId: "req-1",
+      status: "failed",
+      statusUrl: null,
+      resultUrls: [],
+      resultKind: null,
+      cost: null,
+      error: "Input image could not be read",
+    };
+    expect(failureMessage(state)).toBe(
+      "Generation failed: Input image could not be read [request req-1]",
+    );
   });
 
   it("fails a request Higgsfield rejected for good", async () => {

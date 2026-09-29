@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { keyStatus, llmGatewayConfigs, resetServerEnvCache } from "@/lib/env";
+import {
+  keyStatus,
+  llmGatewayConfigs,
+  OPENROUTER_FREE_VISION,
+  resetServerEnvCache,
+} from "@/lib/env";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import { ChainBrain } from "@/lib/providers/llm/chain";
 import { fitImageCount, GatewayBrain, gatewayError } from "@/lib/providers/llm/gateway";
@@ -68,8 +73,20 @@ describe("free gateway presets", () => {
       name: "OpenRouter",
       model: "google/gemma-4-31b-it:free",
       headers: { "X-Title": "Dr. Secret Studio", "HTTP-Referer": "https://studio.example" },
+      // Its free models that read images, best first, then its free router; the fastest provider of each.
+      extraBody: { models: OPENROUTER_FREE_VISION, provider: { sort: "throughput" } },
     });
     expect(configs[3]).toMatchObject({ id: "custom", name: "Vyce", model: "gpt-6-luna" });
+  });
+
+  it("puts an OpenRouter model override first in the fallback list, once", () => {
+    setEnv({ OPENROUTER_API_KEY: "or", OPENROUTER_MODEL: "openrouter/free" });
+    const [config] = llmGatewayConfigs();
+    expect(config?.model).toBe("openrouter/free");
+    const models = (config?.extraBody as { models: string[] }).models;
+    expect(models[0]).toBe("openrouter/free");
+    expect(models.filter((id) => id === "openrouter/free")).toHaveLength(1);
+    expect(models).toHaveLength(OPENROUTER_FREE_VISION.length);
   });
 
   it("takes a model override per service and reports each key's status", () => {
@@ -205,6 +222,25 @@ describe("brain selection with free gateways", () => {
     const geminiFirst = getDirectorBrain({ llmProvider: "gemini" }) as ChainBrain;
     expect(geminiFirst.order[0]).toBe("Gemini · gemini-flash-latest");
     expect(geminiFirst.provider).toBe("gemini");
+  });
+
+  it("puts the gateway chosen in Settings first, and keeps the default order without one", () => {
+    setEnv({ MISTRAL_API_KEY: "m", ZAI_API_KEY: "z", OPENROUTER_API_KEY: "o" });
+    const chosen = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: "openrouter" });
+    expect((chosen as ChainBrain).order.map((label) => label.split(" · ")[0])).toEqual([
+      "OpenRouter",
+      "Mistral",
+      "Z.ai",
+    ]);
+    const unset = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: null });
+    expect((unset as ChainBrain).order.map((label) => label.split(" · ")[0])).toEqual([
+      "Mistral",
+      "Z.ai",
+      "OpenRouter",
+    ]);
+    // A choice whose key is gone changes nothing.
+    const gone = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: "custom" });
+    expect((gone as ChainBrain).order[0]).toContain("Mistral");
   });
 
   it("uses a single configured brain as it is", () => {

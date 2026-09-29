@@ -290,6 +290,8 @@ export type SettingsRow = Timestamps & {
   claude_model: string | null;
   gemini_model: string | null;
   gateway_model: string | null;
+  /** The gateway asked first under "Free gateways"; null keeps the default order. */
+  gateway_first: "mistral" | "zai" | "openrouter" | "custom" | null;
   catalogue_style: Json;
   default_image_model: string | null;
   default_video_model: string | null;
@@ -507,6 +509,7 @@ export type Database = {
         | "claude_model"
         | "gemini_model"
         | "gateway_model"
+        | "gateway_first"
         | "default_image_model"
         | "default_video_model"
         | "custom_models"

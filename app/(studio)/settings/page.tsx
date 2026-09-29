@@ -46,6 +46,7 @@ export default async function SettingsPage() {
           defaultImageModel: settings.defaultImageModel,
           defaultVideoModel: settings.defaultVideoModel,
           customModelsJson: JSON.stringify(settings.customModels, null, 2),
+          gatewayFirst: settings.gatewayFirst,
           drive: settings.drive,
         }}
         brain={{

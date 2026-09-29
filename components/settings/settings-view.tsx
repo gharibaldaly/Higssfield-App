@@ -54,6 +54,8 @@ type SettingsData = {
   claudeModel: string | null;
   geminiModel: string | null;
   gatewayModel: string | null;
+  /** The gateway asked first under "Free gateways"; null keeps the default order. */
+  gatewayFirst: string | null;
   catalogueStyle: CatalogueStyle;
   defaultImageModel: string | null;
   defaultVideoModel: string | null;
@@ -168,6 +170,11 @@ function BrainCard({
   const [claudeModel, setClaudeModel] = useState(settings.claudeModel ?? "");
   const [geminiModel, setGeminiModel] = useState(settings.geminiModel ?? "");
   const [gatewayModel, setGatewayModel] = useState(settings.gatewayModel ?? "");
+  const [gatewayFirst, setGatewayFirst] = useState(settings.gatewayFirst);
+  const firstGateway =
+    gateway.configured.find((item) => item.id === gatewayFirst)?.id ??
+    gateway.configured[0]?.id ??
+    null;
   const configured = {
     claude: keys.anthropic,
     gemini: keys.gemini,
@@ -254,6 +261,28 @@ function BrainCard({
           {keys.gateway ? t("gatewayHint") : t("gatewayMissing")}
         </p>
         <p className="text-xs text-muted-foreground">{t("gatewayChain")}</p>
+        {provider === "gateway" && gateway.configured.length > 1 ? (
+          <div className="flex flex-col gap-2">
+            <Label id="gateway-first-label">{t("gatewayFirst")}</Label>
+            <RadioGroup.Root
+              className="flex flex-wrap gap-2"
+              aria-labelledby="gateway-first-label"
+              value={firstGateway ?? undefined}
+              onValueChange={(value) => setGatewayFirst(value)}
+            >
+              {gateway.configured.map((item) => (
+                <RadioGroup.Item
+                  key={item.id}
+                  value={item.id}
+                  className="rounded-full border border-border px-4 py-1.5 text-sm transition-[border-color,background-color] outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=checked]:border-primary data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                >
+                  {item.name}
+                </RadioGroup.Item>
+              ))}
+            </RadioGroup.Root>
+            <p className="text-xs text-muted-foreground">{t("gatewayFirstHint")}</p>
+          </div>
+        ) : null}
         {provider === "gemini" ? (
           <p className="text-xs text-muted-foreground">{t("geminiHint")}</p>
         ) : null}
@@ -266,6 +295,8 @@ function BrainCard({
                 claudeModel: claudeModel.trim() || null,
                 geminiModel: geminiModel.trim() || null,
                 gatewayModel: gatewayModel.trim() || null,
+                // Only sent when changed, so a database without the column still saves the rest.
+                ...(gatewayFirst !== settings.gatewayFirst ? { gatewayFirst } : {}),
               })
             }
           >

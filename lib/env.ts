@@ -210,6 +210,21 @@ export function llmGatewayConfig(): LlmGatewayConfig | null {
   };
 }
 
+/**
+ * OpenRouter's free models that read images (its models API, 2026-09-29),
+ * best first. OpenRouter tries them in this order when one is down, rate
+ * limited or refuses, and its free router (last) picks any capable free model
+ * at random.
+ */
+export const OPENROUTER_FREE_VISION = [
+  "google/gemma-4-31b-it:free",
+  "qwen/qwen3.8-27b:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "dots-studio/dots-3-note-preview:free",
+  "thinkingmachines/inkling:free",
+  "openrouter/free",
+];
+
 type GatewayPreset = {
   id: Exclude<LlmGatewayId, "custom">;
   name: string;
@@ -249,11 +264,13 @@ const GATEWAY_PRESETS: GatewayPreset[] = [
     extraBody: { thinking: { type: "disabled" } },
   },
   {
-    // Free models (":free"), 50 requests a day, 1,000 once $10 of credits were bought.
+    // Free models (":free"), 50 requests a day, 1,000 once $10 of credits were
+    // bought. The request carries the fallback list above and asks for the
+    // fastest provider of each model.
     id: "openrouter",
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    model: "google/gemma-4-31b-it:free",
+    model: OPENROUTER_FREE_VISION[0]!,
     maxImages: null,
   },
 ];
@@ -274,18 +291,26 @@ export function llmGatewayConfigs(): LlmGatewayConfig[] {
     const vars = PRESET_KEYS[preset.id];
     const apiKey = env[vars.key];
     if (!apiKey) return [];
+    const model = env[vars.model] ?? preset.model;
+    const extraBody =
+      preset.id === "openrouter"
+        ? {
+            models: [model, ...OPENROUTER_FREE_VISION.filter((id) => id !== model)],
+            provider: { sort: "throughput" },
+          }
+        : preset.extraBody;
     return [
       {
         id: preset.id,
         name: preset.name,
         baseUrl: preset.baseUrl,
         apiKey,
-        model: env[vars.model] ?? preset.model,
+        model,
         maxTokens: 16_000,
         reasoningEffort: null,
         thinkingFields: false,
         anthropicFormat: false,
-        extraBody: preset.extraBody,
+        extraBody,
         maxImages: preset.maxImages,
         maxConcurrent: preset.maxConcurrent ?? null,
         // OpenRouter asks apps to name themselves.

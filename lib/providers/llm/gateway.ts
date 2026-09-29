@@ -180,6 +180,8 @@ type ChatCompletion = {
 
 /** An Anthropic messages reply (a gateway may still answer in the chat shape). */
 type GatewayReply = ChatCompletion & {
+  /** The model that answered, which a router or a fallback may change. */
+  model?: string;
   content?: { type?: string; text?: string }[];
   stop_reason?: string | null;
 };
@@ -304,8 +306,11 @@ export async function gatewayError(
 
 export class GatewayBrain extends TemplateBrain {
   readonly provider = "gateway" as const;
-  readonly model: string;
   readonly name: string;
+  /** The model id sent with every request. */
+  private readonly requestedModel: string;
+  /** The model the service says answered last, when it names one (a router or a fallback). */
+  private answeredModel: string | null = null;
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly tokenCap: number;
@@ -320,7 +325,7 @@ export class GatewayBrain extends TemplateBrain {
 
   constructor(config: LlmGatewayConfig & { model: string }, imageHost?: LlmImageHost) {
     super();
-    this.model = config.model;
+    this.requestedModel = config.model;
     this.name = config.name;
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
@@ -335,8 +340,13 @@ export class GatewayBrain extends TemplateBrain {
     this.anthropicFormat = config.anthropicFormat ?? true;
   }
 
+  /** The requested model, or the one that answered last when the service named another. */
+  get model(): string {
+    return this.answeredModel ?? this.requestedModel;
+  }
+
   private get key(): string {
-    return `${this.baseUrl}|${this.model}`;
+    return `${this.baseUrl}|${this.requestedModel}`;
   }
 
   private normalCall(): CallOptions {
@@ -356,7 +366,7 @@ export class GatewayBrain extends TemplateBrain {
   private slowAnswer(timeoutMs: number, cause?: unknown): AppError {
     return new AppError(
       "provider_timeout",
-      `${this.name} did not answer within ${Math.round(timeoutMs / 1000)} s. ${this.model} may be too slow there: choose a faster model in Settings, or less reasoning.`,
+      `${this.name} did not answer within ${Math.round(timeoutMs / 1000)} s. ${this.requestedModel} may be too slow there: choose a faster model in Settings, or less reasoning.`,
       { retryable: true, cause },
     );
   }
@@ -416,7 +426,7 @@ export class GatewayBrain extends TemplateBrain {
         }
         const pending = response.status === 202 ? response.headers.get("nvcf-reqid") : null;
         if (pending) return this.pollResult(pending, deadline, call);
-        if (!response.ok) throw await gatewayError(response, this.name, this.model);
+        if (!response.ok) throw await gatewayError(response, this.name, this.requestedModel);
         return this.replyOf(response, timeoutMs);
       },
       {
@@ -466,7 +476,7 @@ export class GatewayBrain extends TemplateBrain {
         throw error;
       }
       if (response.status === 202) continue;
-      if (!response.ok) throw await gatewayError(response, this.name, this.model);
+      if (!response.ok) throw await gatewayError(response, this.name, this.requestedModel);
       return this.replyOf(response, timeoutMs);
     }
   }
@@ -511,7 +521,7 @@ export class GatewayBrain extends TemplateBrain {
       });
       blocks.push({ type: "text", text: request.user + hint });
       return {
-        model: this.model,
+        model: this.requestedModel,
         max_tokens: Math.min(request.maxTokens, settings.maxTokens ?? this.tokenCap),
         system: request.system,
         messages: [{ role: "user", content: blocks }],
@@ -528,7 +538,7 @@ export class GatewayBrain extends TemplateBrain {
     content.push({ type: "text", text: request.user + hint });
     const cap = Math.min(request.maxTokens, settings.maxTokens ?? this.tokenCap);
     return {
-      model: this.model,
+      model: this.requestedModel,
       messages: [
         { role: "system", content: request.system },
         { role: "user", content: request.images.length > 0 ? content : request.user + hint },
@@ -565,6 +575,8 @@ export class GatewayBrain extends TemplateBrain {
       format,
       call,
     );
+    // OpenRouter's router and fallbacks answer with another model than the one asked for.
+    if (typeof payload.model === "string" && payload.model) this.answeredModel = payload.model;
     if (Array.isArray(payload.content)) {
       if (payload.stop_reason === "refusal") {
         throw new AppError(
@@ -654,7 +666,7 @@ export class GatewayBrain extends TemplateBrain {
     const request = fitImageCount(input, this.maxImages);
     if (request.images.length < input.images.length) {
       console.warn(
-        `${this.name} ${this.model}: ${request.name} sends ${request.images.length} of ${input.images.length} images (the service takes ${this.maxImages} per request).`,
+        `${this.name} ${this.requestedModel}: ${request.name} sends ${request.images.length} of ${input.images.length} images (the service takes ${this.maxImages} per request).`,
       );
     }
     if (request.images.length === 0) return this.ask(request, null, this.normalCall());
@@ -728,7 +740,7 @@ export class GatewayBrain extends TemplateBrain {
       for (const [index, route] of routes.entries()) {
         const outcome = await (oneAtATime ? this.testRoute(route, cancel.signal) : tests[index]!);
         if (outcome === null) {
-          for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
+          for (const line of failed) console.warn(`${this.name} ${this.requestedModel}: ${line}`);
           return {
             route: routes[index]!,
             at: Date.now(),
@@ -743,18 +755,18 @@ export class GatewayBrain extends TemplateBrain {
       // A route was chosen, or a key or quota error ended the check: stop the rest.
       cancel.abort();
     }
-    for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
+    for (const line of failed) console.warn(`${this.name} ${this.requestedModel}: ${line}`);
     const detail = failed.join("; ").slice(0, 600);
     if (slow > 0 && slow + unserved === routes.length) {
       throw new AppError(
         "provider_timeout",
-        `${this.model} at ${this.name} did not answer a small test image within ${this.testTimeoutMs / 1000} s, so it is too slow for the garment photos. Choose a faster model in Settings, or less reasoning.`,
+        `${this.requestedModel} at ${this.name} did not answer a small test image within ${this.testTimeoutMs / 1000} s, so it is too slow for the garment photos. Choose a faster model in Settings, or less reasoning.`,
         { detail },
       );
     }
     throw new AppError(
       "provider_bad_input",
-      `${this.model} at ${this.name} could not read a test image through any route, so it cannot see the garment photos. Choose another model in Settings.`,
+      `${this.requestedModel} at ${this.name} could not read a test image through any route, so it cannot see the garment photos. Choose another model in Settings.`,
       { detail },
     );
   }
@@ -858,12 +870,12 @@ export class GatewayBrain extends TemplateBrain {
     if (!fitted) {
       throw new AppError(
         "provider_bad_input",
-        `Too many photos for ${this.model} at ${this.name}: they do not fit its limit even at 384 px. Use fewer photos, a model that takes photos by link, or a direct Claude or Gemini key.`,
+        `Too many photos for ${this.requestedModel} at ${this.name}: they do not fit its limit even at 384 px. Use fewer photos, a model that takes photos by link, or a direct Claude or Gemini key.`,
         { status: 413, detail: `${request.images.length} photos` },
       );
     }
     console.warn(
-      `${this.name} ${this.model}: ${request.images.length} photos sent inline at ${fitted.longEdge} px to fit its limit`,
+      `${this.name} ${this.requestedModel}: ${request.images.length} photos sent inline at ${fitted.longEdge} px to fit its limit`,
     );
     return fitted.images;
   }

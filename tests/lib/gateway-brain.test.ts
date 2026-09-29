@@ -358,6 +358,26 @@ describe("GatewayBrain", () => {
   });
 });
 
+describe("the model that answered", () => {
+  it("is the requested model until the service names another, as OpenRouter's fallbacks do", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          model: "google/gemma-4-26b-a4b-it:free",
+          choices: [{ finish_reason: "stop", message: { content: '{"verdict":"ok","score":1}' } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const brain = gateway("google/gemma-4-31b-it:free");
+    expect(brain.model).toBe("google/gemma-4-31b-it:free");
+    await expect(brain.run(request)).resolves.toEqual({ verdict: "ok", score: 1 });
+    expect(brain.model).toBe("google/gemma-4-26b-a4b-it:free");
+    // The next request still asks for the model the owner chose.
+    expect(sentBodies().at(-1)).toMatchObject({ model: "google/gemma-4-31b-it:free" });
+  });
+});
+
 describe("GatewayBrain photos", () => {
   it("checks the photo route with two test images once, then sends the photos inline", async () => {
     serve([

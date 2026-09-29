@@ -84,7 +84,9 @@ products; enabling billing on the Google project stops that and lifts the daily 
 includes $10 a month in API credits and Mistral Small 4 reads images, with its reasoning switched off
 (`MISTRAL_API_KEY`); Z.ai's
 GLM-4.6V-Flash is free, one request at a time (`ZAI_API_KEY`); OpenRouter's free models allow 50
-requests a day, or 1,000 once $10 of credits were ever bought (`OPENROUTER_API_KEY`). Set the keys in
+requests a day, or 1,000 once $10 of credits were ever bought (`OPENROUTER_API_KEY`; its privacy
+setting for free endpoints must be on, and each request lists the free vision models so OpenRouter
+moves to the next when one is down). Set the keys in
 Vercel, redeploy, then choose "Free gateways" under Settings → Director brain. The brain asks them in
 that order and moves to the next when one hits its limit; every other configured brain (Gemini,
 Claude, your own gateway) follows. Free plans may use what is sent to improve the services: Mistral

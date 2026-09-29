@@ -36,6 +36,12 @@ const DISPLAY =
 const FINISH =
   "perfectly symmetrical, professionally shaped and naturally filled, immaculate and perfectly ironed with no wrinkles or distortions";
 const MACRO_FINISH = "immaculate and perfectly pressed with no wrinkles, lint or loose threads";
+/**
+ * Trims are tidied as a stylist would set them (the owner's ask on
+ * 2026-09-29: a crumpled bow comes out neat), never restyled or resized.
+ */
+const GROOMING =
+  "every bow, ribbon, tie, charm and trim neatly set as a stylist would arrange it for the shot: bows open and symmetrical with smooth loops and straight tails, ribbons and ties uncreased, charms hanging straight, each kept at exactly its original size, shape, position, count and construction, only tidied and never restyled";
 const QUALITY =
   "crisp fabric and stitching detail, photorealistic 4K resolution, realistic textile rendering, premium catalogue finish";
 const CLOSING = "no text, no logo, no accessories, no humans";
@@ -150,6 +156,7 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
       [
         `${source} a premium ultra-realistic e-commerce macro photograph of the ${detail} of the exact ${named}, as it sits on an invisible display form with no visible form, stand or human body parts, preserving the exact original construction of this detail: ${list}; the detail fills most of the frame, tack-sharp, with the real thread structure, weave and sheen of the fabric visible and gentle depth-of-field fall-off`,
         MACRO_FINISH,
+        GROOMING,
         `${accurate} and true fabric texture`,
         photography,
         `${light} with a soft raking accent that reveals the texture`,
@@ -177,6 +184,7 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
       `Working only from the approved catalogue front image (reference 1), create a premium ultra-realistic e-commerce fashion photograph of the exact ${garment} re-rendered in ${words} (${hex}): only the fabric colour changes.${colourNote ? ` ${colourNote}` : ""} Preserve the exact original garment construction, proportions, framing, pose, drape, light and background of that image: ${list}; ${TRIMS_TAKE_COLOUR}; ` +
       [
         FINISH,
+        GROOMING,
         `${accurate} and subtle fabric texture`,
         "front-facing centred composition identical to the approved image",
         framingPhrase(style),
@@ -203,6 +211,7 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
     `${opening}${view === "back" ? ", " : "; "}` +
     [
       FINISH,
+      GROOMING,
       `${accurate} and subtle fabric texture`,
       composition,
       framingPhrase(style),
@@ -230,6 +239,9 @@ export function ghostNegatives(style: CatalogueStyle, view: GhostView): string[]
   if (view !== "macro") {
     items.push("no change to the length, neckline depth, strap width or strap position");
   }
+  items.push(
+    "no crumpled, twisted or drooping bows, ribbons, ties or charms, and no change to their size, shape, position or count",
+  );
   return items;
 }
 

@@ -590,6 +590,13 @@ Redesigned on 2026-09-26 at the owner's request (new layout, colours, style, mot
 - **Not verified live:** no generation was sent from the sandbox. The next batch is the test of whether the images improve; the recorded prompt of each generation shows exactly what was sent.
 
 
+### 2026-09-29 — Trim grooming: bows set straight, never restyled
+- **Why:** the owner showed a burgundy garment whose satin bow with a hanging charm was crumpled in the phone photo, and asked that the prompts have such trims come out neat, with the strict rule that nothing about them changes: not the shape, not the size, only the tidying.
+- **House system** (`composeGhostParagraph`, `lib/prompts/house-style.ts`): a fixed grooming clause follows the finish in every view (front, back, macro and colourway): every bow, ribbon, tie, charm and trim is set as a stylist would arrange it for the shot (bows open and symmetrical with smooth loops and straight tails, ribbons and ties uncreased, charms hanging straight), each kept at exactly its original size, shape, position, count and construction, "only tidied and never restyled". The ghost negatives add "no crumpled, twisted or drooping bows, ribbons, ties or charms, and no change to their size, shape, position or count".
+- **Brain** (`ghost@3.1.0`): a crumpled trim is never a `cleanUp` item, because that list names what the image must leave out, and the house clause already tidies trims; tidying is presentation and wanted, changing a trim is not.
+- **Fidelity** (`review-fidelity@1.2.0`): grooming is ignored (a bow set open and straight, a ribbon smoothed, a charm hanging straight) when the trim's size, shape, position, count and construction match; a trim that changed, was added or was removed is a major issue.
+- **Not verified live:** no generation was sent from the sandbox. The recorded prompt of each generation shows the clause, and the compare view shows whether the image model follows it.
+
 ### 2026-09-28 — Free vision brains: Mistral, Z.ai and OpenRouter as presets, and one chain
 - **Why:** the owner asked for a deep search for services with new, fast models that read images, free with a limit large enough for the studio's work, and for the studio to rely on them.
 - **Survey (2026-09-28, each service's own pricing and docs pages):**

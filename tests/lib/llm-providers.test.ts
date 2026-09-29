@@ -192,7 +192,7 @@ describe("TemplateBrain", () => {
       "collar: shawl collar faced with scalloped lace, 6 cm wide, waist: self-fabric belt through 2 side loops, hem: scalloped lace band 8 cm, and all original seams and panel divisions;",
     );
     expect(built.prompt).toContain("no hanger, hook, clip, peg or pin anywhere in the image");
-    expect(built.promptVersion).toBe("ghost@3.0.0");
+    expect(built.promptVersion).toBe("ghost@3.1.0");
   });
 
   it("keeps one in-range answer per photo when sorting views", async () => {

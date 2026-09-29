@@ -224,6 +224,25 @@ describe("brain selection with free gateways", () => {
     expect(geminiFirst.provider).toBe("gemini");
   });
 
+  it("puts the gateway chosen in Settings first, and keeps the default order without one", () => {
+    setEnv({ MISTRAL_API_KEY: "m", ZAI_API_KEY: "z", OPENROUTER_API_KEY: "o" });
+    const chosen = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: "openrouter" });
+    expect((chosen as ChainBrain).order.map((label) => label.split(" · ")[0])).toEqual([
+      "OpenRouter",
+      "Mistral",
+      "Z.ai",
+    ]);
+    const unset = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: null });
+    expect((unset as ChainBrain).order.map((label) => label.split(" · ")[0])).toEqual([
+      "Mistral",
+      "Z.ai",
+      "OpenRouter",
+    ]);
+    // A choice whose key is gone changes nothing.
+    const gone = getDirectorBrain({ llmProvider: "gateway", gatewayFirst: "custom" });
+    expect((gone as ChainBrain).order[0]).toContain("Mistral");
+  });
+
   it("uses a single configured brain as it is", () => {
     setEnv({ ZAI_API_KEY: "z" });
     const brain = getDirectorBrain({ llmProvider: "claude" });

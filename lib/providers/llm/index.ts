@@ -1,6 +1,6 @@
 import "server-only";
 
-import { llmGatewayConfigs, serverEnv } from "@/lib/env";
+import { llmGatewayConfigs, serverEnv, type LlmGatewayId } from "@/lib/env";
 import { ChainBrain, type ChainMember } from "@/lib/providers/llm/chain";
 import { ClaudeBrain, DEFAULT_CLAUDE_MODEL } from "@/lib/providers/llm/claude";
 import { GatewayBrain } from "@/lib/providers/llm/gateway";
@@ -15,6 +15,8 @@ export type BrainPreferences = {
   geminiModel?: string | null;
   /** The model at the owner's own gateway (LLM_GATEWAY_*); the free services have their own. */
   gatewayModel?: string | null;
+  /** The gateway asked first under "Free gateways"; the others keep their order after it. */
+  gatewayFirst?: LlmGatewayId | null;
 };
 
 export type BrainOptions = {
@@ -40,7 +42,12 @@ export function getDirectorBrain(
     preferences.claudeModel?.trim() || env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_MODEL;
   const geminiModel = preferences.geminiModel?.trim() || env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
-  const gateways = llmGatewayConfigs().flatMap((config): ChainMember[] => {
+  const configs = llmGatewayConfigs();
+  const first = preferences.gatewayFirst ?? null;
+  const gateways = [
+    ...configs.filter((config) => config.id === first),
+    ...configs.filter((config) => config.id !== first),
+  ].flatMap((config): ChainMember[] => {
     // A custom gateway serves many models and has no sensible default: it needs a model id.
     const model =
       config.id === "custom" ? preferences.gatewayModel?.trim() || config.model : config.model;

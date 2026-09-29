@@ -1314,6 +1314,8 @@
       "gatewayMissing": "Set LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY in Vercel to add your own gateway.",
       "gatewayChain": "The brain asks the configured gateways in this order — Mistral, Z.ai, OpenRouter, then your own gateway — and moves to the next when one hits its limit or fails. Keys: MISTRAL_API_KEY, ZAI_API_KEY, OPENROUTER_API_KEY in Vercel.",
       "gatewayNone": "No gateway key set",
+      "gatewayFirst": "Start with",
+      "gatewayFirstHint": "The others follow on their own when it hits a limit or fails.",
       "chain": "Order:",
       "geminiHint": "Free: when one model's daily limit runs out, the brain moves on to the next free model (Gemini Flash, Flash-Lite, then Gemma 4). Google resets the limits every day at midnight Pacific time (about 10:00 in Cairo).",
       "save": "Save",

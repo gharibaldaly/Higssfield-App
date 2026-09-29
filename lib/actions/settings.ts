@@ -16,6 +16,7 @@ const settingsSchema = z.object({
   claudeModel: modelIdField.optional(),
   geminiModel: modelIdField.optional(),
   gatewayModel: modelIdField.optional(),
+  gatewayFirst: z.enum(["mistral", "zai", "openrouter", "custom"]).nullable().optional(),
   catalogueStyle: catalogueStyleSchema.optional(),
   defaultImageModel: modelIdField.optional(),
   defaultVideoModel: modelIdField.optional(),

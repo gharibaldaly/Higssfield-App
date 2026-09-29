@@ -8,6 +8,7 @@ import {
   type CatalogueStyle,
 } from "@/lib/domain/catalogue-style";
 import { BUILTIN_PRESETS } from "@/lib/director/presets";
+import type { LlmGatewayId } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { Json, SettingsRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -25,6 +26,8 @@ export type OwnerSettings = {
   claudeModel: string | null;
   geminiModel: string | null;
   gatewayModel: string | null;
+  /** The gateway asked first under "Free gateways"; null keeps the default order. */
+  gatewayFirst: LlmGatewayId | null;
   catalogueStyle: CatalogueStyle;
   defaultImageModel: string | null;
   defaultVideoModel: string | null;
@@ -41,6 +44,7 @@ export function settingsFromRow(row: SettingsRow | null): OwnerSettings {
     claudeModel: row?.claude_model ?? null,
     geminiModel: row?.gemini_model ?? null,
     gatewayModel: row?.gateway_model ?? null,
+    gatewayFirst: row?.gateway_first ?? null,
     catalogueStyle: row ? parseCatalogueStyle(row.catalogue_style) : DEFAULT_CATALOGUE_STYLE,
     defaultImageModel: row?.default_image_model ?? null,
     defaultVideoModel: row?.default_video_model ?? null,
@@ -116,6 +120,7 @@ export async function updateOwnerSettings(
   if (patch.claudeModel !== undefined) update.claude_model = patch.claudeModel;
   if (patch.geminiModel !== undefined) update.gemini_model = patch.geminiModel;
   if (patch.gatewayModel !== undefined) update.gateway_model = patch.gatewayModel;
+  if (patch.gatewayFirst !== undefined) update.gateway_first = patch.gatewayFirst;
   if (patch.catalogueStyle) update.catalogue_style = patch.catalogueStyle as unknown as Json;
   if (patch.defaultImageModel !== undefined) update.default_image_model = patch.defaultImageModel;
   if (patch.defaultVideoModel !== undefined) update.default_video_model = patch.defaultVideoModel;

@@ -89,7 +89,8 @@ setting for free endpoints must be on, and each request lists the free vision mo
 moves to the next when one is down). Set the keys in
 Vercel, redeploy, then choose "Free gateways" under Settings → Director brain. The brain asks them in
 that order and moves to the next when one hits its limit; every other configured brain (Gemini,
-Claude, your own gateway) follows. Free plans may use what is sent to improve the services: Mistral
+Claude, your own gateway) follows. With two or more gateway keys, "Start with" on the same card
+picks the gateway asked first (migration `20260929083000_gateway_first` adds the column). Free plans may use what is sent to improve the services: Mistral
 has an opt-out under Admin Console → Privacy; Z.ai's default terms allow it; OpenRouter's free routes
 depend on the provider behind them.
 

@@ -1314,6 +1314,8 @@
       "gatewayMissing": "أضف LLM_GATEWAY_BASE_URL وLLM_GATEWAY_API_KEY في Vercel لإضافة بوابتك الخاصة.",
       "gatewayChain": "يسأل العقل البوابات المُعدّة بهذا الترتيب — Mistral ثم Z.ai ثم OpenRouter ثم بوابتك الخاصة — وينتقل إلى التالية عندما تصل إحداها إلى حدها أو تفشل. المفاتيح: MISTRAL_API_KEY وZAI_API_KEY وOPENROUTER_API_KEY في Vercel.",
       "gatewayNone": "لا يوجد مفتاح بوابة بعد",
+      "gatewayFirst": "ابدأ بـ",
+      "gatewayFirstHint": "والباقي يكمّل لوحده لما توصل لحدها أو تفشل.",
       "chain": "الترتيب:",
       "geminiHint": "مجاني: عندما ينفد الحد اليومي لموديل، ينتقل العقل إلى الموديل المجاني التالي (Gemini Flash ثم Flash-Lite ثم Gemma 4). تتجدد الحدود يوميًا عند منتصف الليل بتوقيت المحيط الهادئ (نحو 10:00 بتوقيت القاهرة).",
       "save": "حفظ",

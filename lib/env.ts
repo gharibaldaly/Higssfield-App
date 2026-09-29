@@ -174,6 +174,16 @@ export type LlmGatewayConfig = {
    * defaults (and `extraBody` its switch, where it needs one).
    */
   thinkingFields?: boolean;
+  /**
+   * Requests the service takes at once. With 1 (Z.ai's free model) the photo
+   * routes are tested one after another, and a busy answer is retried more.
+   */
+  maxConcurrent?: number | null;
+  /**
+   * Whether the Anthropic messages format (`/messages`) is tried for photos.
+   * Off for a known service whose base URL does not serve it.
+   */
+  anthropicFormat?: boolean;
 };
 
 /**
@@ -206,6 +216,7 @@ type GatewayPreset = {
   baseUrl: string;
   model: string;
   maxImages: number | null;
+  maxConcurrent?: number;
   extraBody?: Record<string, unknown>;
 };
 
@@ -234,6 +245,7 @@ const GATEWAY_PRESETS: GatewayPreset[] = [
     baseUrl: "https://api.z.ai/api/paas/v4",
     model: "glm-4.6v-flash",
     maxImages: 150,
+    maxConcurrent: 1,
     extraBody: { thinking: { type: "disabled" } },
   },
   {
@@ -272,8 +284,10 @@ export function llmGatewayConfigs(): LlmGatewayConfig[] {
         maxTokens: 16_000,
         reasoningEffort: null,
         thinkingFields: false,
+        anthropicFormat: false,
         extraBody: preset.extraBody,
         maxImages: preset.maxImages,
+        maxConcurrent: preset.maxConcurrent ?? null,
         // OpenRouter asks apps to name themselves.
         headers:
           preset.id === "openrouter"

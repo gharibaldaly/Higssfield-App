@@ -886,6 +886,69 @@ describe("NVIDIA's API", () => {
   });
 });
 
+describe("a service that takes one request at a time", () => {
+  const oneAtATime = (host?: LlmImageHost) => {
+    serial += 1;
+    return new TestGateway(
+      {
+        baseUrl: `https://gateway${serial}.test/v1`,
+        apiKey: "sk-test",
+        model: "glm-4.6v-flash",
+        id: "zai",
+        name: "Z.ai",
+        maxTokens: 16_000,
+        maxConcurrent: 1,
+        anthropicFormat: false,
+      },
+      host,
+    );
+  };
+
+  it("tests the photo routes one after another, so no test comes back busy", async () => {
+    const { host } = fakeHost();
+    let inFlight = 0;
+    let overlaps = 0;
+    fetchMock.mockImplementation(async (url, init) => {
+      const call = toCall(url, init);
+      inFlight += 1;
+      if (inFlight > 1) {
+        overlaps += 1;
+        inFlight -= 1;
+        return failure(429, "Concurrency limit reached");
+      }
+      // The service works on the request for a moment.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return isVisionCheck(call.body)
+        ? readTestImage(call)
+        : completion('{"verdict":"ok","score":1}');
+    });
+    await expect(oneAtATime(host).run(withPhotos(2))).resolves.toEqual({ verdict: "ok", score: 1 });
+    expect(overlaps).toBe(0);
+    // Chat links read both test images, the messages routes were never tried, then the real call.
+    expect(calls().map((call) => isMessagesApi(call.url))).toEqual([false, false, false]);
+    expect(calls().filter((call) => isVisionCheck(call.body))).toHaveLength(2);
+  });
+
+  it("waits longer for a busy answer than for other services", async () => {
+    let busy = 2;
+    fetchMock.mockImplementation(async () => {
+      if (busy > 0) {
+        busy -= 1;
+        return failure(429, "Concurrency limit reached");
+      }
+      return completion('{"verdict":"ok","score":3}');
+    });
+    await expect(oneAtATime().run(request)).resolves.toEqual({ verdict: "ok", score: 3 });
+    expect(calls()).toHaveLength(3);
+    // Any other service gets one retry, so the second busy answer is final.
+    busy = 2;
+    fetchMock.mockClear();
+    await expect(gateway().run(request)).rejects.toMatchObject({ code: "provider_rate_limit" });
+    expect(calls()).toHaveLength(2);
+  });
+});
+
 describe("brain selection", () => {
   const MANAGED = [
     "ANTHROPIC_API_KEY",

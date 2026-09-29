@@ -131,6 +131,24 @@ const CONTEXT_SHARE = 0.85;
  * as "maximum context length is 270,000 tokens. However, your request resulted
  * in 1,417,769 tokens" or "prompt is too long: 250000 tokens > 200000 maximum".
  */
+/**
+ * A request with no more images than the service takes at once: the first
+ * ones, which the callers order by importance (front, back, then details),
+ * and for a fidelity review its result, which is always the last image.
+ */
+export function fitImageCount<T>(
+  request: StructuredRequest<T>,
+  cap: number | null,
+): StructuredRequest<T> {
+  if (!cap || cap < 1 || request.images.length <= cap) return request;
+  const result = request.images[request.images.length - 1]!;
+  const images =
+    request.name === "fidelity_review" && cap >= 2
+      ? [...request.images.slice(0, cap - 1), result]
+      : request.images.slice(0, cap);
+  return { ...request, images };
+}
+
 export function parseOverflow(detail: string): { context: number; counted: number } | null {
   const number = (text: string) => Number(text.replace(/,/g, ""));
   const over = /(\d[\d,]*)\s*tokens\s*>\s*(\d[\d,]*)/i.exec(detail);
@@ -197,22 +215,31 @@ function validationText(detail: unknown): string | undefined {
   return lines.length > 0 ? lines.join("; ") : undefined;
 }
 
+/** A message field: a string, or an object holding one (Mistral puts its validation list in `message`). */
+function messageOf(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  const inner = value as { message?: unknown; detail?: unknown };
+  if (typeof inner.message === "string") return inner.message;
+  return (
+    validationText(inner.detail) ?? (typeof inner.detail === "string" ? inner.detail : undefined)
+  );
+}
+
 async function errorDetail(response: Response): Promise<string | undefined> {
   try {
     const payload = (await response.json()) as {
-      error?: { message?: unknown } | string;
+      error?: unknown;
       message?: unknown;
       detail?: unknown;
       title?: unknown;
     };
     const message =
-      typeof payload.error === "string"
-        ? payload.error
-        : (payload.error?.message ??
-          payload.message ??
-          validationText(payload.detail) ??
-          payload.detail ??
-          payload.title);
+      messageOf(payload.error) ??
+      messageOf(payload.message) ??
+      validationText(payload.detail) ??
+      payload.detail ??
+      payload.title;
     return typeof message === "string" ? message.slice(0, 300) : undefined;
   } catch {
     return undefined;
@@ -284,6 +311,10 @@ export class GatewayBrain extends TemplateBrain {
   private readonly tokenCap: number;
   private readonly reasoningEffort: string | null;
   private readonly imageHost: LlmImageHost | null;
+  private readonly extraBody: Record<string, unknown>;
+  private readonly extraHeaders: Record<string, string>;
+  private readonly maxImages: number | null;
+  private readonly thinkingFields: boolean;
 
   constructor(config: LlmGatewayConfig & { model: string }, imageHost?: LlmImageHost) {
     super();
@@ -294,6 +325,10 @@ export class GatewayBrain extends TemplateBrain {
     this.tokenCap = config.maxTokens;
     this.reasoningEffort = config.reasoningEffort ?? null;
     this.imageHost = imageHost ?? null;
+    this.extraBody = config.extraBody ?? {};
+    this.extraHeaders = config.headers ?? {};
+    this.maxImages = config.maxImages ?? null;
+    this.thinkingFields = config.thinkingFields ?? true;
   }
 
   private get key(): string {
@@ -343,6 +378,7 @@ export class GatewayBrain extends TemplateBrain {
   ): Promise<GatewayReply> {
     const { timeoutMs, signal } = call;
     const headers: Record<string, string> = {
+      ...this.extraHeaders,
       Authorization: `Bearer ${this.apiKey}`,
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -431,6 +467,7 @@ export class GatewayBrain extends TemplateBrain {
 
   /** Fields that set how long the model reasons; "off" asks for as little as it allows. */
   private thinking(settings: Learned, quick: boolean): Record<string, unknown> {
+    if (!this.thinkingFields) return {};
     const level = quick ? "off" : this.reasoningEffort;
     if (!level) return {};
     return {
@@ -492,6 +529,7 @@ export class GatewayBrain extends TemplateBrain {
       ],
       [settings.tokenField]: cap,
       ...this.thinking(settings, call.quick),
+      ...this.extraBody,
       ...(settings.mode === "json_schema"
         ? {
             response_format: {
@@ -606,7 +644,13 @@ export class GatewayBrain extends TemplateBrain {
     return next ? { ...settings, mode: next } : null;
   }
 
-  protected async generate<T>(request: StructuredRequest<T>): Promise<T> {
+  protected async generate<T>(input: StructuredRequest<T>): Promise<T> {
+    const request = fitImageCount(input, this.maxImages);
+    if (request.images.length < input.images.length) {
+      console.warn(
+        `${this.name} ${this.model}: ${request.name} sends ${request.images.length} of ${input.images.length} images (the service takes ${this.maxImages} per request).`,
+      );
+    }
     if (request.images.length === 0) return this.ask(request, null, this.normalCall());
     const checked = await this.imageRoute();
     try {

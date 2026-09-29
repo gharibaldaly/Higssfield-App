@@ -1,6 +1,7 @@
 import "server-only";
 
-import { llmGatewayConfig, serverEnv } from "@/lib/env";
+import { llmGatewayConfigs, serverEnv } from "@/lib/env";
+import { ChainBrain, type ChainMember } from "@/lib/providers/llm/chain";
 import { ClaudeBrain, DEFAULT_CLAUDE_MODEL } from "@/lib/providers/llm/claude";
 import { GatewayBrain } from "@/lib/providers/llm/gateway";
 import { DEFAULT_GEMINI_MODEL, GeminiBrain } from "@/lib/providers/llm/gemini";
@@ -12,6 +13,7 @@ export type BrainPreferences = {
   llmProvider: "claude" | "gemini" | "gateway";
   claudeModel?: string | null;
   geminiModel?: string | null;
+  /** The model at the owner's own gateway (LLM_GATEWAY_*); the free services have their own. */
   gatewayModel?: string | null;
 };
 
@@ -21,10 +23,13 @@ export type BrainOptions = {
 };
 
 /**
- * Picks the director brain from Settings. If the chosen provider is not
- * configured, the next configured one is used (Claude, Gemini, then the
- * gateway); with none at all, the mock brain keeps the app usable.
- * `brain.provider` tells the UI which one answered.
+ * The director brain from Settings: every configured brain, in order of
+ * preference, as one chain. The chosen provider comes first ("gateway" means
+ * the gateways in their order: Mistral, Z.ai, OpenRouter, then the owner's
+ * own), and the others follow, so a limit or an outage at one brain moves
+ * the call to the next. With nothing configured, the mock brain keeps the
+ * app usable. `brain.provider` and `brain.model` tell the UI which one
+ * answered.
  */
 export function getDirectorBrain(
   preferences: BrainPreferences,
@@ -34,28 +39,47 @@ export function getDirectorBrain(
   const claudeModel =
     preferences.claudeModel?.trim() || env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_MODEL;
   const geminiModel = preferences.geminiModel?.trim() || env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const gatewayConfig = llmGatewayConfig();
-  // A gateway serves many models and has no sensible default: it needs a model id.
-  const gatewayModel = preferences.gatewayModel?.trim() || gatewayConfig?.model || null;
 
-  const claude = env.ANTHROPIC_API_KEY
-    ? () => new ClaudeBrain(env.ANTHROPIC_API_KEY!, claudeModel)
-    : null;
-  const gemini = env.GEMINI_API_KEY
-    ? () => new GeminiBrain(env.GEMINI_API_KEY!, geminiModel)
-    : null;
-  const gateway =
-    gatewayConfig && gatewayModel
-      ? () => new GatewayBrain({ ...gatewayConfig, model: gatewayModel }, options.imageHost)
-      : null;
+  const gateways = llmGatewayConfigs().flatMap((config): ChainMember[] => {
+    // A custom gateway serves many models and has no sensible default: it needs a model id.
+    const model =
+      config.id === "custom" ? preferences.gatewayModel?.trim() || config.model : config.model;
+    if (!model) return [];
+    return [
+      {
+        key: `${config.id}|${config.baseUrl}|${model}`,
+        label: `${config.name} · ${model}`,
+        brain: new GatewayBrain({ ...config, model }, options.imageHost),
+      },
+    ];
+  });
+  const claude: ChainMember[] = env.ANTHROPIC_API_KEY
+    ? [
+        {
+          key: `claude|${claudeModel}`,
+          label: `Claude · ${claudeModel}`,
+          brain: new ClaudeBrain(env.ANTHROPIC_API_KEY, claudeModel),
+        },
+      ]
+    : [];
+  const gemini: ChainMember[] = env.GEMINI_API_KEY
+    ? [
+        {
+          key: `gemini|${geminiModel}`,
+          label: `Gemini · ${geminiModel}`,
+          brain: new GeminiBrain(env.GEMINI_API_KEY, geminiModel),
+        },
+      ]
+    : [];
 
   const ordered = {
-    claude: [claude, gemini, gateway],
-    gemini: [gemini, claude, gateway],
-    gateway: [gateway, claude, gemini],
+    claude: [...claude, ...gemini, ...gateways],
+    gemini: [...gemini, ...claude, ...gateways],
+    gateway: [...gateways, ...claude, ...gemini],
   }[preferences.llmProvider];
-  const factory = ordered.find((candidate) => candidate !== null);
-  return factory ? factory() : new MockBrain();
+  if (ordered.length === 0) return new MockBrain();
+  if (ordered.length === 1) return ordered[0]!.brain;
+  return new ChainBrain(ordered);
 }
 
 export { DEFAULT_CLAUDE_MODEL, DEFAULT_GEMINI_MODEL };

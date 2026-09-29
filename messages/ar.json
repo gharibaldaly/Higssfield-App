@@ -1303,15 +1303,18 @@
       "providers": {
         "claude": "Claude (Anthropic)",
         "gemini": "Gemini (Google)",
-        "gateway": "بوابة متوافقة مع OpenAI"
+        "gateway": "بوابات مجانية (متوافقة مع OpenAI)"
       },
       "keyConfigured": "المفتاح مُعدّ",
       "keyMissing": "المفتاح ناقص",
       "claudeModel": "معرّف موديل Claude",
       "geminiModel": "معرّف موديل Gemini",
-      "gatewayModel": "معرّف موديل البوابة",
+      "gatewayModel": "معرّف موديل بوابتك الخاصة (LLM_GATEWAY_*)",
       "gatewayHint": "اختر موديلًا يقبل الصور، فالاستوديو يرسل صور القطع مع أغلب الطلبات.",
-      "gatewayMissing": "أضف LLM_GATEWAY_BASE_URL وLLM_GATEWAY_API_KEY في Vercel لاستخدام بوابة.",
+      "gatewayMissing": "أضف LLM_GATEWAY_BASE_URL وLLM_GATEWAY_API_KEY في Vercel لإضافة بوابتك الخاصة.",
+      "gatewayChain": "يسأل العقل البوابات المُعدّة بهذا الترتيب — Mistral ثم Z.ai ثم OpenRouter ثم بوابتك الخاصة — وينتقل إلى التالية عندما تصل إحداها إلى حدها أو تفشل. المفاتيح: MISTRAL_API_KEY وZAI_API_KEY وOPENROUTER_API_KEY في Vercel.",
+      "gatewayNone": "لا يوجد مفتاح بوابة بعد",
+      "chain": "الترتيب:",
       "geminiHint": "مجاني: عندما ينفد الحد اليومي لموديل، ينتقل العقل إلى الموديل المجاني التالي (Gemini Flash ثم Flash-Lite ثم Gemma 4). تتجدد الحدود يوميًا عند منتصف الليل بتوقيت المحيط الهادئ (نحو 10:00 بتوقيت القاهرة).",
       "save": "حفظ",
       "active": "النشط: {provider} · {model}"
@@ -1371,7 +1374,7 @@
         "separate": "يقرأ الاستوديو معرّف المفتاح من HIGGSFIELD_API_KEY والسر من HIGGSFIELD_API_SECRET."
       },
       "serviceRole": "Supabase service role (للـ webhooks)",
-      "gateway": "بوابة الـ LLM",
+      "gateway": "بوابة الـ LLM الخاصة (LLM_GATEWAY_*)",
       "webhook": "Webhook لـ Higgsfield (السر + APP_URL)",
       "ownerEmail": "قفل بريد المالك"
     },

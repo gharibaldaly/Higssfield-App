@@ -44,6 +44,7 @@ function gateway(model?: string, imageHost?: LlmImageHost, reasoningEffort?: str
       baseUrl: `https://gateway${serial}.test/v1`,
       apiKey: "sk-test",
       model: model ?? `model-${serial}`,
+      id: "custom",
       name: "TestGate",
       maxTokens: 16_000,
       reasoningEffort,
@@ -655,6 +656,7 @@ describe("answer parsing", () => {
       baseUrl: "https://models.test/v1",
       apiKey: "sk",
       model: null,
+      id: "custom" as const,
       name: "G",
       maxTokens: 16_000,
     };
@@ -708,6 +710,7 @@ describe("NVIDIA's API", () => {
       baseUrl: `https://gateway${serial}.test/v1`,
       apiKey: "sk-test",
       model: "moonshotai/kimi-k3",
+      id: "custom",
       name: "NVIDIA",
       maxTokens: 16_000,
     });
@@ -731,6 +734,7 @@ describe("NVIDIA's API", () => {
         baseUrl: `https://gateway${serial}.test/v1`,
         apiKey: "sk-test",
         model: "moonshotai/kimi-k3",
+        id: "custom",
         name: "NVIDIA",
         maxTokens: 16_000,
       },
@@ -750,6 +754,7 @@ describe("NVIDIA's API", () => {
       baseUrl: `https://gateway${serial}.test/v1`,
       apiKey: "sk-test",
       model: "moonshotai/kimi-k3",
+      id: "custom",
       name: "NVIDIA",
       maxTokens: 16_000,
     });

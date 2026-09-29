@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { colourwayBrief } from "@/lib/colorways/words";
 import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
-import { composeGhostParagraph, type GhostParagraphInput } from "@/lib/prompts/house-style";
+import {
+  composeGhostParagraph,
+  ghostNegatives,
+  type GhostParagraphInput,
+} from "@/lib/prompts/house-style";
 import { ghostV3, STYLE_EXAMPLES } from "@/lib/prompts/v3/ghost";
 import { findForbiddenWords, neutralizeWording } from "@/lib/prompts/wording";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
@@ -43,12 +47,44 @@ function expectOrder(text: string, markers: string[]) {
   }
 }
 
+describe("trim grooming (bows set straight, never restyled)", () => {
+  const grooming = "bows open and symmetrical with smooth loops and straight tails";
+  const lock = "only tidied and never restyled";
+
+  it("asks every view to set trims neatly at their original size and shape", () => {
+    for (const view of ["front", "back", "macro"] as const) {
+      const text = composeGhostParagraph({ ...base, view });
+      expect(text, view).toContain(grooming);
+      expect(text, view).toContain(lock);
+    }
+    const colourway = composeGhostParagraph({
+      ...base,
+      view: "colorway",
+      colourway: {
+        ...colourwayBrief({ name: "cashmir", hex: "#B499A0" }, { name: "Blush", hex: "#E8C4C0" }),
+        swatch: false,
+      },
+    });
+    expect(colourway).toContain(grooming);
+  });
+
+  it("forbids crumpled trims and any change to them in the negatives", () => {
+    const negatives = ghostNegatives(base.style, "front");
+    expect(negatives.some((item) => item.includes("no crumpled, twisted or drooping bows"))).toBe(
+      true,
+    );
+    expect(
+      negatives.some((item) => item.includes("no change to their size, shape, position")),
+    ).toBe(true);
+  });
+});
+
 describe("composeGhostParagraph (the house system in the owner's prompt style)", () => {
   it("writes the front in the shape of the reference prompt", () => {
     const text = composeGhostParagraph({ ...base, view: "front" });
     expect(text.startsWith("Working only from the attached reference photos")).toBe(true);
     expect(text).toContain(
-      "create a premium ultra-realistic e-commerce fashion photograph of the exact blush pink women's straight kimono robe with scalloped lace collar, displayed on an invisible display form in the classic ghost technique, with absolutely no visible form, stand or human body parts, preserving the exact original garment construction and proportions: shawl collar faced with 6 cm scalloped lace, self-fabric belt through two side loops, 8 cm scalloped lace hem band, exactly 5 ivory pearl buttons at each cuff, and all original seams and panel divisions; perfectly symmetrical, professionally shaped and naturally filled, immaculate and perfectly ironed with no wrinkles or distortions, accurate blush pink colour and subtle fabric texture, front-facing centred composition, whole garment centred in frame with about 8% clear margin on every side, 4:5 aspect ratio, luxury high-end sleepwear e-commerce photography, soft diffused studio lighting, ",
+      "create a premium ultra-realistic e-commerce fashion photograph of the exact blush pink women's straight kimono robe with scalloped lace collar, displayed on an invisible display form in the classic ghost technique, with absolutely no visible form, stand or human body parts, preserving the exact original garment construction and proportions: shawl collar faced with 6 cm scalloped lace, self-fabric belt through two side loops, 8 cm scalloped lace hem band, exactly 5 ivory pearl buttons at each cuff, and all original seams and panel divisions; perfectly symmetrical, professionally shaped and naturally filled, immaculate and perfectly ironed with no wrinkles or distortions, every bow, ribbon, tie, charm and trim neatly set as a stylist would arrange it for the shot: bows open and symmetrical with smooth loops and straight tails, ribbons and ties uncreased, charms hanging straight, each kept at exactly its original size, shape, position, count and construction, only tidied and never restyled, accurate blush pink colour and subtle fabric texture, front-facing centred composition, whole garment centred in frame with about 8% clear margin on every side, 4:5 aspect ratio, luxury high-end sleepwear e-commerce photography, soft diffused studio lighting, ",
     );
     expect(text).toContain(
       "no cast shadow, clean pure white (#FFFFFF) seamless background, flat and even edge to edge, crisp fabric and stitching detail, photorealistic 4K resolution, realistic textile rendering, premium catalogue finish, no text, no logo, no accessories, no humans.",
@@ -183,7 +219,7 @@ describe("composeGhostParagraph (the house system in the owner's prompt style)",
 
 describe("ghost v3 template", () => {
   it("carries the owner's reference prompts as style examples, in neutral wording", () => {
-    expect(ghostV3.version).toBe("3.0.0");
+    expect(ghostV3.version).toBe("3.1.0");
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.front);
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.back);
     expect(findForbiddenWords(ghostV3.system)).toEqual([]);

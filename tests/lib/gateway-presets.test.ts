@@ -53,6 +53,7 @@ describe("free gateway presets", () => {
       baseUrl: "https://api.mistral.ai/v1",
       model: "mistral-small-latest",
       maxImages: 8,
+      extraBody: { reasoning_effort: "none" },
     });
     expect(configs[1]).toMatchObject({
       name: "Z.ai",

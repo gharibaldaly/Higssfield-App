@@ -81,7 +81,8 @@ then Gemma 4). Limits reset at midnight Pacific time. Google uses free-tier cont
 products; enabling billing on the Google project stops that and lifts the daily limits.
 
 **Free director brains (Mistral, Z.ai, OpenRouter):** each needs only its key. Mistral's Free plan
-includes $10 a month in API credits and Mistral Small 4 reads images (`MISTRAL_API_KEY`); Z.ai's
+includes $10 a month in API credits and Mistral Small 4 reads images, with its reasoning switched off
+(`MISTRAL_API_KEY`); Z.ai's
 GLM-4.6V-Flash is free, one request at a time (`ZAI_API_KEY`); OpenRouter's free models allow 50
 requests a day, or 1,000 once $10 of credits were ever bought (`OPENROUTER_API_KEY`). Set the keys in
 Vercel, redeploy, then choose "Free gateways" under Settings → Director brain. The brain asks them in

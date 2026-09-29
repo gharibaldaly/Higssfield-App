@@ -215,12 +215,16 @@ type GatewayPreset = {
  */
 const GATEWAY_PRESETS: GatewayPreset[] = [
   {
-    // The Free plan includes API credits every month; Mistral Small 4 reads images.
+    // The Free plan includes API credits every month. Mistral Small 4 reads
+    // images (8 per request) and is a hybrid reasoning model: its reasoning is
+    // switched off, since the brain's answers are JSON and reasoning would
+    // only cost credits and time.
     id: "mistral",
     name: "Mistral",
     baseUrl: "https://api.mistral.ai/v1",
     model: "mistral-small-latest",
     maxImages: 8,
+    extraBody: { reasoning_effort: "none" },
   },
   {
     // GLM-4.6V-Flash is free, one request at a time. Its reasoning is off: the

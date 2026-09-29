@@ -54,12 +54,15 @@ describe("free gateway presets", () => {
       model: "mistral-small-latest",
       maxImages: 8,
       extraBody: { reasoning_effort: "none" },
+      anthropicFormat: false,
     });
     expect(configs[1]).toMatchObject({
       name: "Z.ai",
       baseUrl: "https://api.z.ai/api/paas/v4",
       model: "glm-4.6v-flash",
       extraBody: { thinking: { type: "disabled" } },
+      maxConcurrent: 1,
+      anthropicFormat: false,
     });
     expect(configs[2]).toMatchObject({
       name: "OpenRouter",

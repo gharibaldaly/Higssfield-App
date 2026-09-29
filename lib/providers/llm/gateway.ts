@@ -315,6 +315,8 @@ export class GatewayBrain extends TemplateBrain {
   private readonly extraHeaders: Record<string, string>;
   private readonly maxImages: number | null;
   private readonly thinkingFields: boolean;
+  private readonly maxConcurrent: number | null;
+  private readonly anthropicFormat: boolean;
 
   constructor(config: LlmGatewayConfig & { model: string }, imageHost?: LlmImageHost) {
     super();
@@ -329,6 +331,8 @@ export class GatewayBrain extends TemplateBrain {
     this.extraHeaders = config.headers ?? {};
     this.maxImages = config.maxImages ?? null;
     this.thinkingFields = config.thinkingFields ?? true;
+    this.maxConcurrent = config.maxConcurrent ?? null;
+    this.anthropicFormat = config.anthropicFormat ?? true;
   }
 
   private get key(): string {
@@ -416,9 +420,11 @@ export class GatewayBrain extends TemplateBrain {
         return this.replyOf(response, timeoutMs);
       },
       {
-        retries: 1,
+        // A service that takes one request at a time answers "busy" to a second call: wait longer.
+        retries: this.maxConcurrent === 1 ? 3 : 1,
         baseDelayMs: 2000,
         maxDelayMs: 10_000,
+        sleep: (ms) => this.pause(ms),
         shouldRetry: (error) =>
           error instanceof AppError ? error.retryable && error.code !== "provider_timeout" : false,
       },
@@ -693,17 +699,25 @@ export class GatewayBrain extends TemplateBrain {
   }
 
   /**
-   * Tests every route (links need an image host) side by side, because a
-   * gateway can take many seconds per answer, and keeps the first, in the
+   * Tests every route (links need an image host; the Anthropic format only
+   * where the service serves it) side by side, because a gateway can take
+   * many seconds per answer, or one after another for a service that takes
+   * one request at a time, and keeps the first, in the
    * order of IMAGE_ROUTES, through which the model named the colours of the
    * test images; it does not wait for the routes after it. A route that does
    * not answer in time is ruled out like one that cannot see. When none works,
    * the error lists every route.
    */
   private async checkImageRoutes(): Promise<CheckedRoute> {
-    const routes = IMAGE_ROUTES.filter((route) => route.images === "data" || this.imageHost);
+    const routes = IMAGE_ROUTES.filter(
+      (route) =>
+        (route.images === "data" || this.imageHost) &&
+        (route.format === "chat" || this.anthropicFormat),
+    );
     const cancel = new AbortController();
-    const tests = routes.map((route) => this.testRoute(route, cancel.signal));
+    // A second test at a service that takes one request at a time only comes back busy.
+    const oneAtATime = this.maxConcurrent === 1;
+    const tests = oneAtATime ? [] : routes.map((route) => this.testRoute(route, cancel.signal));
     // Routes after the chosen one are cancelled; their failures must not surface as unhandled.
     for (const test of tests) test.catch(() => undefined);
     const failed: string[] = [];
@@ -711,8 +725,8 @@ export class GatewayBrain extends TemplateBrain {
     let slow = 0;
     let unserved = 0;
     try {
-      for (const [index, test] of tests.entries()) {
-        const outcome = await test;
+      for (const [index, route] of routes.entries()) {
+        const outcome = await (oneAtATime ? this.testRoute(route, cancel.signal) : tests[index]!);
         if (outcome === null) {
           for (const line of failed) console.warn(`${this.name} ${this.model}: ${line}`);
           return {

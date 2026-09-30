@@ -46,6 +46,8 @@ export type BatchItemView = {
   failedUploads: number;
   photoCount: number;
   thumbUrl: string | null;
+  /** A robe set: the position of the robe's piece; its stage adds a front without the robe. */
+  outerPosition: number | null;
   /** Front, back and the two close-ups (latest attempt per slot). */
   outputs: GhostOutput[];
   jobs: BatchJobView[];
@@ -208,6 +210,7 @@ async function loadBatchDetail(
         failedUploads: meta.failedUploads,
         photoCount: photoRows.filter((photo) => photo.product_id === item.product_id).length,
         thumbUrl: thumb ? (urls.get(thumb) ?? null) : null,
+        outerPosition: meta.outerPosition,
         outputs,
         jobs: stageJobs.map(toJobView),
         colours: (colorways.data ?? [])
@@ -215,8 +218,12 @@ async function loadBatchDetail(
           .map((colorway) => ({ id: colorway.id, name: colorway.name, hex: colorway.hex })),
         colourOutputs: outputsFor(rowsOf(colourJobs), views, urls),
         colourJobs: colourJobs.map(toJobView),
+        // The front with the robe on: a robe set's inner front never starts colours.
         frontApproved: stageRows.some(
-          (row) => row.purpose === "ghost_front" && row.review_status === "approved",
+          (row) =>
+            row.purpose === "ghost_front" &&
+            row.slot === "front" &&
+            row.review_status === "approved",
         ),
       };
     }),

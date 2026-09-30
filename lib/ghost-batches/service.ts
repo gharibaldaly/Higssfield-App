@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import {
   parseItemMeta,
+  ROBE_PIECE_NAME,
+  ROBE_PIECE_POSITION,
   type CreateGhostBatchInput,
   type RegisterItemPhotosInput,
 } from "@/lib/ghost-batches/schemas";
@@ -44,8 +46,10 @@ async function getItem(supabase: TypedSupabaseClient, itemId: string): Promise<G
 
 /**
  * Starts a batch (or adds models to one): every model becomes a one-piece
- * product, so the DNA, colourway and catalogue pipeline runs unchanged.
- * Photos are uploaded by the browser afterwards, straight to Storage.
+ * product, so the DNA, colourway and catalogue pipeline runs unchanged. A
+ * robe set gets a second piece for the robe, so its photos, DNA and
+ * references keep the two layers apart. Photos are uploaded by the browser
+ * afterwards, straight to Storage.
  */
 export async function createGhostBatch(
   supabase: TypedSupabaseClient,
@@ -95,7 +99,7 @@ export async function createGhostBatch(
       id: model.productId,
       name: model.name,
       product_line: model.productLine,
-      piece_count: 1,
+      piece_count: model.robe ? 2 : 1,
     })),
   );
   if (productsError) {
@@ -107,13 +111,16 @@ export async function createGhostBatch(
   const cleanUp = async () => {
     await supabase.from("products").delete().in("id", productIds);
   };
-  const { error: piecesError } = await supabase.from("product_pieces").insert(
-    models.map((model) => ({
-      product_id: model.productId,
-      position: 1,
-      name: model.name.slice(0, 120),
-    })),
-  );
+  const { error: piecesError } = await supabase
+    .from("product_pieces")
+    .insert(
+      models.flatMap((model) => [
+        { product_id: model.productId, position: 1, name: model.name.slice(0, 120) },
+        ...(model.robe
+          ? [{ product_id: model.productId, position: ROBE_PIECE_POSITION, name: ROBE_PIECE_NAME }]
+          : []),
+      ]),
+    );
   if (piecesError) {
     await cleanUp();
     throw new AppError("unknown", "Could not create the models.", { detail: piecesError.message });
@@ -124,6 +131,7 @@ export async function createGhostBatch(
       batch_id: batch.id,
       product_id: model.productId,
       position: (count ?? 0) + index,
+      meta: (model.robe ? { outerPosition: ROBE_PIECE_POSITION } : {}) as Json,
     })),
   );
   if (itemsError) {
@@ -144,6 +152,8 @@ export async function createGhostBatch(
 /**
  * Records a model's uploaded photos and colour swatches, then hands the model
  * to the runner. Swatch colours are read from the centre of each swatch photo.
+ * In a robe set, photos with the robe on belong to the robe's piece; photos
+ * nobody labelled go on the garment's piece until the director brain sorts them.
  */
 export async function registerBatchItemPhotos(
   supabase: TypedSupabaseClient,
@@ -154,12 +164,16 @@ export async function registerBatchItemPhotos(
   if (item.phase !== "uploading" && item.phase !== "failed") {
     throw new AppError("validation", "This model's photos are already registered.");
   }
-  const { data: piece } = await supabase
+  const meta = parseItemMeta(item.meta);
+  const { data: pieces } = await supabase
     .from("product_pieces")
-    .select("id")
+    .select("id, position")
     .eq("product_id", item.product_id)
-    .eq("position", 1)
-    .maybeSingle();
+    .order("position");
+  const outerPiece = meta.outerPosition
+    ? (pieces?.find((candidate) => candidate.position === meta.outerPosition) ?? null)
+    : null;
+  const piece = pieces?.find((candidate) => candidate.position !== outerPiece?.position) ?? null;
   if (!piece) throw new AppError("not_found", "The model's garment record is missing.");
 
   const sourcePrefix = `${ownerId}/products/${item.product_id}/sources/`;
@@ -183,7 +197,7 @@ export async function registerBatchItemPhotos(
       photos.map((photo) => ({
         id: photo.id,
         product_id: item.product_id,
-        piece_id: piece.id,
+        piece_id: photo.layer === "outer" && outerPiece ? outerPiece.id : piece.id,
         kind: photo.kind,
         storage_path: photo.storagePath,
         mime_type: photo.mimeType,
@@ -222,11 +236,16 @@ export async function registerBatchItemPhotos(
     .from("source_photos")
     .select("id", { count: "exact", head: true })
     .eq("product_id", item.product_id);
-  const meta = parseItemMeta(item.meta);
   const autoTagged = [
     ...meta.autoTagged,
     ...photos.filter((photo) => photo.tagSource === "order").map((photo) => photo.id),
   ];
+  const autoLayer = outerPiece
+    ? [
+        ...meta.autoLayer,
+        ...photos.filter((photo) => photo.layer === "auto").map((photo) => photo.id),
+      ]
+    : meta.autoLayer;
   const { data, error } = await supabase
     .from("ghost_batch_items")
     .update({
@@ -235,6 +254,7 @@ export async function registerBatchItemPhotos(
       meta: {
         ...meta,
         autoTagged,
+        autoLayer,
         classified: false,
         failedUploads: meta.failedUploads + input.failedUploads,
       } as unknown as Json,

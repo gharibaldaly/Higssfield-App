@@ -184,6 +184,12 @@ pnpm dev                     # http://localhost:3000
   HEIC export) never split a drop; the preview can still split it in order or move a photo to a
   new model. A model takes up to 16 garment photos and 8 colour swatches.
 - Colour swatches go in a `colours` folder or carry "colour"/"لون" in their name.
+- **Robe sets**: switch on "Robe set" for a model that comes with a robe. It becomes a two-piece
+  product (the garment + "Robe"); you get a front with the robe and one without it, plus the back
+  and the close-ups, and its colours always start from the front with the robe. Mark which photos
+  have the robe in them (or name them "robe" / "no robe", "بالروب" / "بدون روب"); the director
+  brain sorts the rest. Under "From products", the Front & Back job offers the same for any
+  multi-piece product.
 - Each model becomes a one-piece product, so its DNA, colourways and images also appear under
   Products and can be used for sheets and ads.
 - The work runs **while a studio tab is open**: the browser calls

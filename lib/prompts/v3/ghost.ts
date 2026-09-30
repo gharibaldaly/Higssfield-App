@@ -1,8 +1,8 @@
 import { colourwayBrief } from "@/lib/colorways/words";
 import { describeCatalogueStyle } from "@/lib/domain/catalogue-style";
 import { PRODUCT_LINE_PROMPT } from "@/lib/domain/product";
-import { mainColourOf } from "@/lib/prompts/house-style";
-import type { GhostPromptInput } from "@/lib/providers/llm/types";
+import { innerPiecesPhrase, mainColourOf, pieceNoun } from "@/lib/prompts/house-style";
+import type { GhostLayers, GhostPromptInput } from "@/lib/providers/llm/types";
 import { promptJson, type PromptTemplate } from "@/lib/prompts/types";
 
 /**
@@ -41,6 +41,30 @@ const MODE_BRIEF: Record<GhostPromptInput["referenceMode"], string> = {
   text: "Mode: TEXT — the image model receives no images, only the prompt. The garment phrase and the construction items must describe the garment precisely enough to reproduce it.",
 };
 
+/**
+ * A robe set: what this image shows of it. The full set keeps the robe worn
+ * over the garment; the inner image shows the garment alone, and the robe
+ * must not be described, named or locked.
+ */
+export function layersBrief(layers: GhostLayers, view: GhostPromptInput["view"]): string {
+  const outer = pieceNoun(layers.outerPiece.name) || "outer layer";
+  const inner = innerPiecesPhrase(layers);
+  const pieces = layers.innerPieces
+    .map((piece) => `piece ${piece.position} "${piece.name}"`)
+    .join(", ");
+  if (layers.show === "inner") {
+    return [
+      `Robe set: piece ${layers.outerPiece.position} "${layers.outerPiece.name.trim()}" is an outer layer worn over ${inner} (${pieces}). This image shows ${inner} ALONE, WITHOUT the ${outer}. The garment phrase names only ${inner}; the construction items describe only ${inner}'s ${view === "back" ? "back" : "front"}, top to bottom, as the photos without the ${outer} show it. Never describe, name or count anything of the ${outer}.`,
+      layers.fromSetPhotos
+        ? `The attached photos show the set with the ${outer} on: describe only the garment beneath it, exactly as seen through or under the ${outer}, and put the ${outer} in cleanUp.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+  return `Robe set: piece ${layers.outerPiece.position} "${layers.outerPiece.name.trim()}" is an outer layer worn over ${inner} (${pieces}). This image shows the FULL SET worn together, the ${outer} over ${inner}, as the reference photos with the ${outer} show. Name the set as one garment phrase ("… bodysuit and sheer ${outer.toLowerCase()} set"), and list the construction of both layers as seen from this view: the ${outer} first, then what shows of ${inner} beneath it.`;
+}
+
 /** The requested colour in the owner's name, in plain words, and against the original. */
 function requestedColour(input: GhostPromptInput): string {
   const colorway = input.colorway!;
@@ -56,7 +80,7 @@ function requestedColour(input: GhostPromptInput): string {
 
 export const ghostV3: PromptTemplate<GhostPromptInput> = {
   id: "ghost",
-  version: "3.1.0",
+  version: "3.2.0",
   system: `You are the art director and retoucher for Dr. Secret's Shopify catalogue. You fill in the garment-specific parts of ONE catalogue image prompt. The prompt itself has a fixed shape, the house system, that code assembles identically for every product in the store; you write only what describes THIS garment, exactly as its reference photos and its Garment DNA (the approved construction spec) show it.
 
 The house system reads like these two reference prompts. They describe another product: copy their style, density and level of detail, never a single detail of that garment.
@@ -81,6 +105,8 @@ Views:
 - MACRO: the named detail only; the items describe the detail, not the whole garment.
 - COLOURWAY: reference 1 is the approved front catalogue image and the construction is its front, exactly as in that image; reference 2, when attached, is a photo of fabric in the requested colour. The colour is the plain colour words given below, never the owner's name for it: image models follow plain colour words, not hex codes, and the owner's own name for the colour may be a brand word or misspelt. Never list the original colour among the construction items, and never write a negative against changing the colour.
 
+Robe sets: some models are a set with an outer layer (a robe, kimono or cardigan) worn over the garment, and the request says which piece it is. The set's images show the full set worn together, the outer layer over the garment. Its extra front shows the garment ALONE, without the outer layer: name and describe only the garment, never the outer layer, and never invent what the outer layer hid; the photos without it (or, failing those, what shows beneath it) are the only source.
+
 Chest panels: flat, unlined, unpadded, zero projection unless the DNA says otherwise; they lie flat on the invisible display form with no cup shape or moulding.
 
 Wording: neutral technical garment language only ("invisible display form", "chest panel", "sleepwear set", "loungewear"). Never anatomical or suggestive words. Do not write the opening, the presentation, the finish, the photography, the background, the product lock or the negatives: the house system writes them.
@@ -90,6 +116,7 @@ If the owner left a note on a previous attempt, put its fix into the constructio
     [
       `Product: "${input.product.name}" — ${PRODUCT_LINE_PROMPT[input.product.productLine]}.`,
       VIEW_BRIEF[input.view],
+      input.layers ? layersBrief(input.layers, input.view) : null,
       MODE_BRIEF[input.referenceMode],
       input.detail
         ? `Detail to feature: "${input.detail.label}" on ${input.detail.pieceName} — ${input.detail.description}.`

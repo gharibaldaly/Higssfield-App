@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { layerPiecesOf, type LayerPieces } from "@/lib/catalogue/layers";
 import { detailReferences, viewReferences, type PhotoRef } from "@/lib/catalogue/references";
 import { parseCatalogueStyle, type CatalogueStyle } from "@/lib/domain/catalogue-style";
 import { sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
@@ -26,7 +27,7 @@ import { activeProviderMode, requireHiggsfieldKey } from "@/lib/providers/higgsf
 import { highestResolution } from "@/lib/providers/higgsfield/registry";
 import type { GenerationMode, ModelSpec } from "@/lib/providers/higgsfield/types";
 import { getDirectorBrain, type DirectorBrain } from "@/lib/providers/llm";
-import type { GhostView, ProductBrief } from "@/lib/providers/llm/types";
+import type { GhostLayers, GhostView, ProductBrief } from "@/lib/providers/llm/types";
 import { getPhotos, getPieces, getProduct } from "@/lib/products/service";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
@@ -50,6 +51,11 @@ export const queueJobsSchema = z.object({
   macroDetails: z.record(z.string(), z.array(z.string().trim().min(1).max(200)).max(2)).optional(),
   /** productId → colourway ids (default: all colourways). */
   colorwayIds: z.record(z.string(), z.array(z.uuid())).optional(),
+  /**
+   * productId → position of the piece worn as an outer layer (a robe): a
+   * front & back job then adds a front of the garment without it.
+   */
+  outerPiece: z.record(z.string(), z.number().int().min(1).max(3)).optional(),
 });
 
 export type QueueJobsInput = z.infer<typeof queueJobsSchema>;
@@ -57,7 +63,12 @@ export type QueueJobsInput = z.infer<typeof queueJobsSchema>;
 const jobOptionsSchema = z.object({
   macroDetails: z.array(z.string()).optional(),
   colorwayIds: z.array(z.string()).optional(),
+  /** A robe set: the outer piece the extra "front_inner" image leaves out. */
+  outerPosition: z.number().int().min(1).max(3).optional(),
 });
+
+/** The slot of a robe set's second front: the garment without the robe. */
+export const FRONT_INNER_SLOT = "front_inner";
 
 type SlotPlan = {
   slot: string;
@@ -65,6 +76,8 @@ type SlotPlan = {
   view: GhostView;
   detail: { label: string; description: string; pieceName: string } | null;
   colorway: ColorwayRow | null;
+  /** A robe set's front or back: what the image shows of the set. */
+  layers: GhostLayers | null;
   references: { path: string; caption: string }[];
   missingReason: string | null;
 };
@@ -77,6 +90,8 @@ type JobContext = {
   photoCaptions: Map<string, string>;
   colorways: ColorwayRow[];
   approvedFront: GenerationRow | null;
+  /** The robe set's layers when the job asks for a front without the robe. */
+  layers: LayerPieces | null;
   model: ModelSpec;
   mode: GenerationMode;
   brain: DirectorBrain;
@@ -116,10 +131,11 @@ export async function queueCatalogueJobs(
   const skipped: { productId: string; jobType: CatalogueJobType; reason: string }[] = [];
 
   for (const productId of input.productIds) {
-    const [dna, front, colorways] = await Promise.all([
+    const [dna, front, colorways, pieces] = await Promise.all([
       approvedDna(supabase, productId),
       approvedCatalogueImage(supabase, productId, "ghost_front"),
       supabase.from("colorways").select("id").eq("product_id", productId),
+      supabase.from("product_pieces").select("position, name").eq("product_id", productId),
     ]);
     for (const jobType of input.jobTypes) {
       if (!dna) {
@@ -129,6 +145,14 @@ export async function queueCatalogueJobs(
       const options: z.infer<typeof jobOptionsSchema> = {};
       if (jobType === "macro" && input.macroDetails?.[productId]?.length) {
         options.macroDetails = input.macroDetails[productId];
+      }
+      // A robe set's front & back job renders a second front without the robe,
+      // when the named outer piece exists and there is a garment beneath it.
+      if (
+        jobType === "front_back" &&
+        layerPiecesOf(pieces.data ?? [], input.outerPiece?.[productId])
+      ) {
+        options.outerPosition = input.outerPiece![productId];
       }
       if (jobType === "colorways") {
         const available = (colorways.data ?? []).map((row) => row.id);
@@ -207,19 +231,24 @@ async function loadJobContext(
       ];
     }),
   );
+  const piecesBrief = pieces.map((piece) => ({ position: piece.position, name: piece.name }));
   return {
     job,
     product: {
       name: product.name,
       productLine: product.product_line,
       notes: product.notes,
-      pieces: pieces.map((piece) => ({ position: piece.position, name: piece.name })),
+      pieces: piecesBrief,
     },
     dna: dna.dna,
     photos: photoRefs,
     photoCaptions,
     colorways: colorwaysResult.data ?? [],
     approvedFront,
+    layers:
+      job.job_type === "front_back"
+        ? layerPiecesOf(piecesBrief, jobOptionsSchema.parse(job.options ?? {}).outerPosition)
+        : null,
     model,
     mode,
     brain: getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) }),
@@ -258,33 +287,72 @@ function macroDetails(context: JobContext): SlotPlan["detail"][] {
   return chosen;
 }
 
-/** Which outputs a job produces, with the isolated references for each. */
+/**
+ * Which outputs a job produces, with the isolated references for each. A robe
+ * set's front & back job makes three images: the set with the robe (slot
+ * "front", the one the colourways start from), the garment without the robe
+ * ("front_inner", from the photos without it), and the back.
+ */
 export function planSlots(context: JobContext): SlotPlan[] {
   const budget = Math.max(1, referenceBudget(context.model, context.mode));
   switch (context.job.job_type) {
     case "front_back": {
-      const front = viewReferences(context.photos, "front", budget);
-      const back = viewReferences(context.photos, "back", budget);
-      return [
+      const layers = context.layers;
+      // The robe's photo shows the whole set worn together, so it goes first.
+      const setOrder = layers
+        ? [layers.outerPiece.position, ...layers.innerPieces.map((piece) => piece.position)]
+        : undefined;
+      const front = viewReferences(context.photos, "front", budget, setOrder);
+      const back = viewReferences(context.photos, "back", budget, setOrder);
+      const set = (show: GhostLayers["show"], fromSetPhotos = false): GhostLayers | null =>
+        layers ? { ...layers, show, fromSetPhotos } : null;
+      const plans: SlotPlan[] = [
         {
           slot: "front",
           purpose: "ghost_front",
           view: "front",
           detail: null,
           colorway: null,
+          layers: set("set"),
           references: refs(context, front),
           missingReason: front.length === 0 ? "Upload a front photo, then regenerate." : null,
         },
-        {
-          slot: "back",
-          purpose: "ghost_back",
-          view: "back",
+      ];
+      if (layers) {
+        const own = viewReferences(
+          context.photos,
+          "front",
+          budget,
+          layers.innerPieces.map((piece) => piece.position),
+        );
+        // Without a photo of the garment alone, the set's photos serve and
+        // the prompt asks for only what shows beneath the robe.
+        const inner = own.length > 0 ? own : front;
+        plans.push({
+          slot: FRONT_INNER_SLOT,
+          purpose: "ghost_front",
+          view: "front",
           detail: null,
           colorway: null,
-          references: refs(context, back),
-          missingReason: back.length === 0 ? "Upload a back photo, then regenerate." : null,
-        },
-      ];
+          layers: set("inner", own.length === 0),
+          references: refs(context, inner),
+          missingReason:
+            inner.length === 0
+              ? `Upload a front photo without the ${layers.outerPiece.name}, then regenerate.`
+              : null,
+        });
+      }
+      plans.push({
+        slot: "back",
+        purpose: "ghost_back",
+        view: "back",
+        detail: null,
+        colorway: null,
+        layers: set("set"),
+        references: refs(context, back),
+        missingReason: back.length === 0 ? "Upload a back photo, then regenerate." : null,
+      });
+      return plans;
     }
     case "macro":
       return macroDetails(context).map((detail, index) => {
@@ -306,6 +374,7 @@ export function planSlots(context: JobContext): SlotPlan[] {
           view: "macro" as const,
           detail,
           colorway: null,
+          layers: null,
           references: refs(context, photos),
           missingReason:
             photos.length === 0 ? "Upload a detail or front photo, then regenerate." : null,
@@ -333,6 +402,7 @@ export function planSlots(context: JobContext): SlotPlan[] {
             view: "colorway" as const,
             detail: null,
             colorway,
+            layers: null,
             references,
             missingReason: front ? null : "Approve a front image first.",
           };
@@ -347,7 +417,11 @@ async function generateSlot(
   plan: SlotPlan,
   options: { note?: string | null; parentId?: string | null } = {},
 ): Promise<GenerationRow> {
-  const slotLabel = plan.detail?.label ?? plan.colorway?.name ?? null;
+  // The label names the detail, the colour, or the robe the inner front leaves out.
+  const slotLabel =
+    plan.detail?.label ??
+    plan.colorway?.name ??
+    (plan.slot === FRONT_INNER_SLOT ? (plan.layers?.outerPiece.name ?? null) : null);
   const base = {
     provider: activeProviderMode(),
     model_id: context.model.id,
@@ -390,6 +464,7 @@ async function generateSlot(
               plan.references.some((reference) => reference.path === plan.colorway?.swatch_path),
           }
         : null,
+      layers: plan.layers,
       references,
       referenceMode: wantsReferences ? "edit" : "text",
       note: options.note ?? null,

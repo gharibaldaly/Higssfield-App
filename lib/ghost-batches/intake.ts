@@ -18,6 +18,14 @@
 export const INTAKE_TAGS = ["front", "back", "detail", "colour"] as const;
 export type IntakeTag = (typeof INTAKE_TAGS)[number];
 
+/**
+ * For a robe set: whether a photo shows the set with its outer layer on
+ * ("outer": the robe, kimono or cardigan is in the photo) or the garment
+ * without it ("inner").
+ */
+export const INTAKE_LAYERS = ["outer", "inner"] as const;
+export type IntakeLayer = (typeof INTAKE_LAYERS)[number];
+
 /** Where a tag came from: a keyword, the photo order (re-sorted by the brain) or the owner. */
 export type TagSource = "name" | "order" | "manual";
 
@@ -34,12 +42,16 @@ export type IntakePhotoPlan = {
   tagSource: TagSource;
   /** Colour name read from a colour photo's file name, when there is one. */
   colourName: string | null;
+  /** Read from the file or folder name ("robe", "بدون روب"); null when nothing says. */
+  layer: IntakeLayer | null;
 };
 
 export type IntakeModelPlan = {
   key: string;
   name: string;
   photos: IntakePhotoPlan[];
+  /** A file or folder name mentions the robe: the model is offered as a robe set. */
+  robe: boolean;
 };
 
 export type IntakeGrouping = "folders" | "names" | "sequence";
@@ -108,6 +120,46 @@ export function normalizeToken(token: string): string {
 const KEYWORD_TAG = new Map<string, IntakeTag>(
   INTAKE_TAGS.flatMap((tag) => KEYWORDS[tag].map((word) => [normalizeToken(word), tag] as const)),
 );
+
+/** Words that name the outer layer of a set, in English and Arabic. */
+const OUTER_WORDS = new Set(
+  [
+    "robe",
+    "robes",
+    "kimono",
+    "gown",
+    "cardigan",
+    "jacket",
+    "روب",
+    "الروب",
+    "بالروب",
+    "كيمونو",
+    "جاكيت",
+  ].map(normalizeToken),
+);
+/** Words that say the photo shows the garment without its outer layer. */
+const INNER_WORDS = new Set(
+  ["inner", "inside", "without", "بدون", "داخلي", "الداخلي", "داخليه", "الداخليه", "بدونروب"].map(
+    normalizeToken,
+  ),
+);
+/** A negation next to the outer word ("no robe", "من غير روب") also means without. */
+const NEGATION_WORDS = new Set(["no", "sans", "بلا", "غير", "من"].map(normalizeToken));
+
+/**
+ * Whether a file or folder name says that the robe is in the photo ("DS1024
+ * robe front", "بالروب") or that the garment is shown without it ("no robe",
+ * "inner", "بدون روب", "من غير روب"). Nothing said: null.
+ */
+export function layerOfName(name: string): IntakeLayer | null {
+  const tokens = tokensOf(stemOf(name)).map(normalizeToken);
+  const outer = tokens.some((token) => OUTER_WORDS.has(token));
+  const inner =
+    tokens.some((token) => INNER_WORDS.has(token)) ||
+    (outer && tokens.some((token) => NEGATION_WORDS.has(token)));
+  if (inner) return "inner";
+  return outer ? "outer" : null;
+}
 
 /** Image extensions, repeated ones included ("IMG_5124.JPG.jpg", "IMG_5124.HEIC.jpeg"). */
 const IMAGE_EXTENSIONS = /(?:\.(?:jpe?g|png|webp|heic|heif|avif|gif|tiff?|bmp|dng))+$/i;
@@ -203,26 +255,31 @@ function colourNameOf(name: string, modelTokens: Set<string>): string | null {
   return text ? text.slice(0, 120) : null;
 }
 
+type DraftFile = {
+  file: IntakeFileInfo;
+  roleTag: IntakeTag | null;
+  /** The layer named by a folder the photo sits in ("DS-1024/بدون روب/…"). */
+  layerTag?: IntakeLayer | null;
+};
+
 type Draft = {
   key: string;
   name: string;
-  files: { file: IntakeFileInfo; roleTag: IntakeTag | null }[];
+  files: DraftFile[];
 };
 
 /** Default tags: keywords first, then front → back → details in name order. */
-export function tagPhotos(
-  files: { file: IntakeFileInfo; roleTag: IntakeTag | null }[],
-  modelName: string,
-): IntakePhotoPlan[] {
+export function tagPhotos(files: DraftFile[], modelName: string): IntakePhotoPlan[] {
   const modelTokens = new Set(tokensOf(modelName).map((token) => token.toLowerCase()));
   const sorted = [...files].sort((a, b) => naturalCompare(a.file.path, b.file.path));
-  const plans = sorted.map(({ file, roleTag }) => {
+  const plans = sorted.map(({ file, roleTag, layerTag }) => {
     const tag = tagFromText(stemOf(file.name)) ?? roleTag;
     return {
       fileId: file.id,
       tag: tag ?? ("detail" as IntakeTag),
       tagSource: (tag ? "name" : "order") as TagSource,
       colourName: tag === "colour" ? colourNameOf(file.name, modelTokens) : null,
+      layer: tag === "colour" ? null : (layerOfName(file.name) ?? layerTag ?? null),
     };
   });
   let hasFront = plans.some((plan) => plan.tag === "front");
@@ -243,11 +300,15 @@ export function tagPhotos(
 function finish(drafts: Draft[]): IntakeModelPlan[] {
   return drafts
     .filter((draft) => draft.files.length > 0)
-    .map((draft) => ({
-      key: draft.key,
-      name: draft.name.slice(0, 200),
-      photos: tagPhotos(draft.files, draft.name),
-    }));
+    .map((draft) => {
+      const photos = tagPhotos(draft.files, draft.name);
+      return {
+        key: draft.key,
+        name: draft.name.slice(0, 200),
+        photos,
+        robe: photos.some((photo) => photo.layer !== null),
+      };
+    });
 }
 
 function groupBySequence(
@@ -330,12 +391,22 @@ function roleOfFolders(folders: string[]): IntakeTag | null {
   return folders.map((folder) => tagFromText(folder)).find((tag) => tag !== null) ?? null;
 }
 
+/** The layer named by the first layer folder in a path ("DS-1024/بدون روب/…" → inner). */
+function layerOfFolders(folders: string[]): IntakeLayer | null {
+  return folders.map((folder) => layerOfName(folder)).find((layer) => layer !== null) ?? null;
+}
+
 /**
- * A folder that only says which view its photos show ("أمام", "Back", "colours"),
- * never a model: no digits and more than one letter, so "B1" stays a model.
+ * A folder that only says which view or layer its photos show ("أمام", "Back",
+ * "colours", "بدون روب"), never a model: no digits and more than one letter,
+ * so "B1" stays a model.
  */
 function isRoleFolder(name: string): boolean {
-  return tagFromText(name) !== null && !/\d/.test(name) && normalizeToken(name).length > 1;
+  return (
+    (tagFromText(name) !== null || layerOfName(name) !== null) &&
+    !/\d/.test(name) &&
+    normalizeToken(name).length > 1
+  );
 }
 
 /**
@@ -356,16 +427,18 @@ export function planIntake(
   const above = parts[0]!.slice(0, root).reverse();
   const nameIndex = above.findIndex((folder) => !isRoleFolder(folder));
   const nameFolder = nameIndex >= 0 ? above[nameIndex] : undefined;
-  const aboveRole = roleOfFolders(above.slice(0, nameIndex >= 0 ? nameIndex : above.length));
+  const roleFolders = above.slice(0, nameIndex >= 0 ? nameIndex : above.length);
+  const aboveRole = roleOfFolders(roleFolders);
+  const aboveLayer = layerOfFolders(roleFolders);
   if (!inFolders) {
     const { drafts, grouping } = groupByNames(files, perModel);
     // One folder holding one model's photos: the folder names the model.
-    if (drafts.length === 1 && grouping === "sequence" && (nameFolder || aboveRole)) {
+    if (drafts.length === 1 && grouping === "sequence" && (nameFolder || aboveRole || aboveLayer)) {
       const draft = drafts[0]!;
       drafts[0] = {
         key: nameFolder ? `folder-${nameFolder}` : draft.key,
         name: nameFolder ?? draft.name,
-        files: draft.files.map(({ file }) => ({ file, roleTag: aboveRole })),
+        files: draft.files.map(({ file }) => ({ file, roleTag: aboveRole, layerTag: aboveLayer })),
       };
       return { models: finish(drafts), grouping: "folders" };
     }
@@ -380,6 +453,7 @@ export function planIntake(
       files: files.map((file, index) => ({
         file,
         roleTag: roleOfFolders(parts[index]!.slice(root, -1)) ?? aboveRole,
+        layerTag: layerOfFolders(parts[index]!.slice(root, -1)) ?? aboveLayer,
       })),
     };
     return { models: finish([draft]), grouping: "folders" };
@@ -395,12 +469,13 @@ export function planIntake(
     }
     const modelFolder = segments[0]!;
     const roleTag = roleOfFolders(segments.slice(1, -1));
+    const layerTag = layerOfFolders(segments.slice(1, -1));
     const draft = byFolder.get(modelFolder) ?? {
       key: `folder-${modelFolder}`,
       name: modelFolder,
       files: [],
     };
-    draft.files.push({ file, roleTag });
+    draft.files.push({ file, roleTag, layerTag });
     byFolder.set(modelFolder, draft);
   });
   const folders = [...byFolder.values()].sort((a, b) => naturalCompare(a.name, b.name));

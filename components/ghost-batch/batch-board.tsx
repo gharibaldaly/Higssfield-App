@@ -196,6 +196,9 @@ export function BatchBoard({
 
   function slotTitle(entry: QueueEntry): string {
     const { slot, slotLabel } = entry.output;
+    // A robe set: the front with the robe, and the one without it.
+    if (slot === "front" && entry.item.outerPosition) return tSlots("slots.frontSet");
+    if (slot === "front_inner") return tSlots("slots.front_inner");
     if (slot === "front" || slot === "back") return tSlots(`slots.${slot}`);
     if (slot.startsWith("macro")) {
       return slotLabel ? tSlots("macroNamed", { label: slotLabel }) : tSlots(`slots.macro_1`);

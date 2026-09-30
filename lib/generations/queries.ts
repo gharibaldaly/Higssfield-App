@@ -7,6 +7,11 @@ import type { GenerationRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
 /** Latest owner-approved catalogue image of a view for a product, if any. */
+/**
+ * The approved catalogue front or back of a product. A robe set's second
+ * front (slot "front_inner", the garment without the robe) never counts: the
+ * colourways and the sheet always start from the front with the robe.
+ */
 export async function approvedCatalogueImage(
   supabase: TypedSupabaseClient,
   productId: string,
@@ -17,6 +22,7 @@ export async function approvedCatalogueImage(
     .select("*")
     .eq("product_id", productId)
     .eq("purpose", purpose)
+    .eq("slot", purpose === "ghost_front" ? "front" : "back")
     .eq("review_status", "approved")
     .not("storage_path", "is", null)
     .order("approved_at", { ascending: false })

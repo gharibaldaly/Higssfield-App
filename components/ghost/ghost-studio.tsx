@@ -14,7 +14,7 @@ import { ModelPicker } from "@/components/generation/model-picker";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { useSequentialRunner } from "@/components/generation/use-sequential-runner";
 import { JobCard } from "@/components/ghost/job-card";
-import { ProductChecklist } from "@/components/ghost/product-checklist";
+import { effectiveOuterPiece, ProductChecklist } from "@/components/ghost/product-checklist";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +54,7 @@ export function GhostStudio({
   const [selected, setSelected] = useState<string[]>(products[0] ? [products[0].id] : []);
   const [macroDetails, setMacroDetails] = useState<Record<string, string[]>>({});
   const [colorwayIds, setColorwayIds] = useState<Record<string, string[]>>({});
+  const [outerPiece, setOuterPiece] = useState<Record<string, number>>({});
   const [modelId, setModelId] = useState<string | null>(defaultModelId);
   const [pending, startTransition] = useTransition();
 
@@ -100,6 +101,12 @@ export function GhostStudio({
   const selectedProducts = products.filter((product) => selected.includes(product.id));
 
   function queueJobs() {
+    // Robe sets: the piece each front & back job renders a second front without.
+    const outerPieces = Object.fromEntries(
+      selectedProducts
+        .map((product) => [product.id, effectiveOuterPiece(product, outerPiece)] as const)
+        .filter(([, position]) => position > 0),
+    );
     startTransition(async () => {
       const result = await queueCatalogueJobsAction({
         jobTypes: [jobType],
@@ -107,6 +114,8 @@ export function GhostStudio({
         modelId,
         macroDetails: jobType === "macro" ? macroDetails : undefined,
         colorwayIds: jobType === "colorways" ? colorwayIds : undefined,
+        outerPiece:
+          jobType === "front_back" && Object.keys(outerPieces).length > 0 ? outerPieces : undefined,
       });
       if (!result.ok) {
         toast.error(result.error);
@@ -192,6 +201,8 @@ export function GhostStudio({
               onMacroDetailsChange={setMacroDetails}
               colorwayIds={colorwayIds}
               onColorwayIdsChange={setColorwayIds}
+              outerPiece={outerPiece}
+              onOuterPieceChange={setOuterPiece}
             />
 
             <ModelPicker

@@ -40,11 +40,25 @@ export const createGhostBatchSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(200),
         productLine: z.enum(PRODUCT_LINES),
+        /**
+         * A robe set: the model gets a second piece for the robe, a second
+         * front without it, and its colours from the front with it.
+         */
+        robe: z.boolean().default(false),
       }),
     )
     .min(1)
     .max(MAX_MODELS_PER_BATCH),
 });
+
+/** The name of the piece a robe set's outer layer becomes (it appears in prompts and captions). */
+export const ROBE_PIECE_NAME = "Robe";
+/** The robe piece's position: the garment is piece 1, the robe piece 2. */
+export const ROBE_PIECE_POSITION = 2;
+
+/** Which layer of a robe set a photo shows; "auto": the director brain decides after upload. */
+export const PHOTO_LAYERS = ["inner", "outer", "auto"] as const;
+export type PhotoLayer = (typeof PHOTO_LAYERS)[number];
 
 export type CreateGhostBatchInput = z.infer<typeof createGhostBatchSchema>;
 
@@ -62,6 +76,8 @@ export const registerItemPhotosSchema = z.object({
         ...uploadedFile,
         kind: z.enum(PHOTO_KINDS),
         tagSource: z.enum(["name", "order", "manual"]),
+        /** For a robe set: the photo shows the set with the robe ("outer") or the garment alone ("inner"). */
+        layer: z.enum(PHOTO_LAYERS).default("inner"),
         width: z.number().int().positive().optional(),
         height: z.number().int().positive().optional(),
       }),
@@ -84,6 +100,10 @@ export const itemMetaSchema = z.object({
   attempts: z.number().int().min(0).default(0),
   dnaIssues: z.array(z.string()).default([]),
   failedUploads: z.number().int().min(0).default(0),
+  /** A robe set: the position of the robe's piece (the front & back job adds a front without it). */
+  outerPosition: z.number().int().min(1).max(3).nullable().default(null),
+  /** Photos nobody said which layer they show; the director brain sorts them onto their piece. */
+  autoLayer: z.array(z.string()).default([]),
 });
 
 export type ItemMeta = z.infer<typeof itemMetaSchema>;
@@ -92,7 +112,15 @@ export function parseItemMeta(value: unknown): ItemMeta {
   const parsed = itemMetaSchema.safeParse(value ?? {});
   return parsed.success
     ? parsed.data
-    : { autoTagged: [], classified: false, attempts: 0, dnaIssues: [], failedUploads: 0 };
+    : {
+        autoTagged: [],
+        classified: false,
+        attempts: 0,
+        dnaIssues: [],
+        failedUploads: 0,
+        outerPosition: null,
+        autoLayer: [],
+      };
 }
 
 /** What the background runner reports after each step (shown in the studio chip). */

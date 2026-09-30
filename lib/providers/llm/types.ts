@@ -50,6 +50,24 @@ export type SheetPlanInput = {
 
 export type GhostView = "front" | "back" | "macro" | "colorway";
 
+export type GhostPiece = { position: number; name: string };
+
+/**
+ * A robe set: an outer layer (a robe, kimono or cardigan) worn over the
+ * garment. `show` says what this image renders: the full set worn together,
+ * or the inner pieces alone without the outer layer.
+ */
+export type GhostLayers = {
+  outerPiece: GhostPiece;
+  innerPieces: GhostPiece[];
+  show: "set" | "inner";
+  /**
+   * The inner image has no photo of its own: its references show the set with
+   * the outer layer on, and only the garment beneath is to be rendered.
+   */
+  fromSetPhotos: boolean;
+};
+
 export type GhostPromptInput = {
   product: ProductBrief;
   dna: GarmentDna;
@@ -59,6 +77,8 @@ export type GhostPromptInput = {
   detail: { label: string; description: string; pieceName: string } | null;
   /** `swatch`: the image model also receives a photo of the fabric in this colour. */
   colorway: { name: string; hex: string; swatch?: boolean } | null;
+  /** Set for a robe set's front and back images; null for everything else. */
+  layers?: GhostLayers | null;
   /** The isolated references for this image; the brain looks at them while writing. */
   references: LlmImage[];
   /** "edit": the image model receives the references too; "text": it only gets the prompt. */
@@ -70,6 +90,8 @@ export type GhostPromptInput = {
 export type ClassifyPhotosInput = {
   product: ProductBrief;
   photos: LlmImage[];
+  /** The name of the set's outer layer piece, when the model is a robe set. */
+  outerLayer?: string | null;
 };
 
 export type BuiltPrompt = {

@@ -560,7 +560,7 @@
       "front_back": {
         "short": "Front & back",
         "title": "Front & Back — exactly 2 images",
-        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos."
+        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos. A set with a robe can add a front without it."
       },
       "macro": {
         "short": "Macro",
@@ -588,6 +588,9 @@
       "macroDetails": "Details to feature",
       "macroHint": "Pick up to two. Default: the two highest-ranked selling details.",
       "colorways": "Colourways to render",
+      "outerPiece": "Second front without",
+      "outerPieceHint": "For a set with a robe or another outer layer: an extra front image of the garment without this piece. The colourways always start from the front with it.",
+      "outerNone": "None (one front)",
       "issues": {
         "needDna": "Approve the Garment DNA first",
         "needFront": "Approve a front image first",
@@ -626,6 +629,9 @@
     "retry": "Retry",
     "slots": {
       "front": "Front",
+      "frontSet": "Front · full set",
+      "frontInner": "Front · without {label}",
+      "frontInnerPlain": "Front · without the outer layer",
       "back": "Back",
       "macro": "Macro",
       "macroNamed": "Macro · {label}",
@@ -669,7 +675,7 @@
       "drop": "Drop one model's photos here",
       "dropActive": "Release to add the photos",
       "reading": "Reading the folders…",
-      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest.",
+      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest. For a model that comes with a robe, switch on “Robe set” on it: you get a front with the robe and one without.",
       "chooseFolder": "Choose a folder",
       "choosePhotos": "Choose photos",
       "rejected": "{count, plural, one {# file was skipped} other {# files were skipped}}: only JPEG, PNG or WebP up to 25 MB. Export HEIC photos as JPEG.",
@@ -695,6 +701,14 @@
       "autoHint": "Guessed from the order; the director brain checks it after upload",
       "colourName": "Colour name",
       "colourDefault": "Colour {number}",
+      "robe": "Robe set",
+      "robeHint": "The model comes with a robe: two fronts, with the robe and without it, and the colours come from the front with the robe. Mark which photos have the robe in them; the director brain sorts the rest after upload.",
+      "layers": {
+        "outer": "With robe",
+        "inner": "Without robe",
+        "auto": "Robe: auto"
+      },
+      "layerAutoHint": "The director brain decides after upload whether the robe is in this photo",
       "photoMenu": "Photo options",
       "modelMenu": "Model options",
       "moveUp": "Move to the previous model",
@@ -810,6 +824,8 @@
       "uploadGap": "{count, plural, one {# photo} other {# photos}} did not upload",
       "slots": {
         "front": "Front",
+        "front_inner": "Front · without robe",
+        "frontSet": "Front · with robe",
         "back": "Back",
         "macro_1": "Close-up 1",
         "macro_2": "Close-up 2"
@@ -1283,6 +1299,8 @@
       "downloadOne": "Download this image",
       "slots": {
         "front": "Front",
+        "frontInner": "Front · without {label}",
+        "frontInnerPlain": "Front · without the outer layer",
         "back": "Back",
         "closeup": "Close-up {n}",
         "closeupNamed": "Close-up {n} · {label}",

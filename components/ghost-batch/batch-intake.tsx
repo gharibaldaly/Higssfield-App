@@ -49,6 +49,7 @@ import type { CatalogueStyle } from "@/lib/domain/catalogue-style";
 import { PRODUCT_LINES, type ProductLine } from "@/lib/domain/product";
 import {
   DEFAULT_PHOTOS_PER_MODEL,
+  INTAKE_LAYERS,
   INTAKE_TAGS,
   MAX_COLOUR_PHOTOS_PER_MODEL,
   MAX_GARMENT_PHOTOS_PER_MODEL,
@@ -59,6 +60,7 @@ import {
   type PhotosPerModel,
   type TagSource,
 } from "@/lib/ghost-batches/intake";
+import type { PhotoLayer } from "@/lib/ghost-batches/schemas";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 import { cn } from "@/lib/utils";
 
@@ -69,12 +71,17 @@ type PhotoDraft = {
   tag: IntakeTag;
   tagSource: TagSource;
   colourName: string;
+  /** For a robe set: the robe is in the photo, or the garment is shown without it. */
+  layer: PhotoLayer;
+  layerSource: "name" | "auto" | "manual";
 };
 
 type ModelDraft = {
   key: string;
   name: string;
   productLine: ProductLine;
+  /** A robe set: two fronts (with and without the robe); colours from the one with it. */
+  robe: boolean;
   photos: PhotoDraft[];
 };
 
@@ -91,6 +98,12 @@ const TAG_STYLE: Record<IntakeTag, string> = {
   back: "bg-secondary text-secondary-foreground",
   detail: "bg-muted text-foreground",
   colour: "bg-[#ffb8cb] text-[#2a0714]",
+};
+
+const LAYER_STYLE: Record<PhotoLayer, string> = {
+  outer: "border-primary text-foreground",
+  inner: "border-border-strong text-foreground",
+  auto: "border-dashed border-border-strong text-muted-foreground",
 };
 
 const UPLOAD_ATTEMPTS = 3;
@@ -146,7 +159,11 @@ function mergeDrop(
       (candidate) => candidate.name.toLowerCase() === model.name.toLowerCase(),
     );
     if (index >= 0 && grouping !== "sequence") {
-      merged[index] = { ...merged[index]!, photos: [...merged[index]!.photos, ...model.photos] };
+      merged[index] = {
+        ...merged[index]!,
+        robe: merged[index]!.robe || model.robe,
+        photos: [...merged[index]!.photos, ...model.photos],
+      };
     } else {
       merged.push(model);
     }
@@ -245,6 +262,7 @@ export function BatchIntake({
           ? t("sequenceName", { number: startNumber + index + 1 })
           : model.name,
         productLine: line,
+        robe: model.robe,
         photos: model.photos.map((photo) => ({
           fileId: photo.fileId,
           tag: photo.tag,
@@ -253,6 +271,8 @@ export function BatchIntake({
             photo.tag === "colour"
               ? (photo.colourName ?? t("colourDefault", { number: (colourNumber += 1) }))
               : "",
+          layer: photo.layer ?? "auto",
+          layerSource: photo.layer ? "name" : "auto",
         })),
       };
     });
@@ -342,7 +362,12 @@ export function BatchIntake({
         ...model,
         photos: model.photos.map((photo) => {
           const before = kept.get(photo.fileId);
-          return before?.tagSource === "manual" ? before : photo;
+          const kept_ = before?.tagSource === "manual" ? { ...before } : { ...photo };
+          if (before?.layerSource === "manual") {
+            kept_.layer = before.layer;
+            kept_.layerSource = "manual";
+          }
+          return kept_;
         }),
       })),
     );
@@ -388,6 +413,10 @@ export function BatchIntake({
     });
   }
 
+  function setLayer(modelIndex: number, fileId: string, layer: PhotoLayer) {
+    updatePhoto(modelIndex, fileId, { layer, layerSource: layer === "auto" ? "auto" : "manual" });
+  }
+
   function movePhoto(modelIndex: number, fileId: string, direction: -1 | 1) {
     setDrafts((current) => {
       const target = modelIndex + direction;
@@ -424,6 +453,7 @@ export function BatchIntake({
         key: `split-${crypto.randomUUID()}`,
         name: t("sequenceName", { number }),
         productLine: source.productLine,
+        robe: source.robe,
         photos: [photo],
       });
       return next;
@@ -491,7 +521,11 @@ export function BatchIntake({
       name: name.trim(),
       modelId: modelId ?? "unused",
       options: { dnaCheck, fidelityCheck: fidelity },
-      models: drafts.map((model) => ({ name: model.name.trim(), productLine: model.productLine })),
+      models: drafts.map((model) => ({
+        name: model.name.trim(),
+        productLine: model.productLine,
+        robe: model.robe,
+      })),
     });
     if (!created.ok) {
       toast.error(created.error);
@@ -541,6 +575,8 @@ export function BatchIntake({
             sizeBytes: file.size,
             kind: photo.tag as "front" | "back" | "detail",
             tagSource: photo.tagSource,
+            // Only a robe set keeps its layers apart.
+            layer: model.robe ? photo.layer : "inner",
           })),
         swatches: succeeded
           .filter(({ photo }) => photo.tag === "colour")
@@ -770,6 +806,17 @@ export function BatchIntake({
                           ))}
                         </SelectContent>
                       </Select>
+                      <label className="flex items-center gap-2 text-xs" title={t("robeHint")}>
+                        <Switch
+                          checked={model.robe}
+                          onCheckedChange={(checked) =>
+                            updateModel(modelIndex, { robe: checked === true })
+                          }
+                          disabled={Boolean(upload)}
+                          aria-label={t("robe")}
+                        />
+                        <span className="font-medium">{t("robe")}</span>
+                      </label>
                       {garment.length === 0 ? (
                         <Badge variant="danger">{t("noGarment")}</Badge>
                       ) : garment.length > MAX_GARMENT_PHOTOS_PER_MODEL ? (
@@ -810,9 +857,13 @@ export function BatchIntake({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                    {model.robe ? (
+                      <p className="mt-2 text-xs text-muted-foreground">{t("robeHint")}</p>
+                    ) : null}
                     <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
                       {[...model.photos].sort(byTag).map((photo) => {
                         const local = files.get(photo.fileId);
+                        const layered = model.robe && photo.tag !== "colour";
                         return (
                           <li key={photo.fileId} className="flex w-24 shrink-0 flex-col gap-1.5">
                             <div className="relative aspect-[4/5] overflow-hidden rounded-[10px] stage">
@@ -860,6 +911,28 @@ export function BatchIntake({
                                     {t(`tags.${tag}`)}
                                   </DropdownMenuItem>
                                 ))}
+                                {layered ? (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    {[...INTAKE_LAYERS, "auto" as const].map((layer) => (
+                                      <DropdownMenuItem
+                                        key={layer}
+                                        onSelect={() => setLayer(modelIndex, photo.fileId, layer)}
+                                      >
+                                        <span
+                                          aria-hidden
+                                          className={cn(
+                                            "size-2.5 rounded-full border",
+                                            photo.layer === layer
+                                              ? "border-primary bg-primary"
+                                              : "border-border-strong",
+                                          )}
+                                        />
+                                        {t(`layers.${layer}`)}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </>
+                                ) : null}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   disabled={modelIndex === 0}
@@ -887,6 +960,17 @@ export function BatchIntake({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            {layered ? (
+                              <span
+                                className={cn(
+                                  "flex h-6 items-center justify-center rounded-full border px-2 text-[11px] font-medium",
+                                  LAYER_STYLE[photo.layer],
+                                )}
+                                title={photo.layer === "auto" ? t("layerAutoHint") : undefined}
+                              >
+                                <span className="truncate">{t(`layers.${photo.layer}`)}</span>
+                              </span>
+                            ) : null}
                             {photo.tag === "colour" ? (
                               <Input
                                 value={photo.colourName}

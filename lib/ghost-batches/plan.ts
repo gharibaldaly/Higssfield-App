@@ -62,9 +62,20 @@ export function colorwayIdsOf(options: unknown): string[] {
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
 }
 
+/** The outer-layer piece a front & back job renders a second front without (a robe set). */
+export function outerPositionOf(options: unknown): number | null {
+  if (!options || typeof options !== "object" || Array.isArray(options)) return null;
+  const position = (options as { outerPosition?: unknown }).outerPosition;
+  return typeof position === "number" && Number.isInteger(position) && position > 0
+    ? position
+    : null;
+}
+
 /** Images a job sends to the provider. */
 export function slotsOf(job: SnapshotJob): number {
   if (job.job_type === "colorways") return Math.max(1, colorwayIdsOf(job.options).length);
+  // A robe set's front & back job adds the front without the robe.
+  if (job.job_type === "front_back" && outerPositionOf(job.options)) return 3;
   return 2;
 }
 

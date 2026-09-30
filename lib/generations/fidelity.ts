@@ -4,15 +4,16 @@ import { colourwayBrief } from "@/lib/colorways/words";
 import { approvedDna } from "@/lib/dna/service";
 import type { GarmentDna } from "@/lib/domain/garment-dna";
 import type { FidelityReview } from "@/lib/domain/fidelity";
-import type { GenerationPurpose } from "@/lib/domain/generation";
+import { slotLabelOf, type GenerationPurpose } from "@/lib/domain/generation";
 import { AppError } from "@/lib/errors";
 import { getGeneration } from "@/lib/generations/queries";
 import { toLlmImage } from "@/lib/images/process";
+import { pieceNoun } from "@/lib/prompts/house-style";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
 import { downloadObject } from "@/lib/storage/objects";
-import type { Json } from "@/lib/supabase/database.types";
+import type { GenerationRow, Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
 const CONTEXT: Record<GenerationPurpose, string> = {
@@ -26,6 +27,22 @@ const CONTEXT: Record<GenerationPurpose, string> = {
   shot_video: "Video ad shot (reviewing its first frame).",
   other: "Generated product image.",
 };
+
+/**
+ * What an image is checked against. A robe set's second front (slot
+ * "front_inner") shows the garment without its robe on purpose, so the robe's
+ * absence is never an issue, while any trace of it is.
+ */
+export function fidelityContext(
+  generation: Pick<GenerationRow, "purpose" | "slot" | "params">,
+): string {
+  if (generation.purpose === "ghost_front" && generation.slot === "front_inner") {
+    const name = slotLabelOf(generation.params) ?? "outer layer";
+    const outer = pieceNoun(name) || "outer layer";
+    return `Ghost-mannequin FRONT view of the inner garment ONLY, without its outer layer (the "${name}"), for the Shopify catalogue. The ${outer} is left out on purpose: its absence is never an issue, and any part of it in the result is a major issue. Compare the inner garment with the reference photos; where a reference shows the ${outer} worn over it, judge only the garment beneath.`;
+  }
+  return CONTEXT[generation.purpose];
+}
 
 /**
  * What a colourway is checked against: the requested colour in plain words,
@@ -94,7 +111,7 @@ export async function reviewGenerationFidelity(
   const brain = getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) });
   const review = await brain.reviewFidelity({
     dna: dna.dna,
-    context: colorway ? colourwayContext(colorway, dna.dna) : CONTEXT[generation.purpose],
+    context: colorway ? colourwayContext(colorway, dna.dna) : fidelityContext(generation),
     originals,
     result,
   });

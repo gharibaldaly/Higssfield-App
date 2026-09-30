@@ -7,7 +7,8 @@ import {
   ghostNegatives,
   type GhostParagraphInput,
 } from "@/lib/prompts/house-style";
-import { ghostV3, STYLE_EXAMPLES } from "@/lib/prompts/v3/ghost";
+import { ghostV3, layersBrief, STYLE_EXAMPLES } from "@/lib/prompts/v3/ghost";
+import type { GhostLayers } from "@/lib/providers/llm/types";
 import { findForbiddenWords, neutralizeWording } from "@/lib/prompts/wording";
 import { ROBE_SET_DNA } from "@/tests/fixtures/dna";
 
@@ -219,7 +220,7 @@ describe("composeGhostParagraph (the house system in the owner's prompt style)",
 
 describe("ghost v3 template", () => {
   it("carries the owner's reference prompts as style examples, in neutral wording", () => {
-    expect(ghostV3.version).toBe("3.1.0");
+    expect(ghostV3.version).toBe("3.2.0");
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.front);
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.back);
     expect(findForbiddenWords(ghostV3.system)).toEqual([]);
@@ -249,5 +250,107 @@ describe("ghost v3 template", () => {
     );
     expect(text).toContain("Mode: TEXT");
     expect(text).toContain("Owner note on the previous attempt: make the belt loops visible");
+  });
+});
+
+describe("robe sets (a second front without the robe)", () => {
+  const LAYERS: GhostLayers = {
+    outerPiece: { position: 1, name: "Robe" },
+    innerPieces: [{ position: 2, name: "Slip dress" }],
+    show: "set",
+    fromSetPhotos: false,
+  };
+
+  it("keeps the robe worn over the garment in the set's front and back", () => {
+    const front = composeGhostParagraph({ ...base, view: "front", layers: LAYERS });
+    expect(front).toContain(
+      "of the exact blush pink women's straight kimono robe with scalloped lace collar, the robe worn over the slip dress exactly as in the reference, displayed on an invisible display form",
+    );
+    const back = composeGhostParagraph({ ...base, view: "back", layers: LAYERS });
+    expect(back).toContain(
+      "the robe worn over the slip dress exactly as in the reference shown from the rear",
+    );
+    expect(ghostNegatives(base.style, "front", LAYERS)).toContain(
+      "the robe stays worn over the slip dress: never removed, never shown on its own, the slip dress never shown without it",
+    );
+  });
+
+  it("shows the garment alone in the inner front, framed like the set's front", () => {
+    const inner: GhostLayers = { ...LAYERS, show: "inner" };
+    const text = composeGhostParagraph({
+      ...base,
+      view: "front",
+      layers: inner,
+      scene: {
+        ...SCENE,
+        garment: "women's bias-cut satin slip dress",
+        construction: ["V neckline edged with lace"],
+      },
+    });
+    expect(text).toContain(
+      "of the exact blush pink women's bias-cut satin slip dress shown on its own without the robe, displayed on an invisible display form",
+    );
+    expect(text).toContain(
+      "front-facing centred composition, framed, scaled and lit like the front image of the full set with the robe",
+    );
+    expect(text).not.toContain("worn over");
+    expect(ghostNegatives(base.style, "front", inner)).toContain(
+      "no robe and no other outer layer over the slip dress: the slip dress is shown on its own, nothing of the robe anywhere in the image",
+    );
+  });
+
+  it("falls back to the inner piece's DNA, and leaves the robe out of the set's photos", () => {
+    const text = composeGhostParagraph({
+      ...base,
+      view: "front",
+      layers: { ...LAYERS, show: "inner", fromSetPhotos: true },
+      scene: { ...SCENE, garment: "", colour: "", construction: [], cleanUp: ["the hanger"] },
+    });
+    // The slip dress's silhouette, colour and front steps, never the robe's.
+    expect(text).toContain(
+      "of the exact blush bias-cut slip shown on its own without the robe (the reference photos show it under the robe: reproduce only the garment beneath, exactly as seen, and nothing of the robe), displayed on",
+    );
+    expect(text).toContain(
+      "proportions: neckline: V neckline edged with lace, chest panel: lace panel, unlined, and all original seams",
+    );
+    expect(text).not.toContain("shawl collar");
+    expect(text).toContain(
+      "Leave out from the reference photos: the robe and every part of it, the hanger;",
+    );
+  });
+
+  it("briefs the brain on what the image shows of the set", () => {
+    const inner = layersBrief({ ...LAYERS, show: "inner", fromSetPhotos: true }, "front");
+    expect(inner).toContain(
+      'Robe set: piece 1 "Robe" is an outer layer worn over the slip dress (piece 2 "Slip dress"). This image shows the slip dress ALONE, WITHOUT the robe.',
+    );
+    expect(inner).toContain("put the robe in cleanUp");
+    const set = layersBrief(LAYERS, "back");
+    expect(set).toContain(
+      "This image shows the FULL SET worn together, the robe over the slip dress, as the reference photos with the robe show.",
+    );
+    const rendered = ghostV3.render({
+      product: {
+        name: "Robe set",
+        productLine: "SECRET",
+        notes: null,
+        pieces: [
+          { position: 1, name: "Robe" },
+          { position: 2, name: "Slip dress" },
+        ],
+      },
+      dna: ROBE_SET_DNA,
+      view: "front",
+      style: DEFAULT_CATALOGUE_STYLE,
+      detail: null,
+      colorway: null,
+      layers: { ...LAYERS, show: "inner" },
+      references: [],
+      referenceMode: "text",
+      note: null,
+      promptBudget: 6000,
+    });
+    expect(rendered).toContain("This image shows the slip dress ALONE, WITHOUT the robe.");
+    expect(findForbiddenWords(rendered)).toEqual([]);
   });
 });

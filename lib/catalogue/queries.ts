@@ -2,7 +2,8 @@ import "server-only";
 
 import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
 import { garmentDnaSchema, sellingDetails } from "@/lib/domain/garment-dna";
-import type { GenerationView } from "@/lib/domain/generation";
+import { slotLabelOf, type GenerationView } from "@/lib/domain/generation";
+import { outerPositionOf } from "@/lib/ghost-batches/plan";
 import { latestBySlot } from "@/lib/generations/side-effects";
 import { toViews } from "@/lib/generations/queries";
 import { signPaths } from "@/lib/storage/objects";
@@ -17,6 +18,8 @@ export type GhostProduct = {
   hasFront: boolean;
   colorways: { id: string; name: string; hex: string }[];
   details: string[];
+  /** The product's pieces, so a set can name the one worn as an outer layer. */
+  pieces: { position: number; name: string }[];
 };
 
 export type GhostOutput = {
@@ -37,17 +40,21 @@ export type GhostJob = {
   error: string | null;
   createdAt: string;
   background: string;
+  /** A robe set's job: it also renders the front without the robe. */
+  innerFront: boolean;
   outputs: GhostOutput[];
 };
 
-function slotLabelOf(row: GenerationRow): string | null {
-  const params = row.params as { _meta?: { slotLabel?: unknown } } | null;
-  const label = params?._meta?.slotLabel;
-  return typeof label === "string" ? label : null;
-}
-
 const SLOT_ORDER = (slot: string) =>
-  slot === "front" ? 0 : slot === "back" ? 1 : slot.startsWith("macro") ? 2 : 3;
+  slot === "front"
+    ? 0
+    : slot === "front_inner"
+      ? 1
+      : slot === "back"
+        ? 2
+        : slot.startsWith("macro")
+          ? 3
+          : 4;
 
 /** Latest output per slot of one job's generations, in catalogue order. */
 export function outputsFor(
@@ -62,7 +69,7 @@ export function outputsFor(
   );
   return latest.map((row) => ({
     slot: row.slot ?? row.id,
-    slotLabel: slotLabelOf(row),
+    slotLabel: slotLabelOf(row.params),
     generation: views.get(row.id)!,
     beforeUrl: row.reference_paths[0] ? (beforeUrls.get(row.reference_paths[0]) ?? null) : null,
     attempts: jobGenerations.filter((candidate) => candidate.slot === row.slot).length,
@@ -73,20 +80,23 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
   products: GhostProduct[];
   jobs: GhostJob[];
 }> {
-  const [products, dnaRows, fronts, colorways, jobs] = await Promise.all([
+  const [products, dnaRows, fronts, colorways, jobs, pieces] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, product_line, approved_dna_id")
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
     supabase.from("garment_dna").select("product_id, data").eq("status", "approved"),
+    // The front with the robe on; a robe set's inner front never starts colours.
     supabase
       .from("generations")
       .select("product_id")
       .eq("purpose", "ghost_front")
+      .eq("slot", "front")
       .eq("review_status", "approved"),
     supabase.from("colorways").select("id, product_id, name, hex").order("position"),
     supabase.from("catalogue_jobs").select("*").order("created_at", { ascending: false }).limit(40),
+    supabase.from("product_pieces").select("product_id, position, name").order("position"),
   ]);
 
   const dnaByProduct = new Map<string, string[]>();
@@ -111,6 +121,9 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
       .filter((colorway) => colorway.product_id === product.id)
       .map((colorway) => ({ id: colorway.id, name: colorway.name, hex: colorway.hex })),
     details: dnaByProduct.get(product.id) ?? [],
+    pieces: (pieces.data ?? [])
+      .filter((piece) => piece.product_id === product.id)
+      .map((piece) => ({ position: piece.position, name: piece.name })),
   }));
 
   const jobRows = jobs.data ?? [];
@@ -141,6 +154,7 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
         typeof style?.background === "string"
           ? style.background
           : DEFAULT_CATALOGUE_STYLE.background,
+      innerFront: job.job_type === "front_back" && outerPositionOf(job.options) !== null,
       outputs: outputsFor(jobGenerations, views, beforeUrls),
     };
   });

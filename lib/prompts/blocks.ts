@@ -202,6 +202,8 @@ export function buildProductLock(
     piecePositions?: number[];
     detail?: LockDetail;
     colorOverride?: ColorOverride | null;
+    /** false: the pieces render on their own, so how the set is worn is left out. */
+    set?: boolean;
   } = {},
 ): string {
   const view = options.view ?? "all";
@@ -211,7 +213,7 @@ export function buildProductLock(
     ? dna.pieces.filter((piece) => options.piecePositions!.includes(piece.position))
     : dna.pieces;
   const lines = ["PRODUCT LOCK — reproduce this exact garment. Do not redesign anything."];
-  if (dna.pieces.length > 1 && dna.setComposition.trim()) {
+  if (options.set !== false && dna.pieces.length > 1 && dna.setComposition.trim()) {
     lines.push(`• Set: ${dna.setComposition.trim()}`);
   }
   for (const piece of pieces) lines.push(...describePiece(piece, view, detail, colorOverride));
@@ -312,6 +314,8 @@ export type ComposeOptions = {
   dna: GarmentDna;
   view?: LockView;
   piecePositions?: number[];
+  /** false: the locked pieces render on their own, without the set's composition line. */
+  set?: boolean;
   style?: string | null;
   extraNegatives?: string[];
   colorOverride?: ColorOverride | null;
@@ -336,6 +340,7 @@ export function composeGenerationPrompt(options: ComposeOptions): string {
     const lock = buildProductLock(options.dna, {
       view: options.view,
       piecePositions: options.piecePositions,
+      set: options.set,
       detail,
       colorOverride: options.colorOverride,
     });

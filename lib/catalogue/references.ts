@@ -36,18 +36,26 @@ function byPiece(photos: PhotoRef[]): PhotoRef[] {
   return [...photos].sort((a, b) => a.piecePosition - b.piecePosition);
 }
 
-/** One photo of the given kind per piece (piece order), up to `max`. */
+/**
+ * One photo of the given kind per piece, up to `max`. With `piecePositions`,
+ * only those pieces and in that order (a robe set puts the robe's photo, which
+ * shows the whole set, before the inner piece's); otherwise in piece order.
+ */
 export function viewReferences(
   photos: PhotoRef[],
   kind: "front" | "back",
   max: number,
   piecePositions?: number[],
 ): PhotoRef[] {
+  const ordered = piecePositions
+    ? piecePositions.flatMap((position) =>
+        photos.filter((photo) => photo.piecePosition === position),
+      )
+    : byPiece(photos);
   const seen = new Set<string>();
   const result: PhotoRef[] = [];
-  for (const photo of byPiece(photos)) {
+  for (const photo of ordered) {
     if (photo.kind !== kind || seen.has(photo.pieceId)) continue;
-    if (piecePositions && !piecePositions.includes(photo.piecePosition)) continue;
     seen.add(photo.pieceId);
     result.push(photo);
     if (result.length >= max) break;

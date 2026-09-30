@@ -23,6 +23,13 @@ describe("outputFileName", () => {
     );
   });
 
+  it("names a robe set's second front after the piece it leaves out", () => {
+    expect(outputFileName(named("front_inner", "Robe"))).toBe(
+      "B20133/B20133-front-without-Robe.png",
+    );
+    expect(outputFileName(named("front_inner"))).toBe("B20133/B20133-front-inner.png");
+  });
+
   it("names the other purposes by what they are", () => {
     expect(outputFileName({ ...named("x", null, "product_sheet"), mimeType: "image/jpeg" })).toBe(
       "B20133/B20133-sheet.jpg",

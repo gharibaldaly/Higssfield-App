@@ -89,6 +89,14 @@ export type GenerationView = {
   waitingReason: WaitReason | null;
 };
 
+/** The slot's label stored with a catalogue output: the detail, the colour, or a robe set's outer piece. */
+export function slotLabelOf(params: GenerationRow["params"]): string | null {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return null;
+  const meta = params._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  return typeof meta.slotLabel === "string" ? meta.slotLabel : null;
+}
+
 /** Reads the finishing report stored with a catalogue result (see finishCatalogueImage). */
 export function finishBackgroundOk(params: GenerationRow["params"]): boolean | null {
   if (!params || typeof params !== "object" || Array.isArray(params)) return null;

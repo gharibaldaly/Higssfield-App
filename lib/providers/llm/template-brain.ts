@@ -219,6 +219,9 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   async buildGhostPrompt(input: GhostPromptInput): Promise<BuiltPrompt> {
     const scene = await this.askGhostScene(input);
+    const layers = input.layers ?? null;
+    // A robe set's inner image locks only the inner pieces, without the set line.
+    const innerOnly = layers?.show === "inner";
     // The house system writes the prompt; the brain's answer fills its garment slots.
     const paragraph = composeGhostParagraph({
       view: input.view,
@@ -234,17 +237,24 @@ export abstract class TemplateBrain implements DirectorBrain {
             swatch: Boolean(input.colorway.swatch),
           }
         : null,
+      layers,
     });
     const sceneText = input.colorway ? sayColourInWords(paragraph, input.colorway) : paragraph;
     const detailPiece = input.detail
       ? input.dna.pieces.find((piece) => piece.pieceName === input.detail?.pieceName)
       : undefined;
+    const piecePositions = innerOnly
+      ? layers.innerPieces.map((piece) => piece.position)
+      : detailPiece
+        ? [detailPiece.position]
+        : undefined;
     const prompt = composeGenerationPrompt({
       scene: sceneText,
       dna: input.dna,
       view: GHOST_LOCK_VIEW[input.view],
-      piecePositions: detailPiece ? [detailPiece.position] : undefined,
-      extraNegatives: [...ghostNegatives(input.style, input.view), ...scene.extraNegatives],
+      piecePositions,
+      set: !innerOnly,
+      extraNegatives: [...ghostNegatives(input.style, input.view, layers), ...scene.extraNegatives],
       colorOverride: input.colorway,
       maxChars: input.promptBudget,
     });

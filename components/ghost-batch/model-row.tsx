@@ -40,6 +40,8 @@ import type { BatchItemView, BatchPhase } from "@/lib/ghost-batches/queries";
 import { cn } from "@/lib/utils";
 
 const STAGE_SLOTS = ["front", "back", "macro_1", "macro_2"] as const;
+/** A robe set adds the front without the robe between the two fronts and the back. */
+const ROBE_STAGE_SLOTS = ["front", "front_inner", "back", "macro_1", "macro_2"] as const;
 
 const PHASE_VARIANT: Record<BatchPhase, "muted" | "accent" | "warning" | "success" | "danger"> = {
   uploading: "muted",
@@ -316,13 +318,20 @@ export function ModelRow({
           {item.failedUploads > 0 ? (
             <p className="text-xs text-warning">{t("uploadGap", { count: item.failedUploads })}</p>
           ) : null}
-          <ul className="grid max-w-[44rem] grid-cols-2 gap-3 sm:grid-cols-4">
-            {STAGE_SLOTS.map((slot) => {
+          <ul
+            className={cn(
+              "grid max-w-[44rem] grid-cols-2 gap-3",
+              item.outerPosition ? "sm:grid-cols-5" : "sm:grid-cols-4",
+            )}
+          >
+            {(item.outerPosition ? ROBE_STAGE_SLOTS : STAGE_SLOTS).map((slot) => {
               const output = item.outputs.find((candidate) => candidate.slot === slot) ?? null;
               const label =
                 slot.startsWith("macro") && output?.slotLabel
                   ? t("macroNamed", { label: output.slotLabel })
-                  : t(`slots.${slot}`);
+                  : slot === "front" && item.outerPosition
+                    ? t("slots.frontSet")
+                    : t(`slots.${slot}`);
               return (
                 <OutputTile
                   key={slot}

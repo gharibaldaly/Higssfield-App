@@ -3,7 +3,7 @@ import type { CatalogueStyle } from "@/lib/domain/catalogue-style";
 import type { GarmentDna } from "@/lib/domain/garment-dna";
 import type { ProductLine } from "@/lib/domain/product";
 import { colourDistance, hexToRgb } from "@/lib/images/framing";
-import type { GhostScenePrompt, GhostView } from "@/lib/providers/llm/types";
+import type { GhostLayers, GhostScenePrompt, GhostView } from "@/lib/providers/llm/types";
 
 /**
  * The catalogue's house system: every ghost prompt is assembled here, by
@@ -23,6 +23,8 @@ export type GhostParagraphInput = {
   detail: { label: string } | null;
   /** A colourway's requested colour, in words, and whether its swatch photo is attached. */
   colourway: (ColourwayBrief & { swatch: boolean }) | null;
+  /** A robe set's front or back: the full set, or the inner garment without the robe. */
+  layers?: GhostLayers | null;
 };
 
 const PHOTOGRAPHY: Record<ProductLine, string> = {
@@ -93,23 +95,45 @@ function cleanList(items: string[], max: number): string[] {
   return out;
 }
 
-/** The first named colour of the first piece: the garment's main colour, as the DNA has it. */
-export function mainColourOf(dna: GarmentDna): OriginalColour | null {
+/**
+ * The first named colour of the first piece (or of the first of the given
+ * pieces): the garment's main colour, as the DNA has it.
+ */
+export function mainColourOf(dna: GarmentDna, positions?: number[]): OriginalColour | null {
   const colour = dna.pieces
+    .filter((piece) => !positions || positions.includes(piece.position))
     .flatMap((piece) => piece.colors)
     .find((candidate) => candidate.name.trim() && candidate.hexRange.length > 0);
   return colour ? { name: colour.name.trim(), hex: colour.hexRange[0]! } : null;
 }
 
 /** When the brain leaves the construction empty: the DNA's own steps for the view. */
-function constructionFromDna(dna: GarmentDna, view: GhostView): string[] {
-  return dna.pieces.flatMap((piece) =>
-    (view === "back" ? piece.backConstruction : piece.frontConstruction)
-      .filter((step) => step.detail.trim())
-      .map((step) =>
-        step.zone.trim() ? `${step.zone.trim()}: ${step.detail.trim()}` : step.detail,
-      ),
-  );
+function constructionFromDna(dna: GarmentDna, view: GhostView, positions?: number[]): string[] {
+  return dna.pieces
+    .filter((piece) => !positions || positions.includes(piece.position))
+    .flatMap((piece) =>
+      (view === "back" ? piece.backConstruction : piece.frontConstruction)
+        .filter((step) => step.detail.trim())
+        .map((step) =>
+          step.zone.trim() ? `${step.zone.trim()}: ${step.detail.trim()}` : step.detail,
+        ),
+    );
+}
+
+/**
+ * A piece's name as a noun inside a sentence: an English name loses its
+ * capital ("Slip dress" → "slip dress"); codes and Arabic names stay as they are.
+ */
+export function pieceNoun(name: string): string {
+  return name.trim().replace(/^[A-Z](?=[a-z])/, (letter) => letter.toLowerCase());
+}
+
+/** "the slip dress" or "the slip dress and the shorts": the inner pieces of a robe set. */
+export function innerPiecesPhrase(layers: Pick<GhostLayers, "innerPieces">): string {
+  const names = layers.innerPieces.map((piece) => pieceNoun(piece.name)).filter(Boolean);
+  if (names.length === 0) return "the garment";
+  if (names.length === 1) return `the ${names[0]}`;
+  return `the ${names.slice(0, -1).join(", the ")} and the ${names[names.length - 1]}`;
 }
 
 /**
@@ -121,12 +145,19 @@ function constructionFromDna(dna: GarmentDna, view: GhostView): string[] {
  */
 export function composeGhostParagraph(input: GhostParagraphInput): string {
   const { view, scene, dna, style, referenceMode } = input;
+  const layers = input.layers ?? null;
+  const inner = layers?.show === "inner" ? layers : null;
+  // The inner image describes the inner pieces only; its DNA fallbacks come from them.
+  const innerPositions = inner?.innerPieces.map((piece) => piece.position);
+  const fallbackPiece = innerPositions
+    ? (dna.pieces.find((piece) => innerPositions.includes(piece.position)) ?? dna.pieces[0])
+    : dna.pieces[0];
   const garment =
     scene.garment.trim().replace(/[.;,\s]+$/, "") ||
-    dna.pieces[0]?.silhouette.trim() ||
-    dna.pieces[0]?.category.trim() ||
+    fallbackPiece?.silhouette.trim() ||
+    fallbackPiece?.category.trim() ||
     "garment";
-  const main = mainColourOf(dna);
+  const main = mainColourOf(dna, innerPositions);
   const colour = input.colourway
     ? input.colourway.words
     : scene.colour.trim().replace(/[.;,\s]+$/, "") ||
@@ -135,12 +166,24 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
   const accurate = colour ? `accurate ${colour} colour` : "accurate colour";
   const construction = cleanList(scene.construction, 10);
   const items =
-    construction.length > 0 ? construction : cleanList(constructionFromDna(dna, view), 10);
+    construction.length > 0
+      ? construction
+      : cleanList(constructionFromDna(dna, view, innerPositions), 10);
   const list = items.length > 0 ? `${items.join(", ")}, ${SEAMS}` : SEAMS.replace(/^and /, "");
   const photography = PHOTOGRAPHY[input.productLine];
   const light = lightingPhrase(style);
   const background = backgroundPhrase(style);
-  const cleanUp = referenceMode === "edit" ? cleanList(scene.cleanUp, 5) : [];
+  const outer = (layers && pieceNoun(layers.outerPiece.name)) || "outer layer";
+  // The set's photos serve the inner image: the robe in them must be left out.
+  const cleanUp =
+    referenceMode === "edit"
+      ? cleanList(
+          inner?.fromSetPhotos
+            ? [`the ${outer} and every part of it`, ...scene.cleanUp]
+            : scene.cleanUp,
+          5,
+        )
+      : [];
   const leaveOut =
     cleanUp.length > 0
       ? ` Leave out from the reference photos: ${cleanUp.join(", ")}; every designed gather, pleat, ruche and drape fold stays exactly as made.`
@@ -199,14 +242,27 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
     );
   }
 
+  // A robe set: the full set worn together, or the inner garment on its own.
+  const worn =
+    layers?.show === "set"
+      ? `, the ${outer} worn over ${innerPiecesPhrase(layers)} exactly as in the ${referenceMode === "edit" ? "reference" : "set as specified"}`
+      : inner
+        ? ` shown on its own without the ${outer}${
+            inner.fromSetPhotos
+              ? ` (the reference photos show it under the ${outer}: reproduce only the garment beneath, exactly as seen, and nothing of the ${outer})`
+              : ""
+          }`
+        : "";
   const opening =
     view === "back"
-      ? `${source} a premium ultra-realistic e-commerce fashion photograph of the exact ${named} shown from the rear, ${DISPLAY}, accurately reconstructing and preserving the original back construction: ${list}; preserve the exact colour, fabric texture, strap width, stitching style and construction details ${referenceMode === "edit" ? "from the reference" : "as specified"}`
-      : `${source} a premium ultra-realistic e-commerce fashion photograph of the exact ${named}, ${DISPLAY}, preserving the exact original garment construction and proportions: ${list}`;
+      ? `${source} a premium ultra-realistic e-commerce fashion photograph of the exact ${named}${worn} shown from the rear, ${DISPLAY}, accurately reconstructing and preserving the original back construction: ${list}; preserve the exact colour, fabric texture, strap width, stitching style and construction details ${referenceMode === "edit" ? "from the reference" : "as specified"}`
+      : `${source} a premium ultra-realistic e-commerce fashion photograph of the exact ${named}${worn}, ${DISPLAY}, preserving the exact original garment construction and proportions: ${list}`;
   const composition =
     view === "back"
       ? "rear-facing centred composition with the same framing, scale and light as the front image"
-      : "front-facing centred composition";
+      : inner
+        ? `front-facing centred composition, framed, scaled and lit like the front image of the full set with the ${outer}`
+        : "front-facing centred composition";
   return (
     `${opening}${view === "back" ? ", " : "; "}` +
     [
@@ -228,7 +284,11 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
 }
 
 /** Ghost-only additions to the shared STRICT NEGATIVES. */
-export function ghostNegatives(style: CatalogueStyle, view: GhostView): string[] {
+export function ghostNegatives(
+  style: CatalogueStyle,
+  view: GhostView,
+  layers: GhostLayers | null = null,
+): string[] {
   const items = [
     "no hanger, hook, clip, peg or pin anywhere in the image",
     "no room, wall, bed, floor, furniture, props or reflections",
@@ -242,6 +302,15 @@ export function ghostNegatives(style: CatalogueStyle, view: GhostView): string[]
   items.push(
     "no crumpled, twisted or drooping bows, ribbons, ties or charms, and no change to their size, shape, position or count",
   );
+  if (layers) {
+    const outer = pieceNoun(layers.outerPiece.name) || "outer layer";
+    const inner = innerPiecesPhrase(layers);
+    items.push(
+      layers.show === "inner"
+        ? `no ${outer} and no other outer layer over ${inner}: ${inner} is shown on its own, nothing of the ${outer} anywhere in the image`
+        : `the ${outer} stays worn over ${inner}: never removed, never shown on its own, ${inner} never shown without it`,
+    );
+  }
   return items;
 }
 

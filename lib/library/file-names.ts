@@ -24,6 +24,8 @@ export function safeFileName(text: string, fallback: string): string {
 
 function viewName({ slot, slotLabel, purpose }: NamedOutput): string {
   if (slot === "front") return "front";
+  // A robe set's second front, without its outer layer (the label names it).
+  if (slot === "front_inner") return slotLabel ? `front-without-${slotLabel}` : "front-inner";
   if (slot === "back") return "back";
   const macro = /^macro_(\d+)$/.exec(slot);
   if (macro) return slotLabel ? `closeup-${macro[1]}-${slotLabel}` : `closeup-${macro[1]}`;

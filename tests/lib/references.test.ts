@@ -58,6 +58,12 @@ describe("viewReferences", () => {
   it("filters by piece", () => {
     expect(ids(viewReferences(PHOTOS, "front", 3, [2]))).toEqual(["slip-front"]);
   });
+
+  it("follows the given piece order, so a robe set's photo of the whole set comes first", () => {
+    expect(ids(viewReferences(PHOTOS, "front", 3, [2, 1]))).toEqual(["slip-front", "robe-front"]);
+    expect(ids(viewReferences(PHOTOS, "front", 1, [2, 1]))).toEqual(["slip-front"]);
+    expect(ids(viewReferences(PHOTOS, "back", 3, [2, 1]))).toEqual(["robe-back"]);
+  });
 });
 
 describe("detailReferences", () => {

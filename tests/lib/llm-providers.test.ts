@@ -192,17 +192,55 @@ describe("TemplateBrain", () => {
       "collar: shawl collar faced with scalloped lace, 6 cm wide, waist: self-fabric belt through 2 side loops, hem: scalloped lace band 8 cm, and all original seams and panel divisions;",
     );
     expect(built.prompt).toContain("no hanger, hook, clip, peg or pin anywhere in the image");
-    expect(built.promptVersion).toBe("ghost@3.1.0");
+    expect(built.promptVersion).toBe("ghost@3.2.0");
+  });
+
+  it("locks only the inner pieces of a robe set's second front, without the set line", async () => {
+    const brain = new ScriptedBrain([
+      {
+        garment: "bias-cut slip dress",
+        colour: "blush pink",
+        construction: ["V neckline edged with lace"],
+        cleanUp: [],
+        extraNegatives: [],
+        rationale: "",
+      },
+    ]);
+    const built = await brain.buildGhostPrompt({
+      ...ghostInput,
+      product: {
+        ...ghostInput.product,
+        pieces: [
+          { position: 1, name: "Robe" },
+          { position: 2, name: "Slip dress" },
+        ],
+      },
+      dna: ROBE_SET_DNA,
+      layers: {
+        outerPiece: { position: 1, name: "Robe" },
+        innerPieces: [{ position: 2, name: "Slip dress" }],
+        show: "inner",
+        fromSetPhotos: false,
+      },
+    });
+    expect(brain.requests[0]?.user).toContain(
+      "This image shows the slip dress ALONE, WITHOUT the robe.",
+    );
+    expect(built.scene).toContain("shown on its own without the robe");
+    expect(built.prompt).toContain('Piece 2 "Slip dress"');
+    expect(built.prompt).not.toContain('Piece 1 "Robe"');
+    expect(built.prompt).not.toContain("Set: Robe worn open over the slip dress");
+    expect(built.prompt).toContain("no robe and no other outer layer over the slip dress");
   });
 
   it("keeps one in-range answer per photo when sorting views", async () => {
     const brain = new ScriptedBrain([
       {
         photos: [
-          { index: 2, view: "back", label: "back", clarity: 4 },
-          { index: 2, view: "front", label: "dup", clarity: 5 },
-          { index: 7, view: "detail", label: "out of range", clarity: 3 },
-          { index: 1, view: "front", label: "front", clarity: 5 },
+          { index: 2, view: "back", label: "back", clarity: 4, showsOuterLayer: null },
+          { index: 2, view: "front", label: "dup", clarity: 5, showsOuterLayer: null },
+          { index: 7, view: "detail", label: "out of range", clarity: 3, showsOuterLayer: null },
+          { index: 1, view: "front", label: "front", clarity: 5, showsOuterLayer: null },
         ],
       },
     ]);

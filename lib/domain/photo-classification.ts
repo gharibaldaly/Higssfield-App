@@ -13,6 +13,12 @@ export const photoClassificationSchema = z.object({
         .min(1)
         .max(5)
         .describe("5 = sharp, evenly lit, whole view, uncluttered; 1 = blurred or hidden"),
+      showsOuterLayer: z
+        .boolean()
+        .nullable()
+        .describe(
+          "For a robe set: true when the outer layer piece is in the photo, false when the photo shows the garment without it; null when the model has no outer layer",
+        ),
     }),
   ),
 });

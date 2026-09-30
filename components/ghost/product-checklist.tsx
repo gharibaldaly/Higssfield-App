@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { guessOuterPiece } from "@/lib/catalogue/layers";
 import type { GhostProduct } from "@/lib/catalogue/queries";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,17 @@ function readiness(product: GhostProduct, jobType: JobType): Issue | null {
   return null;
 }
 
+/**
+ * The outer-layer piece a front & back job renders a second front without:
+ * the owner's choice, else the piece whose name reads as a robe; 0 = none.
+ */
+export function effectiveOuterPiece(
+  product: Pick<GhostProduct, "id" | "pieces">,
+  outerPiece: Record<string, number>,
+): number {
+  return outerPiece[product.id] ?? guessOuterPiece(product.pieces) ?? 0;
+}
+
 export function ProductChecklist({
   products,
   jobType,
@@ -35,6 +47,8 @@ export function ProductChecklist({
   onMacroDetailsChange,
   colorwayIds,
   onColorwayIdsChange,
+  outerPiece,
+  onOuterPieceChange,
 }: {
   products: GhostProduct[];
   jobType: JobType;
@@ -45,9 +59,13 @@ export function ProductChecklist({
   onMacroDetailsChange: (value: Record<string, string[]>) => void;
   colorwayIds: Record<string, string[]>;
   onColorwayIdsChange: (value: Record<string, string[]>) => void;
+  /** productId → position of the piece to leave out in the extra front (0 = none). */
+  outerPiece: Record<string, number>;
+  onOuterPieceChange: (value: Record<string, number>) => void;
 }) {
   const t = useTranslations("ghost.products");
   const single = products.find((product) => product.id === selected[0]) ?? null;
+  const layered = (product: GhostProduct) => jobType === "front_back" && product.pieces.length >= 2;
 
   if (mode === "single") {
     const issue = single ? readiness(single, jobType) : null;
@@ -76,6 +94,14 @@ export function ProductChecklist({
             </p>
           ) : null}
         </div>
+        {single && layered(single) ? (
+          <OuterPieceChooser
+            product={single}
+            value={effectiveOuterPiece(single, outerPiece)}
+            onChange={(position) => onOuterPieceChange({ ...outerPiece, [single.id]: position })}
+            withHint
+          />
+        ) : null}
         {single && jobType === "macro" && single.details.length > 0 ? (
           <DetailChooser
             product={single}
@@ -148,11 +174,59 @@ export function ProductChecklist({
                 </span>
                 {!issue ? <Check className="size-4 text-success" aria-hidden /> : null}
               </label>
+              {checked && !issue && layered(product) ? (
+                <div className="ps-9 pb-2">
+                  <OuterPieceChooser
+                    product={product}
+                    value={effectiveOuterPiece(product, outerPiece)}
+                    onChange={(position) =>
+                      onOuterPieceChange({ ...outerPiece, [product.id]: position })
+                    }
+                  />
+                </div>
+              ) : null}
             </li>
           );
         })}
       </ul>
     </fieldset>
+  );
+}
+
+/** A robe set: which piece the extra front leaves out (none for one front only). */
+function OuterPieceChooser({
+  product,
+  value,
+  onChange,
+  withHint = false,
+}: {
+  product: GhostProduct;
+  value: number;
+  onChange: (position: number) => void;
+  withHint?: boolean;
+}) {
+  const t = useTranslations("ghost.products");
+  const id = `outer-piece-${product.id}`;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-medium">
+        {t("outerPiece")}
+      </label>
+      <Select value={String(value)} onValueChange={(next) => onChange(Number(next))}>
+        <SelectTrigger id={id} className="h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="0">{t("outerNone")}</SelectItem>
+          {product.pieces.map((piece) => (
+            <SelectItem key={piece.position} value={String(piece.position)}>
+              {piece.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {withHint ? <p className="text-xs text-muted-foreground">{t("outerPieceHint")}</p> : null}
+    </div>
   );
 }
 

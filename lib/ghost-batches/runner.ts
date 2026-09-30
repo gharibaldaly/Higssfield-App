@@ -89,11 +89,13 @@ async function loadSnapshot(
       .in("status", ["queued", "in_progress"])
       .order("created_at")
       .limit(60),
+    // The front with the robe on; a robe set's inner front never starts colours.
     supabase
       .from("generations")
       .select("product_id")
       .in("product_id", productIds)
       .eq("purpose", "ghost_front")
+      .eq("slot", "front")
       .eq("review_status", "approved"),
     batch.colours_requested_at
       ? supabase.from("colorways").select("id, product_id").in("product_id", productIds)
@@ -169,7 +171,8 @@ const KIND_ORDER = { front: 0, back: 1, detail: 2 } as const;
 /**
  * Lets the director brain sort photos whose view only came from their order,
  * labels every photo, and puts the clearest photo of each view first (it is
- * the one sent as the reference).
+ * the one sent as the reference). In a robe set it also says which unlabelled
+ * photos show the robe, and those move onto the robe's piece.
  */
 async function classifyItemPhotos(
   supabase: TypedSupabaseClient,
@@ -177,23 +180,39 @@ async function classifyItemPhotos(
   item: GhostBatchItemRow,
   meta: ItemMeta,
 ): Promise<void> {
-  const [{ data: photos }, { data: product }, settings] = await Promise.all([
+  const [{ data: photos }, { data: product }, { data: pieces }, settings] = await Promise.all([
     supabase
       .from("source_photos")
-      .select("id, kind, label, storage_path, position")
+      .select("id, kind, label, storage_path, position, piece_id")
       .eq("product_id", item.product_id)
       .order("position"),
     supabase.from("products").select("name, product_line").eq("id", item.product_id).single(),
+    supabase
+      .from("product_pieces")
+      .select("id, position, name")
+      .eq("product_id", item.product_id)
+      .order("position"),
     getOwnerSettings(supabase, ownerId),
   ]);
   const list = (photos ?? []).slice(0, 16);
   if (list.length === 0 || !product) return;
+  const outerPiece = meta.outerPosition
+    ? (pieces?.find((piece) => piece.position === meta.outerPosition) ?? null)
+    : null;
+  const innerPiece = pieces?.find((piece) => piece.position !== outerPiece?.position) ?? null;
   const auto = new Set(meta.autoTagged);
+  const autoLayer = new Set(outerPiece && innerPiece ? meta.autoLayer : []);
   const images: LlmImage[] = await Promise.all(
     list.map(async (photo, index) =>
       toLlmImage(
         await downloadObject(supabase, photo.storage_path),
-        `Photo ${index + 1}${auto.has(photo.id) ? "" : ` (the owner tagged it "${photo.kind}")`}`,
+        `Photo ${index + 1}${auto.has(photo.id) ? "" : ` (the owner tagged it "${photo.kind}")`}${
+          outerPiece && !autoLayer.has(photo.id)
+            ? photo.piece_id === outerPiece.id
+              ? ` (the owner says the ${outerPiece.name} is in it)`
+              : ` (the owner says it shows the garment without the ${outerPiece.name})`
+            : ""
+        }`,
         { longEdge: 1024 },
       ),
     ),
@@ -204,9 +223,12 @@ async function classifyItemPhotos(
       name: product.name,
       productLine: product.product_line,
       notes: null,
-      pieces: [{ position: 1, name: product.name }],
+      pieces: pieces?.length
+        ? pieces.map((piece) => ({ position: piece.position, name: piece.name }))
+        : [{ position: 1, name: product.name }],
     },
     photos: images,
+    outerLayer: outerPiece?.name ?? null,
   });
   const byIndex = new Map(result.photos.map((entry) => [entry.index, entry]));
   const updated = list.map((photo, index) => {
@@ -215,7 +237,17 @@ async function classifyItemPhotos(
     const label =
       photo.label ??
       (entry ? (entry.view === "other" ? `other: ${entry.label}` : entry.label) : null);
-    return { ...photo, kind, label, clarity: entry?.clarity ?? 3, index };
+    // An unlabelled photo of a robe set lands on the piece the brain saw in it.
+    const pieceId =
+      autoLayer.has(photo.id) &&
+      outerPiece &&
+      innerPiece &&
+      typeof entry?.showsOuterLayer === "boolean"
+        ? entry.showsOuterLayer
+          ? outerPiece.id
+          : innerPiece.id
+        : photo.piece_id;
+    return { ...photo, kind, label, pieceId, clarity: entry?.clarity ?? 3, index };
   });
   updated.sort(
     (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || b.clarity - a.clarity || a.index - b.index,
@@ -224,23 +256,37 @@ async function classifyItemPhotos(
     updated.map((photo, position) =>
       supabase
         .from("source_photos")
-        .update({ kind: photo.kind, label: photo.label?.slice(0, 200) ?? null, position })
+        .update({
+          kind: photo.kind,
+          label: photo.label?.slice(0, 200) ?? null,
+          position,
+          piece_id: photo.pieceId,
+        })
         .eq("id", photo.id),
     ),
   );
 }
 
-/** Queues a model's front & back and close-up jobs with the batch's model and style. */
+/**
+ * Queues a model's front & back and close-up jobs with the batch's model and
+ * style. A robe set's front & back job also renders the front without the robe.
+ */
 async function queueStageOne(
   supabase: TypedSupabaseClient,
   ownerId: string,
   batch: GhostBatchRow,
   item: GhostBatchItemRow,
 ): Promise<string | null> {
+  const outerPosition = parseItemMeta(item.meta).outerPosition;
   const { jobs, skipped } = await queueCatalogueJobs(
     supabase,
     ownerId,
-    { jobTypes: [...STAGE_ONE], productIds: [item.product_id], modelId: batch.model_id },
+    {
+      jobTypes: [...STAGE_ONE],
+      productIds: [item.product_id],
+      modelId: batch.model_id,
+      outerPiece: outerPosition ? { [item.product_id]: outerPosition } : undefined,
+    },
     { batchId: batch.id, style: parseCatalogueStyle(batch.style) },
   );
   if (jobs.length === 0) return skipped[0]?.reason ?? "Nothing could be queued for this model.";

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isCameraName,
+  layerOfName,
   modelKeyOfName,
   normalizeToken,
   planIntake,
@@ -240,5 +241,59 @@ describe("planIntake", () => {
 
   it("returns nothing for an empty drop", () => {
     expect(planIntake([]).models).toEqual([]);
+  });
+});
+
+describe("robe sets", () => {
+  it("reads which layer a name shows, in English and Arabic", () => {
+    expect(layerOfName("DS1024 robe front.jpg")).toBe("outer");
+    expect(layerOfName("بالروب.jpg")).toBe("outer");
+    expect(layerOfName("kimono2.jpg")).toBe("outer");
+    expect(layerOfName("DS1024 no robe.jpg")).toBe("inner");
+    expect(layerOfName("without robe front.jpg")).toBe("inner");
+    expect(layerOfName("بدون روب.jpg")).toBe("inner");
+    expect(layerOfName("من غير روب.jpg")).toBe("inner");
+    expect(layerOfName("inner front.jpg")).toBe("inner");
+    expect(layerOfName("IMG_2231.jpg")).toBeNull();
+    expect(layerOfName("DS1024 front.jpg")).toBeNull();
+    // A negation says nothing on its own.
+    expect(layerOfName("No.5 front.jpg")).toBeNull();
+  });
+
+  it("offers a drop as a robe set when a name mentions the robe, and tags each photo's layer", () => {
+    const plan = planIntake(
+      files([
+        "B20124 robe front.jpg",
+        "B20124 front no robe.jpg",
+        "B20124 back.jpg",
+        "B20124 lace detail.jpg",
+      ]),
+    );
+    expect(plan.models).toHaveLength(1);
+    expect(plan.models[0]!.robe).toBe(true);
+    expect(plan.models[0]!.photos.map((photo) => `${photo.tag}:${photo.layer ?? "-"}`)).toEqual([
+      "back:-",
+      "front:inner",
+      "detail:-",
+      "front:outer",
+    ]);
+    const plain = planIntake(files(["IMG_1.jpg", "IMG_2.jpg"]));
+    expect(plain.models[0]!.robe).toBe(false);
+    expect(plain.models[0]!.photos.every((photo) => photo.layer === null)).toBe(true);
+  });
+
+  it("reads layer folders inside a model folder, which never split the model", () => {
+    const plan = planIntake(
+      files([
+        "Batch/DS-1024/بالروب/IMG_1.jpg",
+        "Batch/DS-1024/بدون روب/IMG_2.jpg",
+        "Batch/DS-1024/خلف/IMG_3.jpg",
+      ]),
+    );
+    expect(plan.models).toHaveLength(1);
+    expect(plan.models[0]!.name).toBe("DS-1024");
+    expect(plan.models[0]!.robe).toBe(true);
+    expect(plan.models[0]!.photos.map((photo) => photo.layer)).toEqual(["outer", "inner", null]);
+    expect(plan.models[0]!.photos[2]!.tag).toBe("back");
   });
 });

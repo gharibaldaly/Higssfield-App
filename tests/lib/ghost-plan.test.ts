@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  outerPositionOf,
   planNextStep,
   slotsOf,
   type BatchSnapshot,
@@ -224,5 +225,22 @@ describe("planNextStep", () => {
   it("counts a colour job's images", () => {
     expect(slotsOf(job("c", 0, "colorways", "queued", { colorwayIds: ["a", "b", "c"] }))).toBe(3);
     expect(slotsOf(job("f", 0, "front_back", "queued"))).toBe(2);
+  });
+});
+
+describe("slotsOf", () => {
+  it("counts a robe set's second front", () => {
+    expect(slotsOf(job("f", 0, "front_back", "queued"))).toBe(2);
+    expect(slotsOf(job("f", 0, "front_back", "queued", { outerPosition: 2 }))).toBe(3);
+    expect(slotsOf(job("m", 0, "macro", "queued", { outerPosition: 2 }))).toBe(2);
+    expect(slotsOf(job("c", 0, "colorways", "queued", { colorwayIds: ["a", "b"] }))).toBe(2);
+  });
+
+  it("reads the outer piece's position only when it is a whole number", () => {
+    expect(outerPositionOf({ outerPosition: 2 })).toBe(2);
+    expect(outerPositionOf({ outerPosition: "2" })).toBeNull();
+    expect(outerPositionOf({ outerPosition: 0 })).toBeNull();
+    expect(outerPositionOf({})).toBeNull();
+    expect(outerPositionOf(null)).toBeNull();
   });
 });

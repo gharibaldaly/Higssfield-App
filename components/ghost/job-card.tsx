@@ -50,7 +50,12 @@ export function JobCard({
   const [reviewing, setReviewing] = useState<GhostOutput | null>(null);
 
   function slotTitle(output: GhostOutput): string {
-    if (output.slot === "front") return t("slots.front");
+    if (output.slot === "front") return job.innerFront ? t("slots.frontSet") : t("slots.front");
+    // A robe set's second front, without its outer layer (the label names it).
+    if (output.slot === "front_inner")
+      return output.slotLabel
+        ? t("slots.frontInner", { label: output.slotLabel })
+        : t("slots.frontInnerPlain");
     if (output.slot === "back") return t("slots.back");
     if (output.slot.startsWith("macro"))
       return output.slotLabel
@@ -116,9 +121,12 @@ export function JobCard({
       ) : null}
       {job.outputs.length === 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: job.jobType === "colorways" ? 3 : 2 }, (_, index) => (
-            <div key={index} className="aspect-[4/5] shimmer rounded-[14px] stage" />
-          ))}
+          {Array.from(
+            { length: job.jobType === "colorways" ? 3 : job.innerFront ? 3 : 2 },
+            (_, index) => (
+              <div key={index} className="aspect-[4/5] shimmer rounded-[14px] stage" />
+            ),
+          )}
         </div>
       ) : (
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

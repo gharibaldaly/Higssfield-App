@@ -166,6 +166,10 @@ function OutputTile({ output, view }: { output: CollectionOutput; view: Generati
   const label = (() => {
     const { slot, slotLabel } = output;
     if (slot === "front" || slot === "back") return t(`slots.${slot}`);
+    // A robe set's second front, without its outer layer (the label names it).
+    if (slot === "front_inner") {
+      return slotLabel ? t("slots.frontInner", { label: slotLabel }) : t("slots.frontInnerPlain");
+    }
     const macro = /^macro_(\d+)$/.exec(slot);
     if (macro) {
       return slotLabel

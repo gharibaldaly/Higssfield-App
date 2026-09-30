@@ -142,7 +142,10 @@ export class MockBrain extends TemplateBrain {
     };
   }
 
-  /** Photos in upload order: first front, second back, the rest details. */
+  /**
+   * Photos in upload order: first front, second back, the rest details. In a
+   * robe set, the first photo is the one with the robe on.
+   */
   protected override async askPhotoViews(input: ClassifyPhotosInput): Promise<PhotoClassification> {
     return {
       photos: input.photos.map((photo, index) => ({
@@ -150,13 +153,22 @@ export class MockBrain extends TemplateBrain {
         view: index === 0 ? "front" : index === 1 ? "back" : "detail",
         label: index === 0 ? "full front" : index === 1 ? "full back" : `detail ${index - 1}`,
         clarity: 3,
+        showsOuterLayer: input.outerLayer ? index === 0 : null,
       })),
     };
   }
 
   protected override async askGhostScene(input: GhostPromptInput): Promise<GhostScenePrompt> {
-    // The garment slots of the house prompt, straight from the DNA.
-    const piece = input.dna.pieces[0];
+    // The garment slots of the house prompt, straight from the DNA (a robe
+    // set's inner image describes its first inner piece).
+    const innerPositions =
+      input.layers?.show === "inner"
+        ? input.layers.innerPieces.map((candidate) => candidate.position)
+        : null;
+    const piece =
+      (innerPositions
+        ? input.dna.pieces.find((candidate) => innerPositions.includes(candidate.position))
+        : undefined) ?? input.dna.pieces[0];
     const steps = input.view === "back" ? piece?.backConstruction : piece?.frontConstruction;
     const main = piece?.colors.find((colour) => colour.name.trim() && colour.hexRange.length > 0);
     return {

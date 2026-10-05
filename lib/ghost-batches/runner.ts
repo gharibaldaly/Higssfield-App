@@ -172,7 +172,8 @@ const KIND_ORDER = { front: 0, back: 1, detail: 2 } as const;
  * Lets the director brain sort photos whose view only came from their order,
  * labels every photo, and puts the clearest photo of each view first (it is
  * the one sent as the reference). In a robe set it also says which unlabelled
- * photos show the robe, and those move onto the robe's piece.
+ * photos show the robe, and in a pyjama set which show the bottoms on their
+ * own; those move onto their piece.
  */
 async function classifyItemPhotos(
   supabase: TypedSupabaseClient,
@@ -199,20 +200,30 @@ async function classifyItemPhotos(
   const outerPiece = meta.outerPosition
     ? (pieces?.find((piece) => piece.position === meta.outerPosition) ?? null)
     : null;
-  const innerPiece = pieces?.find((piece) => piece.position !== outerPiece?.position) ?? null;
+  const bottomsPiece = meta.bottomsPosition
+    ? (pieces?.find((piece) => piece.position === meta.bottomsPosition) ?? null)
+    : null;
+  const innerPiece =
+    pieces?.find(
+      (piece) =>
+        piece.position !== outerPiece?.position && piece.position !== bottomsPiece?.position,
+    ) ?? null;
   const auto = new Set(meta.autoTagged);
-  const autoLayer = new Set(outerPiece && innerPiece ? meta.autoLayer : []);
+  const autoLayer = new Set((outerPiece || bottomsPiece) && innerPiece ? meta.autoLayer : []);
+  const ownerSays = (photo: { id: string; piece_id: string }): string => {
+    if (autoLayer.has(photo.id)) return "";
+    if (bottomsPiece && photo.piece_id === bottomsPiece.id)
+      return ` (the owner says it shows the ${bottomsPiece.name} on their own)`;
+    if (!outerPiece) return "";
+    return photo.piece_id === outerPiece.id
+      ? ` (the owner says the ${outerPiece.name} is in it)`
+      : ` (the owner says it shows the garment without the ${outerPiece.name})`;
+  };
   const images: LlmImage[] = await Promise.all(
     list.map(async (photo, index) =>
       toLlmImage(
         await downloadObject(supabase, photo.storage_path),
-        `Photo ${index + 1}${auto.has(photo.id) ? "" : ` (the owner tagged it "${photo.kind}")`}${
-          outerPiece && !autoLayer.has(photo.id)
-            ? photo.piece_id === outerPiece.id
-              ? ` (the owner says the ${outerPiece.name} is in it)`
-              : ` (the owner says it shows the garment without the ${outerPiece.name})`
-            : ""
-        }`,
+        `Photo ${index + 1}${auto.has(photo.id) ? "" : ` (the owner tagged it "${photo.kind}")`}${ownerSays(photo)}`,
         { longEdge: 1024 },
       ),
     ),
@@ -229,6 +240,7 @@ async function classifyItemPhotos(
     },
     photos: images,
     outerLayer: outerPiece?.name ?? null,
+    bottoms: bottomsPiece?.name ?? null,
   });
   const byIndex = new Map(result.photos.map((entry) => [entry.index, entry]));
   const updated = list.map((photo, index) => {
@@ -237,15 +249,19 @@ async function classifyItemPhotos(
     const label =
       photo.label ??
       (entry ? (entry.view === "other" ? `other: ${entry.label}` : entry.label) : null);
-    // An unlabelled photo of a robe set lands on the piece the brain saw in it.
+    // An unlabelled photo of a set lands on the piece the brain saw in it:
+    // the bottoms on their own, the set with the robe, else the garment.
     const pieceId =
-      autoLayer.has(photo.id) &&
-      outerPiece &&
-      innerPiece &&
-      typeof entry?.showsOuterLayer === "boolean"
-        ? entry.showsOuterLayer
-          ? outerPiece.id
-          : innerPiece.id
+      autoLayer.has(photo.id) && innerPiece && entry
+        ? bottomsPiece && entry.showsBottoms === true
+          ? bottomsPiece.id
+          : outerPiece && typeof entry.showsOuterLayer === "boolean"
+            ? entry.showsOuterLayer
+              ? outerPiece.id
+              : innerPiece.id
+            : bottomsPiece && entry.showsBottoms === false
+              ? innerPiece.id
+              : photo.piece_id
         : photo.piece_id;
     return { ...photo, kind, label, pieceId, clarity: entry?.clarity ?? 3, index };
   });
@@ -269,7 +285,8 @@ async function classifyItemPhotos(
 
 /**
  * Queues a model's front & back and close-up jobs with the batch's model and
- * style. A robe set's front & back job also renders the front without the robe.
+ * style. A robe set's front & back job also renders the front without the
+ * robe; a pyjama set's composes the bottoms beneath the top.
  */
 async function queueStageOne(
   supabase: TypedSupabaseClient,
@@ -277,7 +294,7 @@ async function queueStageOne(
   batch: GhostBatchRow,
   item: GhostBatchItemRow,
 ): Promise<string | null> {
-  const outerPosition = parseItemMeta(item.meta).outerPosition;
+  const { outerPosition, bottomsPosition } = parseItemMeta(item.meta);
   const { jobs, skipped } = await queueCatalogueJobs(
     supabase,
     ownerId,
@@ -286,6 +303,7 @@ async function queueStageOne(
       productIds: [item.product_id],
       modelId: batch.model_id,
       outerPiece: outerPosition ? { [item.product_id]: outerPosition } : undefined,
+      bottomsPiece: bottomsPosition ? { [item.product_id]: bottomsPosition } : undefined,
     },
     { batchId: batch.id, style: parseCatalogueStyle(batch.style) },
   );

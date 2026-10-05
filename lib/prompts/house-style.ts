@@ -23,7 +23,7 @@ export type GhostParagraphInput = {
   detail: { label: string } | null;
   /** A colourway's requested colour, in words, and whether its swatch photo is attached. */
   colourway: (ColourwayBrief & { swatch: boolean }) | null;
-  /** A robe set's front or back: the full set, or the inner garment without the robe. */
+  /** A set photographed in parts: the full set, or the inner garment without the robe. */
   layers?: GhostLayers | null;
 };
 
@@ -136,6 +136,35 @@ export function innerPiecesPhrase(layers: Pick<GhostLayers, "innerPieces">): str
   return `the ${names.slice(0, -1).join(", the ")} and the ${names[names.length - 1]}`;
 }
 
+/** "the top": the pieces of a pyjama set worn above its bottoms. */
+export function topPiecesPhrase(layers: Pick<GhostLayers, "innerPieces" | "bottomsPiece">): string {
+  return innerPiecesPhrase({
+    innerPieces: layers.innerPieces.filter(
+      (piece) => piece.position !== layers.bottomsPiece?.position,
+    ),
+  });
+}
+
+/**
+ * A pyjama set: the bottoms are photographed lying flat on their own, and the
+ * image composes them beneath the top as the set is worn. The fit, length,
+ * colour and every detail come from that one photo; the back, which has no
+ * photo, is reconstructed from it and never invented.
+ */
+function bottomsPhrase(layers: GhostLayers, view: GhostView, referenceMode: "edit" | "text") {
+  const bottoms = pieceNoun(layers.bottomsPiece?.name ?? "") || "bottoms";
+  const top = topPiecesPhrase(layers);
+  const source =
+    referenceMode === "edit"
+      ? `exactly as their own reference photo shows them, which shows them lying flat on their own`
+      : "exactly as specified";
+  const back =
+    view === "back"
+      ? `, their back reconstructed from that ${referenceMode === "edit" ? "flat photo" : "specification"} with the same length, leg width, colour, waistband and hem and nothing invented`
+      : "";
+  return `${top} worn with the ${bottoms} as one complete set, the ${bottoms} composed beneath ${top} ${source}: the same fit (wide or narrow), leg width, length, colour, waistband, hem and every detail, rendered as they hang when worn on the form with ${top} falling naturally over them${back}`;
+}
+
 /**
  * One ghost prompt in the house shape: the opening names the exact garment
  * and its colour, the construction list sits inside the sentence, then the
@@ -173,12 +202,12 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
   const photography = PHOTOGRAPHY[input.productLine];
   const light = lightingPhrase(style);
   const background = backgroundPhrase(style);
-  const outer = (layers && pieceNoun(layers.outerPiece.name)) || "outer layer";
+  const outer = (layers?.outerPiece && pieceNoun(layers.outerPiece.name)) || "outer layer";
   // The set's photos serve the inner image: the robe in them must be left out.
   const cleanUp =
     referenceMode === "edit"
       ? cleanList(
-          inner?.fromSetPhotos
+          inner?.fromSetPhotos && inner.outerPiece
             ? [`the ${outer} and every part of it`, ...scene.cleanUp]
             : scene.cleanUp,
           5,
@@ -242,17 +271,21 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
     );
   }
 
-  // A robe set: the full set worn together, or the inner garment on its own.
-  const worn =
-    layers?.show === "set"
-      ? `, the ${outer} worn over ${innerPiecesPhrase(layers)} exactly as in the ${referenceMode === "edit" ? "reference" : "set as specified"}`
-      : inner
+  // A set in parts: the robe worn over the rest, or the inner garment on its
+  // own; and a pyjama's bottoms composed beneath the top.
+  const robeWorn =
+    layers?.show === "set" && layers.outerPiece
+      ? `, the ${outer} worn over ${topPiecesPhrase(layers)} exactly as in the ${referenceMode === "edit" ? "reference" : "set as specified"}`
+      : inner && inner.outerPiece
         ? ` shown on its own without the ${outer}${
             inner.fromSetPhotos
               ? ` (the reference photos show it under the ${outer}: reproduce only the garment beneath, exactly as seen, and nothing of the ${outer})`
               : ""
           }`
         : "";
+  const worn = layers?.bottomsPiece
+    ? `${robeWorn}, ${bottomsPhrase(layers, view, referenceMode)}`
+    : robeWorn;
   const opening =
     view === "back"
       ? `${source} a premium ultra-realistic e-commerce fashion photograph of the exact ${named}${worn} shown from the rear, ${DISPLAY}, accurately reconstructing and preserving the original back construction: ${list}; preserve the exact colour, fabric texture, strap width, stitching style and construction details ${referenceMode === "edit" ? "from the reference" : "as specified"}`
@@ -260,7 +293,7 @@ export function composeGhostParagraph(input: GhostParagraphInput): string {
   const composition =
     view === "back"
       ? "rear-facing centred composition with the same framing, scale and light as the front image"
-      : inner
+      : inner?.outerPiece
         ? `front-facing centred composition, framed, scaled and lit like the front image of the full set with the ${outer}`
         : "front-facing centred composition";
   return (
@@ -302,13 +335,21 @@ export function ghostNegatives(
   items.push(
     "no crumpled, twisted or drooping bows, ribbons, ties or charms, and no change to their size, shape, position or count",
   );
-  if (layers) {
+  if (layers?.outerPiece) {
     const outer = pieceNoun(layers.outerPiece.name) || "outer layer";
     const inner = innerPiecesPhrase(layers);
+    const several = layers.innerPieces.length > 1;
     items.push(
       layers.show === "inner"
-        ? `no ${outer} and no other outer layer over ${inner}: ${inner} is shown on its own, nothing of the ${outer} anywhere in the image`
+        ? `no ${outer} and no other outer layer over ${inner}: ${inner} ${several ? "are shown on their own" : "is shown on its own"}, nothing of the ${outer} anywhere in the image`
         : `the ${outer} stays worn over ${inner}: never removed, never shown on its own, ${inner} never shown without it`,
+    );
+  }
+  if (layers?.bottomsPiece) {
+    const bottoms = pieceNoun(layers.bottomsPiece.name) || "bottoms";
+    const top = topPiecesPhrase(layers);
+    items.push(
+      `the ${bottoms} are never left out, never shown lying flat, folded or on their own, and never changed in length, leg width or fit from their reference photo: the set is always complete, ${top} worn with the ${bottoms}`,
     );
   }
   return items;

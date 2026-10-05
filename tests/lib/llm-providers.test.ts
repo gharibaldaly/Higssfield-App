@@ -192,7 +192,7 @@ describe("TemplateBrain", () => {
       "collar: shawl collar faced with scalloped lace, 6 cm wide, waist: self-fabric belt through 2 side loops, hem: scalloped lace band 8 cm, and all original seams and panel divisions;",
     );
     expect(built.prompt).toContain("no hanger, hook, clip, peg or pin anywhere in the image");
-    expect(built.promptVersion).toBe("ghost@3.2.0");
+    expect(built.promptVersion).toBe("ghost@3.3.0");
   });
 
   it("locks only the inner pieces of a robe set's second front, without the set line", async () => {
@@ -219,6 +219,7 @@ describe("TemplateBrain", () => {
       layers: {
         outerPiece: { position: 1, name: "Robe" },
         innerPieces: [{ position: 2, name: "Slip dress" }],
+        bottomsPiece: null,
         show: "inner",
         fromSetPhotos: false,
       },
@@ -237,10 +238,38 @@ describe("TemplateBrain", () => {
     const brain = new ScriptedBrain([
       {
         photos: [
-          { index: 2, view: "back", label: "back", clarity: 4, showsOuterLayer: null },
-          { index: 2, view: "front", label: "dup", clarity: 5, showsOuterLayer: null },
-          { index: 7, view: "detail", label: "out of range", clarity: 3, showsOuterLayer: null },
-          { index: 1, view: "front", label: "front", clarity: 5, showsOuterLayer: null },
+          {
+            index: 2,
+            view: "back",
+            label: "back",
+            clarity: 4,
+            showsOuterLayer: null,
+            showsBottoms: null,
+          },
+          {
+            index: 2,
+            view: "front",
+            label: "dup",
+            clarity: 5,
+            showsOuterLayer: null,
+            showsBottoms: null,
+          },
+          {
+            index: 7,
+            view: "detail",
+            label: "out of range",
+            clarity: 3,
+            showsOuterLayer: null,
+            showsBottoms: null,
+          },
+          {
+            index: 1,
+            view: "front",
+            label: "front",
+            clarity: 5,
+            showsOuterLayer: null,
+            showsBottoms: null,
+          },
         ],
       },
     ]);

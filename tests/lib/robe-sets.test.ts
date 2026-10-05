@@ -39,6 +39,7 @@ describe("robe sets", () => {
     expect(layerPiecesOf(PIECES, 2)).toEqual({
       outerPiece: { position: 2, name: "Robe" },
       innerPieces: [{ position: 1, name: "Slip dress" }],
+      bottomsPiece: null,
     });
     expect(layerPiecesOf(PIECES, 3)).toBeNull();
     expect(layerPiecesOf(PIECES, null)).toBeNull();

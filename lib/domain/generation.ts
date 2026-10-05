@@ -97,6 +97,14 @@ export function slotLabelOf(params: GenerationRow["params"]): string | null {
   return typeof meta.slotLabel === "string" ? meta.slotLabel : null;
 }
 
+/** A pyjama set's image: the name of the bottoms piece composed from its flat photo. */
+export function bottomsLabelOf(params: GenerationRow["params"]): string | null {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return null;
+  const meta = params._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  return typeof meta.bottoms === "string" && meta.bottoms.trim() ? meta.bottoms : null;
+}
+
 /** Reads the finishing report stored with a catalogue result (see finishCatalogueImage). */
 export function finishBackgroundOk(params: GenerationRow["params"]): boolean | null {
   if (!params || typeof params !== "object" || Array.isArray(params)) return null;

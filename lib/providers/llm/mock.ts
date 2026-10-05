@@ -146,9 +146,11 @@ export class MockBrain extends TemplateBrain {
 
   /**
    * Photos in upload order: first front, second back, the rest details. In a
-   * robe set, the first photo is the one with the robe on.
+   * robe set, the first photo is the one with the robe on; in a pyjama set,
+   * the last photo is the bottoms lying flat.
    */
   protected override async askPhotoViews(input: ClassifyPhotosInput): Promise<PhotoClassification> {
+    const last = input.photos.length - 1;
     return {
       photos: input.photos.map((photo, index) => ({
         index: index + 1,
@@ -156,6 +158,7 @@ export class MockBrain extends TemplateBrain {
         label: index === 0 ? "full front" : index === 1 ? "full back" : `detail ${index - 1}`,
         clarity: 3,
         showsOuterLayer: input.outerLayer ? index === 0 : null,
+        showsBottoms: input.bottoms ? index === last && last > 0 : null,
       })),
     };
   }

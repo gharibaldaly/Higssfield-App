@@ -45,6 +45,14 @@ export const createGhostBatchSchema = z.object({
          * front without it, and its colours from the front with it.
          */
         robe: z.boolean().default(false),
+        /**
+         * A pyjama set photographed in parts: the top on the display form,
+         * the bottoms lying flat. The model gets a piece for the bottoms,
+         * and every front and back composes them beneath the top.
+         */
+        pyjama: z.boolean().default(false),
+        /** What the bottoms are, so prompts can name them. */
+        bottoms: z.enum(["shorts", "trousers", "bottoms"]).default("bottoms"),
       }),
     )
     .min(1)
@@ -55,9 +63,26 @@ export const createGhostBatchSchema = z.object({
 export const ROBE_PIECE_NAME = "Robe";
 /** The robe piece's position: the garment is piece 1, the robe piece 2. */
 export const ROBE_PIECE_POSITION = 2;
+/** A pyjama set's top: piece 1, named so prompts can say "the top". */
+export const TOP_PIECE_NAME = "Top";
+/** A pyjama set's bottoms: piece 2; its robe, if any, is piece 3. */
+export const BOTTOMS_PIECE_POSITION = 2;
+export const PYJAMA_ROBE_PIECE_POSITION = 3;
+export type BottomsKind = CreateGhostBatchInput["models"][number]["bottoms"];
+export const BOTTOMS_KINDS = ["shorts", "trousers", "bottoms"] as const;
+/** The bottoms piece's name per kind (it appears in prompts and captions). */
+export const BOTTOMS_PIECE_NAMES: Record<BottomsKind, string> = {
+  shorts: "Shorts",
+  trousers: "Trousers",
+  bottoms: "Bottoms",
+};
 
-/** Which layer of a robe set a photo shows; "auto": the director brain decides after upload. */
-export const PHOTO_LAYERS = ["inner", "outer", "auto"] as const;
+/**
+ * Which piece of a set a photo shows: the garment without the robe
+ * ("inner"), the set with the robe on ("outer"), a pyjama's bottoms on their
+ * own ("bottoms"); "auto": the director brain decides after upload.
+ */
+export const PHOTO_LAYERS = ["inner", "outer", "bottoms", "auto"] as const;
 export type PhotoLayer = (typeof PHOTO_LAYERS)[number];
 
 export type CreateGhostBatchInput = z.infer<typeof createGhostBatchSchema>;
@@ -76,7 +101,10 @@ export const registerItemPhotosSchema = z.object({
         ...uploadedFile,
         kind: z.enum(PHOTO_KINDS),
         tagSource: z.enum(["name", "order", "manual"]),
-        /** For a robe set: the photo shows the set with the robe ("outer") or the garment alone ("inner"). */
+        /**
+         * For a set in parts: the photo shows the set with the robe ("outer"),
+         * the garment alone ("inner"), or a pyjama's bottoms on their own ("bottoms").
+         */
         layer: z.enum(PHOTO_LAYERS).default("inner"),
         width: z.number().int().positive().optional(),
         height: z.number().int().positive().optional(),
@@ -102,6 +130,8 @@ export const itemMetaSchema = z.object({
   failedUploads: z.number().int().min(0).default(0),
   /** A robe set: the position of the robe's piece (the front & back job adds a front without it). */
   outerPosition: z.number().int().min(1).max(3).nullable().default(null),
+  /** A pyjama set: the position of the bottoms' piece (photographed flat, composed beneath the top). */
+  bottomsPosition: z.number().int().min(1).max(3).nullable().default(null),
   /** Photos nobody said which layer they show; the director brain sorts them onto their piece. */
   autoLayer: z.array(z.string()).default([]),
 });
@@ -119,6 +149,7 @@ export function parseItemMeta(value: unknown): ItemMeta {
         dnaIssues: [],
         failedUploads: 0,
         outerPosition: null,
+        bottomsPosition: null,
         autoLayer: [],
       };
 }

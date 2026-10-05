@@ -14,7 +14,11 @@ import { ModelPicker } from "@/components/generation/model-picker";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { useSequentialRunner } from "@/components/generation/use-sequential-runner";
 import { JobCard } from "@/components/ghost/job-card";
-import { effectiveOuterPiece, ProductChecklist } from "@/components/ghost/product-checklist";
+import {
+  effectiveBottomsPiece,
+  effectiveOuterPiece,
+  ProductChecklist,
+} from "@/components/ghost/product-checklist";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +59,7 @@ export function GhostStudio({
   const [macroDetails, setMacroDetails] = useState<Record<string, string[]>>({});
   const [colorwayIds, setColorwayIds] = useState<Record<string, string[]>>({});
   const [outerPiece, setOuterPiece] = useState<Record<string, number>>({});
+  const [bottomsPiece, setBottomsPiece] = useState<Record<string, number>>({});
   const [modelId, setModelId] = useState<string | null>(defaultModelId);
   const [pending, startTransition] = useTransition();
 
@@ -107,6 +112,12 @@ export function GhostStudio({
         .map((product) => [product.id, effectiveOuterPiece(product, outerPiece)] as const)
         .filter(([, position]) => position > 0),
     );
+    // Pyjama sets: the bottoms piece, photographed flat, composed beneath the top.
+    const bottomsPieces = Object.fromEntries(
+      selectedProducts
+        .map((product) => [product.id, effectiveBottomsPiece(product, bottomsPiece)] as const)
+        .filter(([, position]) => position > 0),
+    );
     startTransition(async () => {
       const result = await queueCatalogueJobsAction({
         jobTypes: [jobType],
@@ -116,6 +127,10 @@ export function GhostStudio({
         colorwayIds: jobType === "colorways" ? colorwayIds : undefined,
         outerPiece:
           jobType === "front_back" && Object.keys(outerPieces).length > 0 ? outerPieces : undefined,
+        bottomsPiece:
+          jobType === "front_back" && Object.keys(bottomsPieces).length > 0
+            ? bottomsPieces
+            : undefined,
       });
       if (!result.ok) {
         toast.error(result.error);
@@ -203,6 +218,8 @@ export function GhostStudio({
               onColorwayIdsChange={setColorwayIds}
               outerPiece={outerPiece}
               onOuterPieceChange={setOuterPiece}
+              bottomsPiece={bottomsPiece}
+              onBottomsPieceChange={setBottomsPiece}
             />
 
             <ModelPicker

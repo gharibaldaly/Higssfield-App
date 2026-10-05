@@ -3,7 +3,7 @@ import "server-only";
 import { DEFAULT_CATALOGUE_STYLE } from "@/lib/domain/catalogue-style";
 import { garmentDnaSchema, sellingDetails } from "@/lib/domain/garment-dna";
 import { slotLabelOf, type GenerationView } from "@/lib/domain/generation";
-import { outerPositionOf } from "@/lib/ghost-batches/plan";
+import { bottomsPositionOf, outerPositionOf } from "@/lib/ghost-batches/plan";
 import { latestBySlot } from "@/lib/generations/side-effects";
 import { toViews } from "@/lib/generations/queries";
 import { signPaths } from "@/lib/storage/objects";
@@ -42,6 +42,8 @@ export type GhostJob = {
   background: string;
   /** A robe set's job: it also renders the front without the robe. */
   innerFront: boolean;
+  /** A set in parts (robe or pyjama): the front shows the full set. */
+  fullSet: boolean;
   outputs: GhostOutput[];
 };
 
@@ -155,6 +157,9 @@ export async function loadGhostStudio(supabase: TypedSupabaseClient): Promise<{
           ? style.background
           : DEFAULT_CATALOGUE_STYLE.background,
       innerFront: job.job_type === "front_back" && outerPositionOf(job.options) !== null,
+      fullSet:
+        job.job_type === "front_back" &&
+        (outerPositionOf(job.options) !== null || bottomsPositionOf(job.options) !== null),
       outputs: outputsFor(jobGenerations, views, beforeUrls),
     };
   });

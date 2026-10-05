@@ -40,6 +40,12 @@ export const imageParamSchema = z.object({
   format: z.enum(["input_images", "image_reference", "url", "url_array"]),
   max: z.number().int().min(1).max(16),
   required: z.boolean(),
+  /**
+   * Re-encode references before sending: EXIF-upright, at most `longEdge`
+   * pixels on the long side, sRGB JPEG without metadata. For models that fail
+   * on the owner's phone photos as they are (see lib/generations/reference-prep.ts).
+   */
+  prepare: z.object({ longEdge: z.number().int().min(256).max(8192) }).optional(),
 });
 
 export type ImageParam = z.infer<typeof imageParamSchema>;

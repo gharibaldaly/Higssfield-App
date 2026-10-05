@@ -37,6 +37,19 @@ export async function toLlmImage(
   return { mimeType: "image/jpeg", base64: data.toString("base64"), caption };
 }
 
+/**
+ * A reference as a model that chokes on phone photos needs it: EXIF-upright, no
+ * larger than `longEdge` on the long side, sRGB, JPEG, with the metadata dropped.
+ */
+export async function prepareReference(buffer: Buffer, longEdge: number): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate()
+    .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: true })
+    .toColourspace("srgb")
+    .jpeg({ quality: 92, mozjpeg: true })
+    .toBuffer();
+}
+
 /** Long edges tried, largest first, when inline brain images must fit a size budget. */
 const SHRINK_LONG_EDGES = [
   1568, 1408, 1280, 1152, 1024, 960, 896, 832, 768, 704, 640, 576, 512, 448, 384,

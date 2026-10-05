@@ -42,15 +42,18 @@ describe("models from the Higgsfield docs", () => {
     );
   });
 
-  it("flags Marketing Studio Image as a known problem and ranks it last among image models", () => {
-    const images = specs.filter((spec) => spec.kind === "image");
-    const marketing = images.filter((spec) => spec.endpoint.startsWith("marketing-studio/image"));
-    expect(marketing.length).toBeGreaterThan(0);
-    for (const spec of marketing) expect(spec.knownIssue).toMatch(/failed without a reason/);
-    expect(images.slice(-marketing.length).map((spec) => spec.endpoint)).toEqual(
-      marketing.map((spec) => spec.endpoint),
-    );
-    expect(byEndpoint("xai/grok-imagine-image-2.0").knownIssue).toBeUndefined();
+  it("prepares references for Marketing Studio Image, which fails on phone photos as they are", () => {
+    for (const endpoint of [
+      "marketing-studio/image",
+      "marketing-studio/image/flare",
+      "marketing-studio/image/sunburst",
+    ]) {
+      const spec = byEndpoint(endpoint);
+      expect(spec.params.image?.prepare).toEqual({ longEdge: 2048 });
+      expect(spec.sourceNote).toContain("re-encoded");
+      expect(spec.knownIssue).toBeUndefined();
+    }
+    expect(byEndpoint("xai/grok-imagine-image-2.0").params.image?.prepare).toBeUndefined();
   });
 
   it("reads references, ratios, tiers and durations from each schema", () => {

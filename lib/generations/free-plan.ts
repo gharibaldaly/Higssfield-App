@@ -11,7 +11,7 @@ import {
 } from "@/lib/generations/free-shared";
 import {
   capabilitiesOf,
-  highestResolution,
+  defaultResolution,
   supportsMode,
 } from "@/lib/providers/higgsfield/registry";
 import type { GenerationMode, ModelSpec } from "@/lib/providers/higgsfield/types";
@@ -123,7 +123,7 @@ export function planFreeRequest(model: ModelSpec, request: FreeRequest): FreePla
     caps.resolutions.length > 0
       ? request.resolution && caps.resolutions.includes(request.resolution)
         ? request.resolution
-        : highestResolution(model)
+        : defaultResolution(model)
       : null;
 
   let durationS: number | null = null;

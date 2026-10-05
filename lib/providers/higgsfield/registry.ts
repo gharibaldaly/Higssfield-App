@@ -1,4 +1,9 @@
 import { AppError } from "@/lib/errors";
+import {
+  matchAspectRatio,
+  matchDuration,
+  preferredResolution,
+} from "@/lib/providers/higgsfield/fit";
 import { BUILTIN_MODELS, MOCK_MODELS } from "@/lib/providers/higgsfield/models";
 import {
   modelSpecSchema,
@@ -6,7 +11,6 @@ import {
   type GenerationRequest,
   type ModelCapabilities,
   type ModelSpec,
-  type ParamOption,
 } from "@/lib/providers/higgsfield/types";
 
 export const DEFAULT_PROMPT_BUDGET = 3500;
@@ -93,40 +97,21 @@ export function pickModel(
   return registry.find((spec) => supportsMode(spec, mode)) ?? null;
 }
 
-function ratioValue(label: string): number | null {
-  const match = /^(\d+(?:\.\d+)?)\s*[:x×]\s*(\d+(?:\.\d+)?)$/.exec(label.trim());
-  if (!match) return null;
-  const width = Number(match[1]);
-  const height = Number(match[2]);
-  return width > 0 && height > 0 ? width / height : null;
-}
-
-/** Exact label match, else the numerically closest aspect ratio option. */
-export function matchAspectRatio(options: ParamOption[], requested: string): ParamOption | null {
-  const exact = options.find((option) => option.label === requested);
-  if (exact) return exact;
-  const target = ratioValue(requested);
-  if (target === null) return null;
-  let best: { option: ParamOption; distance: number } | null = null;
-  for (const option of options) {
-    const value = ratioValue(option.label) ?? ratioValue(String(option.value));
-    if (value === null) continue;
-    const distance = Math.abs(Math.log(value / target));
-    if (!best || distance < best.distance) best = { option, distance };
-  }
-  return best?.option ?? null;
-}
-
-/** Smallest supported duration that covers the request, else the longest. */
-export function matchDuration(options: number[], requested: number): number {
-  const sorted = [...options].sort((a, b) => a - b);
-  return sorted.find((value) => value >= requested - 0.001) ?? sorted[sorted.length - 1]!;
-}
-
 export function highestResolution(spec: ModelSpec): string | null {
   const options = spec.params.resolution?.options;
   return options && options.length > 0 ? options[options.length - 1]!.label : null;
 }
+
+/** The quality to send when nobody chose one (see preferredResolution). */
+export function defaultResolution(spec: ModelSpec): string | null {
+  return preferredResolution(
+    spec.kind,
+    spec.params.resolution?.options.map((option) => option.label) ?? [],
+    spec.params.resolution?.default ?? null,
+  );
+}
+
+export { matchAspectRatio, matchDuration, preferredResolution };
 
 export type BuiltProviderInput = {
   body: Record<string, unknown>;

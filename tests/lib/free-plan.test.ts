@@ -130,6 +130,36 @@ describe("planFreeRequest", () => {
     );
   });
 
+  it("defaults video quality to 1080p rather than the top tier", () => {
+    const tiers: ModelSpec = {
+      ...videoModel,
+      params: {
+        ...videoModel.params,
+        resolution: {
+          field: "resolution",
+          options: ["480p", "720p", "1080p", "4k"].map((label) => ({ value: label, label })),
+          verified: true,
+        },
+      },
+    };
+    const plan = planFreeRequest(
+      tiers,
+      request({ kind: "video", modelId: "clip-model", referencePaths: ["o/a.jpg"] }),
+    );
+    expect(plan.resolution).toBe("1080p");
+    expect(
+      planFreeRequest(
+        tiers,
+        request({
+          kind: "video",
+          modelId: "clip-model",
+          referencePaths: ["o/a.jpg"],
+          resolution: "4k",
+        }),
+      ).resolution,
+    ).toBe("4k");
+  });
+
   it("picks the smallest duration that covers the request", () => {
     const plan = planFreeRequest(
       videoModel,

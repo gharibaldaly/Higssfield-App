@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { getOwner } from "@/lib/auth/owner";
+import { getMember } from "@/lib/auth/owner";
 import { isPendingStatus } from "@/lib/domain/generation";
 import { toViews } from "@/lib/generations/queries";
 import { refreshGenerations } from "@/lib/generations/service";
@@ -17,7 +17,7 @@ const idsSchema = z.array(z.uuid()).min(1).max(60);
  * Supabase Storage right away) and returns client-safe views with signed URLs.
  */
 export async function GET(request: NextRequest) {
-  const owner = await getOwner();
+  const owner = await getMember();
   if (!owner) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const parsed = idsSchema.safeParse(

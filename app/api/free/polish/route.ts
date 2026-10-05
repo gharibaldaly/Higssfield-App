@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { requireOwnerForAction } from "@/lib/auth/owner";
+import { requireMemberForAction } from "@/lib/auth/owner";
 import { fail, ok } from "@/lib/errors";
 import { polishFreePrompt } from "@/lib/generations/free";
 import {
@@ -29,7 +29,7 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   try {
-    const { supabase, user } = await requireOwnerForAction();
+    const { supabase, user } = await requireMemberForAction();
     const body = await readJsonBody(request, bodySchema);
     const settings = await getOwnerSettings(supabase, user.id);
     return jsonResult(ok(await polishFreePrompt(supabase, user.id, settings, body)));

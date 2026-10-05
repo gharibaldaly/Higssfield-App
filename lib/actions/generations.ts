@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireOwnerForAction } from "@/lib/auth/owner";
+import { requireMemberForAction } from "@/lib/auth/owner";
 import { fail, ok, type ActionResult } from "@/lib/errors";
 
 const idSchema = z.uuid();
@@ -13,7 +13,7 @@ export async function setGenerationFavorite(
   isFavorite: boolean,
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await requireOwnerForAction();
+    const { supabase } = await requireMemberForAction();
     const { error } = await supabase
       .from("generations")
       .update({ is_favorite: isFavorite })

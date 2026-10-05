@@ -13,9 +13,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
 import { signOut } from "@/lib/actions/auth";
+import type { StudioRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 
-export function AccountMenu({ email, className }: { email: string | null; className?: string }) {
+export function AccountMenu({
+  email,
+  role,
+  className,
+}: {
+  email: string | null;
+  role: StudioRole;
+  className?: string;
+}) {
   const t = useTranslations("topBar");
   return (
     <DropdownMenu>
@@ -31,8 +40,9 @@ export function AccountMenu({ email, className }: { email: string | null; classN
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel className="max-w-64 truncate" dir="ltr">
-          {email ?? t("owner")}
+          {email ?? t(role)}
         </DropdownMenuLabel>
+        <p className="px-2 pb-1.5 hud text-muted-foreground">{t(`role.${role}`)}</p>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

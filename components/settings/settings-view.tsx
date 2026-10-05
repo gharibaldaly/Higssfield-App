@@ -20,6 +20,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { CustomModelsEditor } from "@/components/settings/custom-models-editor";
+import { GuestsCard } from "@/components/settings/guests-card";
 import { PasswordCard } from "@/components/settings/password-card";
 import { ModelCapabilitiesSummary, ModelSelectItems } from "@/components/generation/model-picker";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ import {
 import type { HiggsfieldKeyForm, KeyStatus } from "@/lib/env";
 import type { CredentialCheck } from "@/lib/providers/higgsfield/client";
 import { groupByFamily } from "@/lib/providers/higgsfield/model-groups";
+import type { GuestAccount } from "@/lib/auth/guests";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 import type { CostSummary } from "@/lib/settings/costs";
 import type { DriveSettings } from "@/lib/settings/service";
@@ -93,6 +95,7 @@ export function SettingsView({
   videoModels,
   costs,
   gateway,
+  guests,
 }: {
   settings: SettingsData;
   brain: { provider: string; model: string; chain: string[] };
@@ -107,6 +110,8 @@ export function SettingsView({
   imageModels: ModelOption[];
   videoModels: ModelOption[];
   costs: CostSummary;
+  /** Accounts allowed into Generate only, with their histories. */
+  guests: GuestAccount[];
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-2">
@@ -132,6 +137,7 @@ export function SettingsView({
           higgsfieldForm={higgsfieldKeyForm}
         />
         <DriveCard drive={settings.drive} configured={keys.googleDrive} />
+        <GuestsCard guests={guests} />
         <PasswordCard />
       </div>
       <CostCard costs={costs} />

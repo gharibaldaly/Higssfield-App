@@ -1,4 +1,4 @@
-import { requireOwnerForAction } from "@/lib/auth/owner";
+import { requireMemberForAction } from "@/lib/auth/owner";
 import { fail, ok } from "@/lib/errors";
 import { submitFreeRequest } from "@/lib/generations/free";
 import { freeRequestSchema } from "@/lib/generations/free-plan";
@@ -16,7 +16,7 @@ export const maxDuration = 120;
  */
 export async function POST(request: Request) {
   try {
-    const { supabase, user } = await requireOwnerForAction();
+    const { supabase, user } = await requireMemberForAction();
     const body = await readJsonBody(request, freeRequestSchema);
     const settings = await getOwnerSettings(supabase, user.id);
     return jsonResult(ok(await submitFreeRequest(supabase, user.id, settings, body)));

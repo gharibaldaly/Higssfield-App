@@ -82,6 +82,12 @@ export const modelSpecSchema = z.object({
    */
   source: z.enum(["docs", "sdk", "catalog", "custom", "mock"]),
   sourceNote: z.string().max(400).optional(),
+  /**
+   * A problem seen on real requests that the docs do not explain, shown as a
+   * warning wherever the model is offered, e.g. a workflow that fails every
+   * request from this account.
+   */
+  knownIssue: z.string().max(400).optional(),
 });
 
 export type ModelSpec = z.infer<typeof modelSpecSchema>;

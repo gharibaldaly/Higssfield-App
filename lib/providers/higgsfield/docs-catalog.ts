@@ -62,7 +62,6 @@ type Property = Record<string, unknown>;
  */
 const FAMILY_ORDER = [
   "grok-image-2",
-  "marketing-studio-image",
   "qwen-image-3",
   "ideogram-4",
   "soul-2",
@@ -73,6 +72,8 @@ const FAMILY_ORDER = [
   "recraft-v4-1-utility-pro",
   "recraft-v4-1-utility",
   "z-image-turbo",
+  // Last among the image families: every request so far has failed (KNOWN_ISSUES).
+  "marketing-studio-image",
   "kling-3",
   "seedance-2",
   "seedance-2-5",
@@ -93,6 +94,22 @@ const FAMILY_ORDER = [
   "grok-video-1-5",
   "cinema-studio-4",
 ];
+
+/**
+ * Problems seen on real requests that the docs do not explain, by family slug.
+ * Shown as a warning wherever the model is offered; the family also ranks
+ * last among its kind so it is never a default.
+ */
+const KNOWN_ISSUES: Record<string, string> = {
+  // 2026-09-28 and 2026-10-05: ten requests (2.0 Alpha, 2.5 Flare and 2.5 Sunburst; sheets,
+  // fronts, backs, close-ups and a free generation; 1 to 8 references; 2k and 4k; moderation
+  // auto and low) all ended "failed" with no reason about 30 s after Higgsfield accepted them,
+  // while Grok Image 2.0 and Qwen Image 3 Edit made images from the same photos. The docs say a
+  // content-filter rejection ends as "nsfw", not "failed", so this is a generation failure on
+  // Higgsfield's side for this workflow. Ask Higgsfield support with a request id.
+  "marketing-studio-image":
+    "Every request from this studio has failed without a reason (10 of 10, at 2k and 4k, with the low moderation level). Not the content filter: the API reports that as nsfw. Use Grok Image 2.0 or Qwen Image 3 Edit, or ask Higgsfield support with a failed request id.",
+};
 
 /** Workflows listed first inside their family. */
 const WORKFLOW_FIRST = new Set(["kling-video/v3.0/pro/image-to-video"]);
@@ -362,6 +379,7 @@ export function specFromWorkflow(
       `docs.higgsfield.ai/docs/models/${family.slug}/${workflow.slug} (snapshot ${fetchedAt})`,
       ...notes,
     ].join("; "),
+    ...(KNOWN_ISSUES[family.slug] ? { knownIssue: KNOWN_ISSUES[family.slug] } : {}),
   };
 }
 

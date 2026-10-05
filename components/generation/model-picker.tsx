@@ -123,6 +123,16 @@ export function ModelCapabilitiesSummary({ model }: { model: ModelOption }) {
           {t("unverified")}
         </p>
       ) : null}
+      {model.knownIssue ? (
+        <p className="flex gap-1.5 text-xs text-warning">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            <span className="font-medium">{t("knownIssue")}: </span>
+            {/* Registry notes are English: isolate them so RTL keeps their punctuation. */}
+            <bdi>{model.knownIssue}</bdi>
+          </span>
+        </p>
+      ) : null}
     </div>
   );
 }

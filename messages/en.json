@@ -431,6 +431,7 @@
     "maxDuration": "up to {seconds}s",
     "aspectRatios": "Aspect ratios",
     "unverified": "Some options are defaults not yet confirmed against Higgsfield's docs.",
+    "knownIssue": "Known problem",
     "modes": {
       "text-to-image": "Text → image",
       "image-to-image": "Image → image",

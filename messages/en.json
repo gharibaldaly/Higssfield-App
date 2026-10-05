@@ -564,7 +564,7 @@
       "front_back": {
         "short": "Front & back",
         "title": "Front & Back — exactly 2 images",
-        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos. A set with a robe can add a front without it."
+        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos. A set with a robe can add a front without it. A pyjama photographed in parts composes the flat-photographed bottoms beneath the top."
       },
       "macro": {
         "short": "Macro",
@@ -595,6 +595,9 @@
       "outerPiece": "Second front without",
       "outerPieceHint": "For a set with a robe or another outer layer: an extra front image of the garment without this piece. The colourways always start from the front with it.",
       "outerNone": "None (one front)",
+      "bottomsPiece": "Bottoms photographed flat",
+      "bottomsPieceHint": "For a pyjama photographed in parts: the top on the form and this piece lying flat in one photo. Every front and back composes it beneath the top, so the image shows the complete pyjama.",
+      "bottomsNone": "None (photographed as worn)",
       "issues": {
         "needDna": "Approve the Garment DNA first",
         "needFront": "Approve a front image first",
@@ -679,7 +682,7 @@
       "drop": "Drop one model's photos here",
       "dropActive": "Release to add the photos",
       "reading": "Reading the folders…",
-      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest. For a model that comes with a robe, switch on “Robe set” on it: you get a front with the robe and one without.",
+      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest. For a model that comes with a robe, switch on “Robe set” on it: you get a front with the robe and one without. For a pyjama photographed in parts (the top on the form, the shorts or trousers lying flat), switch on “Pyjama in parts”: every front and back shows the complete pyjama.",
       "chooseFolder": "Choose a folder",
       "choosePhotos": "Choose photos",
       "rejected": "{count, plural, one {# file was skipped} other {# files were skipped}}: only JPEG, PNG or WebP up to 25 MB. Export HEIC photos as JPEG.",
@@ -707,12 +710,23 @@
       "colourDefault": "Colour {number}",
       "robe": "Robe set",
       "robeHint": "The model comes with a robe: two fronts, with the robe and without it, and the colours come from the front with the robe. Mark which photos have the robe in them; the director brain sorts the rest after upload.",
+      "pyjama": "Pyjama in parts",
+      "pyjamaHint": "The top (and the robe, if any) is photographed on the form and the shorts or trousers lie flat in one photo. The studio composes the bottoms beneath the top, so every front and back shows the complete pyjama. Mark the photo of the bottoms; the director brain sorts the rest after upload.",
+      "bottomsKind": "Bottoms",
+      "bottoms": {
+        "shorts": "Shorts",
+        "trousers": "Trousers",
+        "bottoms": "Bottoms"
+      },
       "layers": {
         "outer": "With robe",
         "inner": "Without robe",
-        "auto": "Robe: auto"
+        "top": "Top",
+        "topInner": "Top · without robe",
+        "bottoms": "Bottoms · flat",
+        "auto": "Part: auto"
       },
-      "layerAutoHint": "The director brain decides after upload whether the robe is in this photo",
+      "layerAutoHint": "The director brain decides after upload which part of the set this photo shows",
       "photoMenu": "Photo options",
       "modelMenu": "Model options",
       "moveUp": "Move to the previous model",
@@ -830,6 +844,7 @@
         "front": "Front",
         "front_inner": "Front · without robe",
         "frontSet": "Front · with robe",
+        "frontFull": "Front · full pyjama",
         "back": "Back",
         "macro_1": "Close-up 1",
         "macro_2": "Close-up 2"

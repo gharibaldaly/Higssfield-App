@@ -220,7 +220,7 @@ describe("composeGhostParagraph (the house system in the owner's prompt style)",
 
 describe("ghost v3 template", () => {
   it("carries the owner's reference prompts as style examples, in neutral wording", () => {
-    expect(ghostV3.version).toBe("3.2.0");
+    expect(ghostV3.version).toBe("3.3.0");
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.front);
     expect(ghostV3.system).toContain(STYLE_EXAMPLES.back);
     expect(findForbiddenWords(ghostV3.system)).toEqual([]);
@@ -257,6 +257,7 @@ describe("robe sets (a second front without the robe)", () => {
   const LAYERS: GhostLayers = {
     outerPiece: { position: 1, name: "Robe" },
     innerPieces: [{ position: 2, name: "Slip dress" }],
+    bottomsPiece: null,
     show: "set",
     fromSetPhotos: false,
   };

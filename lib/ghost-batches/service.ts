@@ -3,9 +3,13 @@ import "server-only";
 import { z } from "zod";
 
 import {
+  BOTTOMS_PIECE_NAMES,
+  BOTTOMS_PIECE_POSITION,
   parseItemMeta,
+  PYJAMA_ROBE_PIECE_POSITION,
   ROBE_PIECE_NAME,
   ROBE_PIECE_POSITION,
+  TOP_PIECE_NAME,
   type CreateGhostBatchInput,
   type RegisterItemPhotosInput,
 } from "@/lib/ghost-batches/schemas";
@@ -45,11 +49,35 @@ async function getItem(supabase: TypedSupabaseClient, itemId: string): Promise<G
 }
 
 /**
+ * The pieces a batch model becomes: one piece named after the model; a robe
+ * set adds "Robe"; a pyjama set photographed in parts is "Top" + its bottoms
+ * (+ "Robe"), so its photos, DNA and references keep the parts apart.
+ */
+export function batchModelPieces(model: {
+  name: string;
+  robe: boolean;
+  pyjama: boolean;
+  bottoms: keyof typeof BOTTOMS_PIECE_NAMES;
+}): { position: number; name: string }[] {
+  if (model.pyjama) {
+    return [
+      { position: 1, name: TOP_PIECE_NAME },
+      { position: BOTTOMS_PIECE_POSITION, name: BOTTOMS_PIECE_NAMES[model.bottoms] },
+      ...(model.robe ? [{ position: PYJAMA_ROBE_PIECE_POSITION, name: ROBE_PIECE_NAME }] : []),
+    ];
+  }
+  return [
+    { position: 1, name: model.name.slice(0, 120) },
+    ...(model.robe ? [{ position: ROBE_PIECE_POSITION, name: ROBE_PIECE_NAME }] : []),
+  ];
+}
+
+/**
  * Starts a batch (or adds models to one): every model becomes a one-piece
  * product, so the DNA, colourway and catalogue pipeline runs unchanged. A
  * robe set gets a second piece for the robe, so its photos, DNA and
- * references keep the two layers apart. Photos are uploaded by the browser
- * afterwards, straight to Storage.
+ * references keep the two layers apart; a pyjama set gets a piece for its
+ * bottoms. Photos are uploaded by the browser afterwards, straight to Storage.
  */
 export async function createGhostBatch(
   supabase: TypedSupabaseClient,
@@ -99,7 +127,7 @@ export async function createGhostBatch(
       id: model.productId,
       name: model.name,
       product_line: model.productLine,
-      piece_count: model.robe ? 2 : 1,
+      piece_count: batchModelPieces(model).length,
     })),
   );
   if (productsError) {
@@ -114,12 +142,9 @@ export async function createGhostBatch(
   const { error: piecesError } = await supabase
     .from("product_pieces")
     .insert(
-      models.flatMap((model) => [
-        { product_id: model.productId, position: 1, name: model.name.slice(0, 120) },
-        ...(model.robe
-          ? [{ product_id: model.productId, position: ROBE_PIECE_POSITION, name: ROBE_PIECE_NAME }]
-          : []),
-      ]),
+      models.flatMap((model) =>
+        batchModelPieces(model).map((piece) => ({ product_id: model.productId, ...piece })),
+      ),
     );
   if (piecesError) {
     await cleanUp();
@@ -131,7 +156,14 @@ export async function createGhostBatch(
       batch_id: batch.id,
       product_id: model.productId,
       position: (count ?? 0) + index,
-      meta: (model.robe ? { outerPosition: ROBE_PIECE_POSITION } : {}) as Json,
+      meta: {
+        outerPosition: model.robe
+          ? model.pyjama
+            ? PYJAMA_ROBE_PIECE_POSITION
+            : ROBE_PIECE_POSITION
+          : null,
+        bottomsPosition: model.pyjama ? BOTTOMS_PIECE_POSITION : null,
+      } as Json,
     })),
   );
   if (itemsError) {
@@ -152,8 +184,9 @@ export async function createGhostBatch(
 /**
  * Records a model's uploaded photos and colour swatches, then hands the model
  * to the runner. Swatch colours are read from the centre of each swatch photo.
- * In a robe set, photos with the robe on belong to the robe's piece; photos
- * nobody labelled go on the garment's piece until the director brain sorts them.
+ * In a robe set, photos with the robe on belong to the robe's piece, and in a
+ * pyjama set the bottoms' photos to the bottoms' piece; photos nobody
+ * labelled go on the garment's piece until the director brain sorts them.
  */
 export async function registerBatchItemPhotos(
   supabase: TypedSupabaseClient,
@@ -173,8 +206,22 @@ export async function registerBatchItemPhotos(
   const outerPiece = meta.outerPosition
     ? (pieces?.find((candidate) => candidate.position === meta.outerPosition) ?? null)
     : null;
-  const piece = pieces?.find((candidate) => candidate.position !== outerPiece?.position) ?? null;
+  const bottomsPiece = meta.bottomsPosition
+    ? (pieces?.find((candidate) => candidate.position === meta.bottomsPosition) ?? null)
+    : null;
+  const piece =
+    pieces?.find(
+      (candidate) =>
+        candidate.position !== outerPiece?.position &&
+        candidate.position !== bottomsPiece?.position,
+    ) ?? null;
   if (!piece) throw new AppError("not_found", "The model's garment record is missing.");
+  const pieceFor = (layer: RegisterItemPhotosInput["photos"][number]["layer"]) =>
+    layer === "outer" && outerPiece
+      ? outerPiece.id
+      : layer === "bottoms" && bottomsPiece
+        ? bottomsPiece.id
+        : piece.id;
 
   const sourcePrefix = `${ownerId}/products/${item.product_id}/sources/`;
   const swatchPrefix = `${ownerId}/products/${item.product_id}/swatches/`;
@@ -197,7 +244,7 @@ export async function registerBatchItemPhotos(
       photos.map((photo) => ({
         id: photo.id,
         product_id: item.product_id,
-        piece_id: photo.layer === "outer" && outerPiece ? outerPiece.id : piece.id,
+        piece_id: pieceFor(photo.layer),
         kind: photo.kind,
         storage_path: photo.storagePath,
         mime_type: photo.mimeType,
@@ -240,12 +287,13 @@ export async function registerBatchItemPhotos(
     ...meta.autoTagged,
     ...photos.filter((photo) => photo.tagSource === "order").map((photo) => photo.id),
   ];
-  const autoLayer = outerPiece
-    ? [
-        ...meta.autoLayer,
-        ...photos.filter((photo) => photo.layer === "auto").map((photo) => photo.id),
-      ]
-    : meta.autoLayer;
+  const autoLayer =
+    outerPiece || bottomsPiece
+      ? [
+          ...meta.autoLayer,
+          ...photos.filter((photo) => photo.layer === "auto").map((photo) => photo.id),
+        ]
+      : meta.autoLayer;
   const { data, error } = await supabase
     .from("ghost_batch_items")
     .update({

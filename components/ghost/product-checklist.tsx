@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { guessOuterPiece } from "@/lib/catalogue/layers";
+import { guessBottomsPiece, guessOuterPiece } from "@/lib/catalogue/layers";
 import type { GhostProduct } from "@/lib/catalogue/queries";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,18 @@ export function effectiveOuterPiece(
   return outerPiece[product.id] ?? guessOuterPiece(product.pieces) ?? 0;
 }
 
+/**
+ * The bottoms piece a front & back job composes from its flat photo (a
+ * pyjama photographed in parts): the owner's choice, else the piece whose
+ * name reads as shorts or trousers; 0 = none.
+ */
+export function effectiveBottomsPiece(
+  product: Pick<GhostProduct, "id" | "pieces">,
+  bottomsPiece: Record<string, number>,
+): number {
+  return bottomsPiece[product.id] ?? guessBottomsPiece(product.pieces) ?? 0;
+}
+
 export function ProductChecklist({
   products,
   jobType,
@@ -49,6 +61,8 @@ export function ProductChecklist({
   onColorwayIdsChange,
   outerPiece,
   onOuterPieceChange,
+  bottomsPiece,
+  onBottomsPieceChange,
 }: {
   products: GhostProduct[];
   jobType: JobType;
@@ -62,6 +76,9 @@ export function ProductChecklist({
   /** productId → position of the piece to leave out in the extra front (0 = none). */
   outerPiece: Record<string, number>;
   onOuterPieceChange: (value: Record<string, number>) => void;
+  /** productId → position of the bottoms piece photographed flat (0 = none). */
+  bottomsPiece: Record<string, number>;
+  onBottomsPieceChange: (value: Record<string, number>) => void;
 }) {
   const t = useTranslations("ghost.products");
   const single = products.find((product) => product.id === selected[0]) ?? null;
@@ -95,12 +112,22 @@ export function ProductChecklist({
           ) : null}
         </div>
         {single && layered(single) ? (
-          <OuterPieceChooser
-            product={single}
-            value={effectiveOuterPiece(single, outerPiece)}
-            onChange={(position) => onOuterPieceChange({ ...outerPiece, [single.id]: position })}
-            withHint
-          />
+          <>
+            <OuterPieceChooser
+              product={single}
+              value={effectiveOuterPiece(single, outerPiece)}
+              onChange={(position) => onOuterPieceChange({ ...outerPiece, [single.id]: position })}
+              withHint
+            />
+            <BottomsPieceChooser
+              product={single}
+              value={effectiveBottomsPiece(single, bottomsPiece)}
+              onChange={(position) =>
+                onBottomsPieceChange({ ...bottomsPiece, [single.id]: position })
+              }
+              withHint
+            />
+          </>
         ) : null}
         {single && jobType === "macro" && single.details.length > 0 ? (
           <DetailChooser
@@ -175,12 +202,19 @@ export function ProductChecklist({
                 {!issue ? <Check className="size-4 text-success" aria-hidden /> : null}
               </label>
               {checked && !issue && layered(product) ? (
-                <div className="ps-9 pb-2">
+                <div className="flex flex-col gap-2 ps-9 pb-2">
                   <OuterPieceChooser
                     product={product}
                     value={effectiveOuterPiece(product, outerPiece)}
                     onChange={(position) =>
                       onOuterPieceChange({ ...outerPiece, [product.id]: position })
+                    }
+                  />
+                  <BottomsPieceChooser
+                    product={product}
+                    value={effectiveBottomsPiece(product, bottomsPiece)}
+                    onChange={(position) =>
+                      onBottomsPieceChange({ ...bottomsPiece, [product.id]: position })
                     }
                   />
                 </div>
@@ -226,6 +260,46 @@ function OuterPieceChooser({
         </SelectContent>
       </Select>
       {withHint ? <p className="text-xs text-muted-foreground">{t("outerPieceHint")}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * A pyjama photographed in parts: which piece is the bottoms, photographed
+ * lying flat, that every front and back composes beneath the top.
+ */
+function BottomsPieceChooser({
+  product,
+  value,
+  onChange,
+  withHint = false,
+}: {
+  product: GhostProduct;
+  value: number;
+  onChange: (position: number) => void;
+  withHint?: boolean;
+}) {
+  const t = useTranslations("ghost.products");
+  const id = `bottoms-piece-${product.id}`;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-medium">
+        {t("bottomsPiece")}
+      </label>
+      <Select value={String(value)} onValueChange={(next) => onChange(Number(next))}>
+        <SelectTrigger id={id} className="h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="0">{t("bottomsNone")}</SelectItem>
+          {product.pieces.map((piece) => (
+            <SelectItem key={piece.position} value={String(piece.position)}>
+              {piece.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {withHint ? <p className="text-xs text-muted-foreground">{t("bottomsPieceHint")}</p> : null}
     </div>
   );
 }

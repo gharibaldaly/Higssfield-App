@@ -190,6 +190,13 @@ pnpm dev                     # http://localhost:3000
   have the robe in them (or name them "robe" / "no robe", "بالروب" / "بدون روب"); the director
   brain sorts the rest. Under "From products", the Front & Back job offers the same for any
   multi-piece product.
+- **Pyjamas in parts**: switch on "Pyjama in parts" for a pyjama photographed the way the owner
+  shoots them: the top (and the robe, if any) on the display form, the shorts or trousers lying
+  flat in one photo. The model becomes "Top" + "Shorts" / "Trousers" (+ "Robe"), and every front
+  and back composes the bottoms beneath the top from that flat photo, so the catalogue shows the
+  complete pyjama. Mark the photo of the bottoms (or name it "shorts" / "بنطلون"); the director
+  brain sorts the rest. Under "From products", the Front & Back job offers "Bottoms photographed
+  flat" for any multi-piece product.
 - Each model becomes a one-piece product, so its DNA, colourways and images also appear under
   Products and can be used for sheets and ads.
 - The work runs **while a studio tab is open**: the browser calls

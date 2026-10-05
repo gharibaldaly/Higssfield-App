@@ -331,7 +331,9 @@ export function ModelRow({
                   ? t("macroNamed", { label: output.slotLabel })
                   : slot === "front" && item.outerPosition
                     ? t("slots.frontSet")
-                    : t(`slots.${slot}`);
+                    : slot === "front" && item.bottomsPosition
+                      ? t("slots.frontFull")
+                      : t(`slots.${slot}`);
               return (
                 <OutputTile
                   key={slot}

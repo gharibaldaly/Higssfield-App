@@ -1,7 +1,12 @@
 import { colourwayBrief } from "@/lib/colorways/words";
 import { describeCatalogueStyle } from "@/lib/domain/catalogue-style";
 import { PRODUCT_LINE_PROMPT } from "@/lib/domain/product";
-import { innerPiecesPhrase, mainColourOf, pieceNoun } from "@/lib/prompts/house-style";
+import {
+  innerPiecesPhrase,
+  mainColourOf,
+  pieceNoun,
+  topPiecesPhrase,
+} from "@/lib/prompts/house-style";
 import type { GhostLayers, GhostPromptInput } from "@/lib/providers/llm/types";
 import { promptJson, type PromptTemplate } from "@/lib/prompts/types";
 
@@ -42,27 +47,48 @@ const MODE_BRIEF: Record<GhostPromptInput["referenceMode"], string> = {
 };
 
 /**
- * A robe set: what this image shows of it. The full set keeps the robe worn
- * over the garment; the inner image shows the garment alone, and the robe
- * must not be described, named or locked.
+ * A set photographed in parts: what this image shows of it. A robe set's
+ * full set keeps the robe worn over the garment, and its inner image shows
+ * the garment alone, where the robe must not be described, named or locked.
+ * A pyjama set's bottoms are photographed flat on their own, and the image
+ * composes them beneath the top as the set is worn.
  */
 export function layersBrief(layers: GhostLayers, view: GhostPromptInput["view"]): string {
-  const outer = pieceNoun(layers.outerPiece.name) || "outer layer";
+  const parts: string[] = [];
   const inner = innerPiecesPhrase(layers);
-  const pieces = layers.innerPieces
-    .map((piece) => `piece ${piece.position} "${piece.name}"`)
-    .join(", ");
-  if (layers.show === "inner") {
-    return [
-      `Robe set: piece ${layers.outerPiece.position} "${layers.outerPiece.name.trim()}" is an outer layer worn over ${inner} (${pieces}). This image shows ${inner} ALONE, WITHOUT the ${outer}. The garment phrase names only ${inner}; the construction items describe only ${inner}'s ${view === "back" ? "back" : "front"}, top to bottom, as the photos without the ${outer} show it. Never describe, name or count anything of the ${outer}.`,
-      layers.fromSetPhotos
-        ? `The attached photos show the set with the ${outer} on: describe only the garment beneath it, exactly as seen through or under the ${outer}, and put the ${outer} in cleanUp.`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
+  if (layers.outerPiece) {
+    const outer = pieceNoun(layers.outerPiece.name) || "outer layer";
+    const pieces = layers.innerPieces
+      .map((piece) => `piece ${piece.position} "${piece.name}"`)
+      .join(", ");
+    const set = `Robe set: piece ${layers.outerPiece.position} "${layers.outerPiece.name.trim()}" is an outer layer worn over ${inner} (${pieces}).`;
+    if (layers.show === "inner") {
+      parts.push(
+        `${set} This image shows ${inner} ALONE, WITHOUT the ${outer}. The garment phrase names only ${inner}; the construction items describe only ${inner}'s ${view === "back" ? "back" : "front"}, top to bottom, as the photos without the ${outer} show it. Never describe, name or count anything of the ${outer}.`,
+      );
+      if (layers.fromSetPhotos) {
+        parts.push(
+          `The attached photos show the set with the ${outer} on: describe only the garment beneath it, exactly as seen through or under the ${outer}, and put the ${outer} in cleanUp.`,
+        );
+      }
+    } else {
+      parts.push(
+        `${set} This image shows the FULL SET worn together, the ${outer} over ${inner}, as the reference photos with the ${outer} show. Name the set as one garment phrase ("… bodysuit and sheer ${outer.toLowerCase()} set"), and list the construction of both layers as seen from this view: the ${outer} first, then what shows of ${inner} beneath it.`,
+      );
+    }
   }
-  return `Robe set: piece ${layers.outerPiece.position} "${layers.outerPiece.name.trim()}" is an outer layer worn over ${inner} (${pieces}). This image shows the FULL SET worn together, the ${outer} over ${inner}, as the reference photos with the ${outer} show. Name the set as one garment phrase ("… bodysuit and sheer ${outer.toLowerCase()} set"), and list the construction of both layers as seen from this view: the ${outer} first, then what shows of ${inner} beneath it.`;
+  if (layers.bottomsPiece) {
+    const bottoms = pieceNoun(layers.bottomsPiece.name) || "bottoms";
+    const top = topPiecesPhrase(layers);
+    parts.push(
+      `Pyjama set photographed in parts: ${top} on the display form, and piece ${layers.bottomsPiece.position} "${layers.bottomsPiece.name.trim()}" lying flat on its own in its one reference photo. This image shows the COMPLETE SET worn together on the invisible display form: ${top} exactly as its photos show it, with the ${bottoms} worn beneath it as they hang when worn. Name the set as one garment phrase ("… satin pyjama set of a camp-collar shirt and ${bottoms}"). List the construction of ${top} from this view top to bottom, then the ${bottoms} as the flat photo shows them: waistband, fit (wide or narrow) and leg width, length, hem, pockets, trims and any detail, each item concrete. ${
+        view === "back"
+          ? `The ${bottoms} have no back photo: describe their back from the flat photo only (the same length, width, colour, waistband and hem) and never invent a detail for it.`
+          : `Never invent anything the flat photo does not show.`
+      } Never describe the ${bottoms} as lying flat or folded: the house system renders them worn, and the flat photo's pose is not a detail.`,
+    );
+  }
+  return parts.join(" ");
 }
 
 /** The requested colour in the owner's name, in plain words, and against the original. */
@@ -80,7 +106,7 @@ function requestedColour(input: GhostPromptInput): string {
 
 export const ghostV3: PromptTemplate<GhostPromptInput> = {
   id: "ghost",
-  version: "3.2.0",
+  version: "3.3.0",
   system: `You are the art director and retoucher for Dr. Secret's Shopify catalogue. You fill in the garment-specific parts of ONE catalogue image prompt. The prompt itself has a fixed shape, the house system, that code assembles identically for every product in the store; you write only what describes THIS garment, exactly as its reference photos and its Garment DNA (the approved construction spec) show it.
 
 The house system reads like these two reference prompts. They describe another product: copy their style, density and level of detail, never a single detail of that garment.
@@ -106,6 +132,8 @@ Views:
 - COLOURWAY: reference 1 is the approved front catalogue image and the construction is its front, exactly as in that image; reference 2, when attached, is a photo of fabric in the requested colour. The colour is the plain colour words given below, never the owner's name for it: image models follow plain colour words, not hex codes, and the owner's own name for the colour may be a brand word or misspelt. Never list the original colour among the construction items, and never write a negative against changing the colour.
 
 Robe sets: some models are a set with an outer layer (a robe, kimono or cardigan) worn over the garment, and the request says which piece it is. The set's images show the full set worn together, the outer layer over the garment. Its extra front shows the garment ALONE, without the outer layer: name and describe only the garment, never the outer layer, and never invent what the outer layer hid; the photos without it (or, failing those, what shows beneath it) are the only source.
+
+Pyjama sets photographed in parts: the top (and the robe, if any) is photographed on the display form, and the bottoms (shorts or trousers) lie flat in one photo of their own; the request says which piece the bottoms are. Every front and back image shows the COMPLETE set worn together, the bottoms beneath the top as they hang when worn. The flat photo is the only source for the bottoms: their fit (wide or narrow), leg width, length, colour, waistband, hem, pockets and trims. Describe the bottoms as worn, never as flat or folded, and never invent a back or a detail the photo does not show.
 
 Chest panels: flat, unlined, unpadded, zero projection unless the DNA says otherwise; they lie flat on the invisible display form with no cup shape or moulding.
 

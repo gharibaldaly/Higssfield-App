@@ -196,8 +196,9 @@ export function BatchBoard({
 
   function slotTitle(entry: QueueEntry): string {
     const { slot, slotLabel } = entry.output;
-    // A robe set: the front with the robe, and the one without it.
+    // A robe set: the front with the robe, and the one without it; a pyjama: the full set.
     if (slot === "front" && entry.item.outerPosition) return tSlots("slots.frontSet");
+    if (slot === "front" && entry.item.bottomsPosition) return tSlots("slots.frontFull");
     if (slot === "front_inner") return tSlots("slots.front_inner");
     if (slot === "front" || slot === "back") return tSlots(`slots.${slot}`);
     if (slot.startsWith("macro")) {

@@ -71,6 +71,15 @@ export function outerPositionOf(options: unknown): number | null {
     : null;
 }
 
+/** The bottoms piece a front & back job composes from its flat photo (a pyjama set). */
+export function bottomsPositionOf(options: unknown): number | null {
+  if (!options || typeof options !== "object" || Array.isArray(options)) return null;
+  const position = (options as { bottomsPosition?: unknown }).bottomsPosition;
+  return typeof position === "number" && Number.isInteger(position) && position > 0
+    ? position
+    : null;
+}
+
 /** Images a job sends to the provider. */
 export function slotsOf(job: SnapshotJob): number {
   if (job.job_type === "colorways") return Math.max(1, colorwayIdsOf(job.options).length);

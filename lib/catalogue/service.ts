@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import { layerPiecesOf, type LayerPieces } from "@/lib/catalogue/layers";
+import { setLayersOf, type LayerPieces } from "@/lib/catalogue/layers";
 import { detailReferences, viewReferences, type PhotoRef } from "@/lib/catalogue/references";
 import { parseCatalogueStyle, type CatalogueStyle } from "@/lib/domain/catalogue-style";
 import { sellingDetails, type GarmentDna } from "@/lib/domain/garment-dna";
@@ -56,6 +56,12 @@ export const queueJobsSchema = z.object({
    * front & back job then adds a front of the garment without it.
    */
   outerPiece: z.record(z.string(), z.number().int().min(1).max(3)).optional(),
+  /**
+   * productId → position of the bottoms piece (shorts or trousers) that was
+   * photographed lying flat: a pyjama set's front & back images compose it
+   * beneath the top, so the catalogue shows the complete pyjama.
+   */
+  bottomsPiece: z.record(z.string(), z.number().int().min(1).max(3)).optional(),
 });
 
 export type QueueJobsInput = z.infer<typeof queueJobsSchema>;
@@ -65,6 +71,8 @@ const jobOptionsSchema = z.object({
   colorwayIds: z.array(z.string()).optional(),
   /** A robe set: the outer piece the extra "front_inner" image leaves out. */
   outerPosition: z.number().int().min(1).max(3).optional(),
+  /** A pyjama set: the bottoms piece, photographed flat, composed beneath the top. */
+  bottomsPosition: z.number().int().min(1).max(3).optional(),
 });
 
 /** The slot of a robe set's second front: the garment without the robe. */
@@ -76,13 +84,14 @@ type SlotPlan = {
   view: GhostView;
   detail: { label: string; description: string; pieceName: string } | null;
   colorway: ColorwayRow | null;
-  /** A robe set's front or back: what the image shows of the set. */
+  /** A set in parts (robe, pyjama): what the image shows of the set. */
   layers: GhostLayers | null;
   references: { path: string; caption: string }[];
   missingReason: string | null;
 };
 
-type JobContext = {
+/** Everything a job needs to plan and write its outputs (built by `loadJobContext`). */
+export type JobContext = {
   job: CatalogueJobRow;
   product: ProductBrief;
   dna: GarmentDna;
@@ -90,7 +99,7 @@ type JobContext = {
   photoCaptions: Map<string, string>;
   colorways: ColorwayRow[];
   approvedFront: GenerationRow | null;
-  /** The robe set's layers when the job asks for a front without the robe. */
+  /** How the set's pieces go together, when the job names a robe or flat-photographed bottoms. */
   layers: LayerPieces | null;
   model: ModelSpec;
   mode: GenerationMode;
@@ -147,12 +156,15 @@ export async function queueCatalogueJobs(
         options.macroDetails = input.macroDetails[productId];
       }
       // A robe set's front & back job renders a second front without the robe,
-      // when the named outer piece exists and there is a garment beneath it.
-      if (
-        jobType === "front_back" &&
-        layerPiecesOf(pieces.data ?? [], input.outerPiece?.[productId])
-      ) {
-        options.outerPosition = input.outerPiece![productId];
+      // when the named outer piece exists and there is a garment beneath it; a
+      // pyjama set's composes the flat-photographed bottoms beneath the top.
+      if (jobType === "front_back") {
+        const layers = setLayersOf(pieces.data ?? [], {
+          outerPosition: input.outerPiece?.[productId],
+          bottomsPosition: input.bottomsPiece?.[productId],
+        });
+        if (layers?.outerPiece) options.outerPosition = layers.outerPiece.position;
+        if (layers?.bottomsPiece) options.bottomsPosition = layers.bottomsPiece.position;
       }
       if (jobType === "colorways") {
         const available = (colorways.data ?? []).map((row) => row.id);
@@ -214,6 +226,11 @@ async function loadJobContext(
     requestedId: job.model_id,
   });
   const pieceById = new Map(pieces.map((piece) => [piece.id, piece]));
+  const piecesBrief = pieces.map((piece) => ({ position: piece.position, name: piece.name }));
+  const layers =
+    job.job_type === "front_back"
+      ? setLayersOf(piecesBrief, jobOptionsSchema.parse(job.options ?? {}))
+      : null;
   const photoRefs: PhotoRef[] = photos.map((photo) => ({
     id: photo.id,
     pieceId: photo.piece_id,
@@ -225,13 +242,16 @@ async function loadJobContext(
   const photoCaptions = new Map(
     photos.map((photo) => {
       const piece = pieceById.get(photo.piece_id);
+      // A pyjama's bottoms are photographed lying flat: the caption says so.
+      const flat = piece && piece.position === layers?.bottomsPiece?.position;
       return [
         photo.storage_path,
-        `${piece ? `"${piece.name}"` : "product"} ${photo.kind}${photo.label ? ` (${photo.label})` : ""} photo`,
+        `${piece ? `"${piece.name}"` : "product"} ${photo.kind}${
+          flat ? " (photographed lying flat on its own)" : ""
+        }${photo.label ? ` (${photo.label})` : ""} photo`,
       ];
     }),
   );
-  const piecesBrief = pieces.map((piece) => ({ position: piece.position, name: piece.name }));
   return {
     job,
     product: {
@@ -245,10 +265,7 @@ async function loadJobContext(
     photoCaptions,
     colorways: colorwaysResult.data ?? [],
     approvedFront,
-    layers:
-      job.job_type === "front_back"
-        ? layerPiecesOf(piecesBrief, jobOptionsSchema.parse(job.options ?? {}).outerPosition)
-        : null,
+    layers,
     model,
     mode,
     brain: getDirectorBrain(settings, { imageHost: storageImageHost(supabase, ownerId) }),
@@ -288,22 +305,69 @@ function macroDetails(context: JobContext): SlotPlan["detail"][] {
 }
 
 /**
+ * The references of a front or back of a set in parts. A pyjama's bottoms
+ * have one flat photo, so it serves the back as well; without it the image
+ * cannot show the complete set.
+ */
+function setViewReferences(
+  context: JobContext,
+  kind: "front" | "back",
+  budget: number,
+  order: number[] | undefined,
+): { photos: PhotoRef[]; missingReason: string | null } {
+  const bottoms = context.layers?.bottomsPiece ?? null;
+  const photos = viewReferences(context.photos, kind, budget, order);
+  const wanted = order ?? context.product.pieces.map((piece) => piece.position);
+  if (!bottoms || !wanted.includes(bottoms.position)) {
+    return {
+      photos,
+      missingReason: photos.length === 0 ? `Upload a ${kind} photo, then regenerate.` : null,
+    };
+  }
+  const tops = photos.filter((photo) => photo.piecePosition !== bottoms.position);
+  const flat =
+    photos.find((photo) => photo.piecePosition === bottoms.position) ??
+    viewReferences(context.photos, "front", 1, [bottoms.position])[0] ??
+    null;
+  if (tops.length === 0) {
+    return { photos: [], missingReason: `Upload a ${kind} photo of the top, then regenerate.` };
+  }
+  if (!flat) {
+    return {
+      photos: [],
+      missingReason: `Upload a photo of the ${bottoms.name} lying flat, then regenerate.`,
+    };
+  }
+  // A model that takes one reference cannot see both: the top's photo goes.
+  if (budget < 2) return { photos: [tops[0]!], missingReason: null };
+  return { photos: [...tops.slice(0, budget - 1), flat], missingReason: null };
+}
+
+/**
  * Which outputs a job produces, with the isolated references for each. A robe
  * set's front & back job makes three images: the set with the robe (slot
  * "front", the one the colourways start from), the garment without the robe
- * ("front_inner", from the photos without it), and the back.
+ * ("front_inner", from the photos without it), and the back. A pyjama set's
+ * front and back each take the top's photo and the bottoms' flat photo.
  */
 export function planSlots(context: JobContext): SlotPlan[] {
   const budget = Math.max(1, referenceBudget(context.model, context.mode));
   switch (context.job.job_type) {
     case "front_back": {
       const layers = context.layers;
-      // The robe's photo shows the whole set worn together, so it goes first.
+      // The robe's photo shows the whole set worn together, so it goes first;
+      // the bottoms' flat photo comes last.
       const setOrder = layers
-        ? [layers.outerPiece.position, ...layers.innerPieces.map((piece) => piece.position)]
+        ? [
+            ...(layers.outerPiece ? [layers.outerPiece.position] : []),
+            ...layers.innerPieces
+              .filter((piece) => piece.position !== layers.bottomsPiece?.position)
+              .map((piece) => piece.position),
+            ...(layers.bottomsPiece ? [layers.bottomsPiece.position] : []),
+          ]
         : undefined;
-      const front = viewReferences(context.photos, "front", budget, setOrder);
-      const back = viewReferences(context.photos, "back", budget, setOrder);
+      const front = setViewReferences(context, "front", budget, setOrder);
+      const back = setViewReferences(context, "back", budget, setOrder);
       const set = (show: GhostLayers["show"], fromSetPhotos = false): GhostLayers | null =>
         layers ? { ...layers, show, fromSetPhotos } : null;
       const plans: SlotPlan[] = [
@@ -314,30 +378,27 @@ export function planSlots(context: JobContext): SlotPlan[] {
           detail: null,
           colorway: null,
           layers: set("set"),
-          references: refs(context, front),
-          missingReason: front.length === 0 ? "Upload a front photo, then regenerate." : null,
+          references: refs(context, front.photos),
+          missingReason: front.missingReason,
         },
       ];
-      if (layers) {
-        const own = viewReferences(
-          context.photos,
-          "front",
-          budget,
-          layers.innerPieces.map((piece) => piece.position),
-        );
+      if (layers?.outerPiece) {
+        const innerOrder = setOrder!.filter((position) => position !== layers.outerPiece!.position);
+        const own = setViewReferences(context, "front", budget, innerOrder);
         // Without a photo of the garment alone, the set's photos serve and
         // the prompt asks for only what shows beneath the robe.
-        const inner = own.length > 0 ? own : front;
+        const fromSet = own.photos.length === 0;
+        const inner = fromSet ? front : own;
         plans.push({
           slot: FRONT_INNER_SLOT,
           purpose: "ghost_front",
           view: "front",
           detail: null,
           colorway: null,
-          layers: set("inner", own.length === 0),
-          references: refs(context, inner),
+          layers: set("inner", fromSet),
+          references: refs(context, inner.photos),
           missingReason:
-            inner.length === 0
+            inner.photos.length === 0
               ? `Upload a front photo without the ${layers.outerPiece.name}, then regenerate.`
               : null,
         });
@@ -349,8 +410,8 @@ export function planSlots(context: JobContext): SlotPlan[] {
         detail: null,
         colorway: null,
         layers: set("set"),
-        references: refs(context, back),
-        missingReason: back.length === 0 ? "Upload a back photo, then regenerate." : null,
+        references: refs(context, back.photos),
+        missingReason: back.missingReason,
       });
       return plans;
     }
@@ -421,7 +482,12 @@ async function generateSlot(
   const slotLabel =
     plan.detail?.label ??
     plan.colorway?.name ??
-    (plan.slot === FRONT_INNER_SLOT ? (plan.layers?.outerPiece.name ?? null) : null);
+    (plan.slot === FRONT_INNER_SLOT ? (plan.layers?.outerPiece?.name ?? null) : null);
+  // A pyjama set: the bottoms composed from their flat photo (the fidelity check reads it).
+  const meta = {
+    ...(slotLabel ? { slotLabel } : {}),
+    ...(plan.layers?.bottomsPiece ? { bottoms: plan.layers.bottomsPiece.name } : {}),
+  };
   const base = {
     provider: activeProviderMode(),
     model_id: context.model.id,
@@ -434,7 +500,7 @@ async function generateSlot(
     colorway_id: plan.colorway?.id ?? null,
     note: options.note ?? null,
     parent_id: options.parentId ?? null,
-    params: (slotLabel ? { _meta: { slotLabel } } : {}) as Json,
+    params: (Object.keys(meta).length > 0 ? { _meta: meta } : {}) as Json,
   };
   const wantsReferences = context.mode === "image-to-image";
   if (plan.missingReason && (wantsReferences || plan.purpose === "colorway")) {
@@ -487,7 +553,7 @@ async function generateSlot(
         parentId: options.parentId ?? null,
       },
       note: options.note ?? null,
-      meta: slotLabel ? { slotLabel } : undefined,
+      meta: Object.keys(meta).length > 0 ? meta : undefined,
     });
   } catch (error) {
     return recordFailedGeneration(supabase, { ...base, prompt: "" }, toUserMessage(error));

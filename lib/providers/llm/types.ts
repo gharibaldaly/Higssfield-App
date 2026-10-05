@@ -150,6 +150,25 @@ export type ReviewFidelityInput = {
   result: LlmImage;
 };
 
+/** Free generation: the owner's own prompt, to be polished without changing its intent. */
+export type PolishPromptInput = {
+  kind: "image" | "video";
+  prompt: string;
+  modelLabel: string;
+  /** The references the image model will receive (at most a few, for the brain to see). */
+  references: LlmImage[];
+  /** The language for the brain's note to the owner. */
+  locale: "ar" | "en";
+};
+
+export const polishedPromptSchema = z.object({
+  prompt: z.string().min(1).describe("The polished generation prompt, in English"),
+  negativePrompt: z.string().describe("Comma-separated things to avoid; empty when none"),
+  notes: z.string().describe("One sentence on what was added or changed, in the owner's language"),
+});
+
+export type PolishedPrompt = z.infer<typeof polishedPromptSchema>;
+
 /** The director brain: one interface, several providers (Settings switch). */
 export interface DirectorBrain {
   readonly provider: LlmProviderId;
@@ -163,6 +182,8 @@ export interface DirectorBrain {
   planAd(input: PlanAdInput): Promise<AdPlan>;
   buildShotPrompt(input: ShotPromptInput): Promise<BuiltPrompt>;
   reviewFidelity(input: ReviewFidelityInput): Promise<FidelityReview>;
+  /** Polishes the owner's own prompt for free generation, keeping its intent. */
+  polishPrompt(input: PolishPromptInput): Promise<PolishedPrompt>;
 }
 
 /** LLM output for scene-style prompts (ghost images, shots). */

@@ -38,6 +38,9 @@ export const storagePaths = {
   /** The sheet board built from the photos; a new name for every render, so no cache shows an old one. */
   sheetImage: (ownerId: string, productId: string, sheetId: string, renderId: string) =>
     `${ownerId}/products/${productId}/sheets/${sheetId}/board-${renderId}.jpg`,
+  /** A reference the owner uploaded for a free generation (not tied to a product). */
+  freeReference: (ownerId: string, fileId: string, mimeType: string) =>
+    `${ownerId}/free/references/${fileId}.${extensionFor(mimeType)}`,
   generation: (ownerId: string, generationId: string, mimeType: string) =>
     `${ownerId}/generations/${generationId}.${extensionFor(mimeType)}`,
   /** Temporary copies of brain images, deleted once the gateway has answered. */

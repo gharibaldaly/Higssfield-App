@@ -11,6 +11,8 @@ import type {
   GhostPromptInput,
   GhostScenePrompt,
   PlanAdInput,
+  PolishedPrompt,
+  PolishPromptInput,
   ReviewFidelityInput,
   ScenePrompt,
   SheetPlanInput,
@@ -258,6 +260,19 @@ export class MockBrain extends TemplateBrain {
           : `First frame: ${input.shot.prompt} Composed for ${input.aspectRatio}.`,
       extraNegatives: [],
       rationale: MOCK_NOTE,
+    };
+  }
+
+  /** The owner's prompt with a finish line, so the flow works without a brain key. */
+  protected override async askPolishedPrompt(input: PolishPromptInput): Promise<PolishedPrompt> {
+    const finish =
+      input.kind === "video"
+        ? "one continuous shot, slow camera movement, natural fabric motion, cinematic daylight, photorealistic"
+        : "photorealistic, natural daylight, sharp fabric texture, high-end e-commerce finish";
+    return {
+      prompt: `${input.prompt.trim().replace(/[.\s]+$/, "")}, ${finish}.`,
+      negativePrompt: "blurry, low resolution, distorted, text, watermark",
+      notes: MOCK_NOTE,
     };
   }
 

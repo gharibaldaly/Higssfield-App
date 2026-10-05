@@ -30,13 +30,19 @@ import type {
   GhostScenePrompt,
   LlmProviderId,
   PlanAdInput,
+  PolishedPrompt,
+  PolishPromptInput,
   ReviewFidelityInput,
   ScenePrompt,
   SheetPlanInput,
   ShotPromptInput,
   StructuredRequest,
 } from "@/lib/providers/llm/types";
-import { ghostScenePromptSchema, scenePromptSchema } from "@/lib/providers/llm/types";
+import {
+  ghostScenePromptSchema,
+  polishedPromptSchema,
+  scenePromptSchema,
+} from "@/lib/providers/llm/types";
 import { neutralizeWording } from "@/lib/prompts/wording";
 
 const GHOST_LOCK_VIEW: Record<GhostPromptInput["view"], LockView> = {
@@ -183,6 +189,18 @@ export abstract class TemplateBrain implements DirectorBrain {
     });
   }
 
+  protected askPolishedPrompt(input: PolishPromptInput): Promise<PolishedPrompt> {
+    const template = PROMPTS.polishPrompt;
+    return this.structured({
+      name: "polish_prompt",
+      system: template.system,
+      user: template.render(input),
+      images: input.references,
+      schema: polishedPromptSchema,
+      maxTokens: 8_000,
+    });
+  }
+
   // --- Public interface -----------------------------------------------------
 
   async classifyPhotos(input: ClassifyPhotosInput): Promise<PhotoClassification> {
@@ -302,5 +320,21 @@ export abstract class TemplateBrain implements DirectorBrain {
 
   reviewFidelity(input: ReviewFidelityInput): Promise<FidelityReview> {
     return this.askFidelityReview(input);
+  }
+
+  /**
+   * The owner's prompt, polished. The brain's wording passes the neutral
+   * filter like every other prompt it writes; nothing else is appended, so
+   * the owner sees exactly what will be sent.
+   */
+  async polishPrompt(input: PolishPromptInput): Promise<PolishedPrompt> {
+    const trimmed = input.prompt.trim();
+    if (!trimmed) throw new AppError("validation", "Write a prompt first.");
+    const polished = await this.askPolishedPrompt({ ...input, prompt: trimmed });
+    return {
+      prompt: neutralizeWording(polished.prompt.trim()) || trimmed,
+      negativePrompt: neutralizeWording(polished.negativePrompt.trim()),
+      notes: polished.notes.trim(),
+    };
   }
 }

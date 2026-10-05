@@ -197,6 +197,21 @@ pnpm dev                     # http://localhost:3000
   photos, write and approve the DNA, write prompts and submit, settle results, render colours,
   check fidelity). Close the tab and it continues next time the studio is open.
 
+## Generate (free generation)
+
+- **Generate** (`/generate`) is the plain Higgsfield experience inside the studio: upload reference
+  images if you want, write a prompt, choose any image or video model, the size (aspect ratio),
+  the quality (resolution) and, for video, the duration, and generate 1 to 4 outputs per click.
+- The prompt is sent **word for word**: no Garment DNA, no PRODUCT LOCK, no house style. "Polish"
+  asks the director brain to rewrite it in a generation-ready form without changing what it asks
+  for; you review it in the box (and can undo) before generating.
+- With references the request runs as image → image (or image → video); without them as text →
+  image (or text → video). The form only offers the sizes and qualities the chosen model has, and
+  says when a model needs a reference or takes text only.
+- Results arrive on the page as they finish, with the prompt, model, size, quality and cost. Each
+  one can be downloaded, favourited, reused as a form or used as a reference for the next
+  request. The last 48 free generations stay on the page; they do not appear in the Library.
+
 ## Project layout
 
 ```

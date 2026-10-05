@@ -25,12 +25,15 @@ export function FreeResultCard({
   view,
   onReuse,
   onUseAsReference,
+  readOnly = false,
 }: {
   item: FreeItem;
   /** The live view (polled), which may be newer than the item's own. */
   view: GenerationView;
-  onReuse: (item: FreeItem) => void;
-  onUseAsReference: ((item: FreeItem, view: GenerationView) => void) | null;
+  onReuse?: (item: FreeItem) => void;
+  onUseAsReference?: ((item: FreeItem, view: GenerationView) => void) | null;
+  /** Another account's history, as the owner reads it: look and download only. */
+  readOnly?: boolean;
 }) {
   const t = useTranslations("free.result");
   const [favorite, setFavorite] = useState(view.isFavorite);
@@ -108,11 +111,13 @@ export function FreeResultCard({
         </ul>
       ) : null}
       <div className="mt-auto flex flex-wrap items-center gap-1">
-        <Button type="button" variant="ghost" size="sm" onClick={() => onReuse(item)}>
-          <RotateCcw aria-hidden />
-          {t("reuse")}
-        </Button>
-        {onUseAsReference && completed && view.kind === "image" ? (
+        {!readOnly && onReuse ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onReuse(item)}>
+            <RotateCcw aria-hidden />
+            {t("reuse")}
+          </Button>
+        ) : null}
+        {!readOnly && onUseAsReference && completed && view.kind === "image" ? (
           <Button
             type="button"
             variant="ghost"
@@ -124,16 +129,18 @@ export function FreeResultCard({
           </Button>
         ) : null}
         <span className="flex-1" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => void toggleFavorite()}
-          aria-pressed={favorite}
-          aria-label={favorite ? t("unfavorite") : t("favorite")}
-        >
-          <Heart className={cn(favorite && "fill-[#ff6a9a] text-[#ff6a9a]")} aria-hidden />
-        </Button>
+        {readOnly ? null : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => void toggleFavorite()}
+            aria-pressed={favorite}
+            aria-label={favorite ? t("unfavorite") : t("favorite")}
+          >
+            <Heart className={cn(favorite && "fill-[#ff6a9a] text-[#ff6a9a]")} aria-hidden />
+          </Button>
+        )}
         {completed && item.downloadUrl ? (
           <Button variant="ghost" size="icon-sm" asChild>
             <a href={item.downloadUrl} aria-label={t("download")}>

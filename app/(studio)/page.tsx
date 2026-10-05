@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function StudioHomePage() {
-  const { supabase } = await requireOwner();
+  const { supabase, user } = await requireOwner();
   const count = (table: "products" | "garment_dna" | "product_sheets" | "ad_projects") =>
     supabase.from(table).select("*", { count: "exact", head: true });
   const [products, approvedDna, approvedSheets, ads, pending, approvedImages, recent] =
@@ -27,15 +27,23 @@ export default async function StudioHomePage() {
         .select("*", { count: "exact", head: true })
         .eq("status", "approved"),
       count("ad_projects"),
+      // The owner can read guests' generations too; the overview counts only their own.
       supabase
         .from("generations")
         .select("*", { count: "exact", head: true })
+        .eq("owner_id", user.id)
         .in("status", ["queued", "in_progress"]),
       supabase
         .from("generations")
         .select("*", { count: "exact", head: true })
+        .eq("owner_id", user.id)
         .eq("review_status", "approved"),
-      supabase.from("generations").select("*").order("created_at", { ascending: false }).limit(8),
+      supabase
+        .from("generations")
+        .select("*")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
   const status = keyStatus();
   return (

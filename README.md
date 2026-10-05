@@ -59,7 +59,7 @@ Every variable is documented in [`.env.example`](./.env.example).
 | Variable                                                                                             | Required          | Purpose                                                                  |
 | ---------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                          | yes               | Supabase project URL and publishable/anon key                            |
-| `APP_OWNER_EMAIL`                                                                                    | recommended       | Only this account can open the studio                                    |
+| `APP_OWNER_EMAIL`                                                                                    | recommended       | The owner's account; guests are listed under Settings → Guests           |
 | `APP_URL`                                                                                            | recommended       | Public URL of the deployment (webhook URLs)                              |
 | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`)                                                     | for real output   | Higgsfield credentials (`KEY_ID:KEY_SECRET`); mock provider without them |
 | `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`                                                               | for real analysis | Director brain; mock brain without them                                  |
@@ -219,6 +219,28 @@ pnpm dev                     # http://localhost:3000
   one can be downloaded, favourited, reused as a form or used as a reference for the next
   request. The last 48 free generations stay on the page; they do not appear in the Library.
 
+### Guests (Generate only)
+
+- A **guest** is an account that may sign in but sees only Generate: no Studio home, Products,
+  Ghost, Ads, Library or Settings, and none of the studio's configuration. Guests keep a history
+  of their own on the Generate page; no guest can see anyone else's.
+- The **owner** lists guests under **Settings → Guests** (the first one, `dr@secret.com`, is
+  listed by the migration). Listing an email allows it in; the account itself is created in
+  Supabase, since sign-ups are closed: **Authentication → Users → Add user → Create new user**,
+  tick **Auto Confirm User**, and hand the guest the password (they cannot change it themselves).
+- The owner opens a guest's history from the Guests card or from the **History** switch on the
+  Generate page (`/generate?history=<user id>`): every result with its prompt, references, model,
+  size and cost, to look at and download. Guests' generations are billed to the same Higgsfield
+  account and count in Settings → Costs.
+- **Revoke** keeps the guest's rows and files (the owner can still open the history) and stops the
+  account signing in; to close the account itself, delete the user in Supabase. A revoked guest is
+  never treated as the owner, because everyone the guest list has ever named stays a guest at the
+  database level.
+- Database: migration `20261005120000_studio_guests.sql` adds `studio_guests`, the role
+  functions (`studio_role()`, `studio_guest_accounts()`) and two read-only policies that let the
+  owner read guests' generations and storage folders. Run it before the first guest signs in;
+  until then the studio behaves as before (owner only).
+
 ## Project layout
 
 ```
@@ -249,6 +271,10 @@ The `render_jobs` table is already in the schema.
 3. **المفاتيح**: من غير مفاتيح Higgsfield وClaude/Gemini التطبيق بيشتغل بنتائج تجريبية (Mock).
    لما تضيفها في Vercel وتعمل Redeploy، النتائج الحقيقية بتشتغل على طول.
 4. بعد أول دخول غيّر كلمة المرور من **الإعدادات → كلمة مرور الحساب**.
+   - **ضيوف (التوليد الحر بس)**: من **الإعدادات → الضيوف** ضيف إيميل الضيف (`dr@secret.com` متضاف
+     من الـ migration)، وبعدين اعمله حساب من Supabase → Authentication → Users → Add user (Auto
+     Confirm) وادّيله كلمة المرور. الضيف مش هيشوف غير صفحة التوليد الحر والهيستوري بتاعه، وإنت
+     تقدر تفتح الهيستوري ده من كارت الضيوف أو من زرار «الهيستوري» في صفحة التوليد.
 5. **صفحة الجوست من الصور**: ارفع كل صور الموديل مرة واحدة، فكل رفعة بتبقى موديل واحد: أمام وخلف
    و2 كلوز، وبعد ما توافق على الأمام يعمل الألوان. لموديلات كتير مرة واحدة، اسحب مجلد فيه مجلد لكل
    موديل (اسم المجلد = اسم الموديل)، وعينات الألوان في مجلد «ألوان». الشغل بيمشي طول ما فيه تبويب من

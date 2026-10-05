@@ -89,15 +89,21 @@ export async function submitFreeRequest(
   return { items: await toFreeItems(supabase, rows, registry), warnings: plan.warnings };
 }
 
-/** The owner's free generations, newest first. */
+/**
+ * One account's free generations, newest first. The owner may read a guest's
+ * rows as well as their own, so the account is always named: the page shows
+ * one history at a time.
+ */
 export async function listFreeGenerations(
   supabase: TypedSupabaseClient,
   settings: OwnerSettings,
+  accountId: string,
   kind?: FreeKind,
 ): Promise<FreeItem[]> {
   let query = supabase
     .from("generations")
     .select("*")
+    .eq("owner_id", accountId)
     .eq("purpose", "other")
     .is("product_id", null)
     .is("ad_project_id", null)

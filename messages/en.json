@@ -67,19 +67,24 @@
     "owner": "Owner",
     "signOut": "Sign out",
     "menu": "Menu",
-    "preferences": "Preferences"
+    "preferences": "Preferences",
+    "guest": "Guest",
+    "role": {
+      "owner": "Owner · the whole studio",
+      "guest": "Guest · Generate only"
+    }
   },
   "login": {
     "title": "Sign in",
     "heading": "Welcome back",
     "subheading": "Sign in to your private production studio.",
-    "privateNote": "Private studio — one owner account.",
+    "privateNote": "Private studio — the owner and invited guests.",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
     "errors": {
       "invalid": "Email or password is not correct.",
-      "not_owner": "This studio is private to its owner.",
+      "not_owner": "This account is not allowed into the studio.",
       "config": "Supabase is not configured yet — see the setup page."
     }
   },
@@ -1245,6 +1250,18 @@
       "one": "≈ {price} for this request, by Higgsfield's estimate.",
       "total": "≈ {price} each × {count} = {total}, by Higgsfield's estimate.",
       "unavailable": "No price estimate is available for this model right now."
+    },
+    "descriptionGuest": "Your own prompt, sent to Higgsfield exactly as you write it: upload references if you want, choose any image or video model, the size and the quality, and generate. Your results stay in your own history on this page.",
+    "history": {
+      "label": "History",
+      "mine": "Mine",
+      "eyebrow": "Guest history",
+      "title": "Generations",
+      "description": "What {email} generated, newest first: the prompt, the references, the model, the size and the cost of every result. Look and download only.",
+      "of": "History of {email}",
+      "readOnly": "{email}’s own history, read only: nothing here can be changed or reused from this account, and a request still running settles when they open their page.",
+      "empty": "{email} has not generated anything yet",
+      "emptyHint": "Their results appear here as soon as they generate."
     }
   },
   "home": {
@@ -1531,6 +1548,28 @@
         "reauth": "Sign out, sign in again, then retry.",
         "unknown": "Could not change the password. Try again."
       }
+    },
+    "guests": {
+      "title": "Guests",
+      "hint": "Other accounts that may sign in. A guest sees only Generate and their own history; you can open that history from here.",
+      "none": "No guests yet.",
+      "generateOnly": "Generate only",
+      "signedIn": "Signed in before",
+      "accountReady": "Account ready",
+      "noAccount": "No account yet",
+      "history": "History",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke {email}?",
+      "revokeBody": "They can no longer sign in. Their generations stay, and you can still open their history. To close the account itself, delete the user in Supabase.",
+      "revoked": "Guest revoked",
+      "add": "Add a guest",
+      "addButton": "Add",
+      "added": "Guest added",
+      "restored": "Guest restored",
+      "restore": "Restore",
+      "revokedHeading": "Revoked",
+      "accountHint": "Listing the email allows it in. The account itself is created in Supabase: Authentication → Users → Add user (tick Auto Confirm), with the password you hand to the guest.",
+      "failed": "Could not update the guests."
     }
   },
   "errors": {

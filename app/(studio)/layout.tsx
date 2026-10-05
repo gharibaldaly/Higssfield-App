@@ -4,21 +4,27 @@ import { SatinBackground } from "@/components/fx/satin-background";
 import { GhostBatchRunner } from "@/components/ghost-batch/batch-runner";
 import { Masthead } from "@/components/layout/masthead";
 import { SideRails } from "@/components/layout/side-rails";
-import { requireOwner } from "@/lib/auth/owner";
+import { requireMember } from "@/lib/auth/owner";
 import { keyStatus } from "@/lib/env";
 import { hasRunningGhostBatch } from "@/lib/ghost-batches/runner";
 import { getEffects, getTheme } from "@/lib/preferences";
 import { ensureOwnerDefaults } from "@/lib/settings/service";
 
+/**
+ * The studio shell for the owner and for guests. A guest (Generate only) gets
+ * the same chrome with only their sections in it; every owner-only page under
+ * this layout sends them back to Generate itself (requireOwner).
+ */
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
-  const owner = await requireOwner();
-  await ensureOwnerDefaults(owner.supabase, owner.user.id);
+  const member = await requireMember();
+  const owner = member.role === "owner";
+  await ensureOwnerDefaults(member.supabase, member.user.id, { presets: owner });
   const status = keyStatus();
   const [theme, effects, t, batchRunning] = await Promise.all([
     getTheme(),
     getEffects(),
     getTranslations("nav"),
-    hasRunningGhostBatch(owner.supabase),
+    owner ? hasRunningGhostBatch(member.supabase) : Promise.resolve(false),
   ]);
   return (
     <div className="relative min-h-dvh">
@@ -31,7 +37,8 @@ export default async function StudioLayout({ children }: { children: React.React
       <SatinBackground />
       <SideRails />
       <Masthead
-        email={owner.user.email ?? null}
+        email={member.user.email ?? null}
+        role={member.role}
         theme={theme}
         effects={effects}
         mockImages={status.higgsfieldMock}
@@ -44,7 +51,7 @@ export default async function StudioLayout({ children }: { children: React.React
       >
         {children}
       </main>
-      <GhostBatchRunner active={batchRunning} />
+      {owner ? <GhostBatchRunner active={batchRunning} /> : null}
     </div>
   );
 }

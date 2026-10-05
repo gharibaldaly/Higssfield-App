@@ -640,7 +640,13 @@ export async function refreshGenerations(
     while (cursor < rows.length) {
       const index = cursor;
       cursor += 1;
-      results[index] = await refreshGeneration(supabase, rows[index]!);
+      try {
+        results[index] = await refreshGeneration(supabase, rows[index]!);
+      } catch (error) {
+        // A row this account may read but not write (a guest's, seen by the
+        // owner) stays as it is; its own account's next poll settles it.
+        console.warn("refreshGeneration failed", rows[index]!.id, error);
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, rows.length) }, worker));

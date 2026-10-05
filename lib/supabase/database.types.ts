@@ -284,6 +284,14 @@ export type GhostBatchItemRow = Timestamps & {
   meta: Json;
 };
 
+/** An account allowed into the Generate section only (revoked_at set: no longer allowed in). */
+export type StudioGuestRow = {
+  email: string;
+  note: string | null;
+  created_at: string;
+  revoked_at: string | null;
+};
+
 export type SettingsRow = Timestamps & {
   owner_id: string;
   llm_provider: "claude" | "gemini" | "gateway";
@@ -516,9 +524,27 @@ export type Database = {
         | "drive",
         []
       >;
+      studio_guests: Table<StudioGuestRow, "note" | "created_at" | "revoked_at", []>;
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      is_studio_guest: { Args: { uid: string }; Returns: boolean };
+      is_studio_guest_folder: { Args: { folder: string }; Returns: boolean };
+      /** owner | guest | revoked for the signed-in account, null when signed out. */
+      studio_role: { Args: Record<PropertyKey, never>; Returns: string | null };
+      /** The guest list with each guest's account; empty for a guest. */
+      studio_guest_accounts: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          email: string;
+          note: string | null;
+          created_at: string;
+          revoked_at: string | null;
+          user_id: string | null;
+          last_sign_in_at: string | null;
+        }[];
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

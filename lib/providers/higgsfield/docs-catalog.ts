@@ -62,6 +62,7 @@ type Property = Record<string, unknown>;
  */
 const FAMILY_ORDER = [
   "grok-image-2",
+  "marketing-studio-image",
   "qwen-image-3",
   "ideogram-4",
   "soul-2",
@@ -72,8 +73,6 @@ const FAMILY_ORDER = [
   "recraft-v4-1-utility-pro",
   "recraft-v4-1-utility",
   "z-image-turbo",
-  // Last among the image families: every request so far has failed (KNOWN_ISSUES).
-  "marketing-studio-image",
   "kling-3",
   "seedance-2",
   "seedance-2-5",
@@ -101,14 +100,9 @@ const FAMILY_ORDER = [
  * last among its kind so it is never a default.
  */
 const KNOWN_ISSUES: Record<string, string> = {
-  // 2026-09-28 and 2026-10-05: ten requests (2.0 Alpha, 2.5 Flare and 2.5 Sunburst; sheets,
-  // fronts, backs, close-ups and a free generation; 1 to 8 references; 2k and 4k; moderation
-  // auto and low) all ended "failed" with no reason about 30 s after Higgsfield accepted them,
-  // while Grok Image 2.0 and Qwen Image 3 Edit made images from the same photos. The docs say a
-  // content-filter rejection ends as "nsfw", not "failed", so this is a generation failure on
-  // Higgsfield's side for this workflow. Ask Higgsfield support with a request id.
-  "marketing-studio-image":
-    "Every request from this studio has failed without a reason (10 of 10, at 2k and 4k, with the low moderation level). Not the content filter: the API reports that as nsfw. Use Grok Image 2.0 or Qwen Image 3 Edit, or ask Higgsfield support with a failed request id.",
+  // Marketing Studio Image was listed here on 2026-10-05 (every request "failed" with no
+  // reason) until the cause was found: the owner's phone photos as references. Its
+  // references are now prepared (NOTED_LIMITS.prepareReferences) and it works.
 };
 
 /** Workflows listed first inside their family. */
@@ -139,8 +133,16 @@ const NOTED_LIMITS: Record<
     requiresReferences?: boolean;
     resolutions?: string[];
     dropAspectRatio?: boolean;
+    /** Re-encode references at this long edge before sending (ImageParam.prepare). */
+    prepareReferences?: number;
   }
 > = {
+  // Every request with the owner's phone photos (24 MP JPEGs exported from HEIC) as references
+  // ended "failed" with no reason, while the same photos as screenshots, the studio's own
+  // outputs and text-only requests succeeded (2026-10-05). The docs say oversized images are
+  // normalised, but evidently not these; so they are re-encoded first.
+  "marketing-studio/image": { prepareReferences: 2048 },
+  "marketing-studio/image/": { prepareReferences: 2048 },
   // "Keep it within 2,500 characters; longer prompts are truncated."
   "kling-video/v3.0/": { promptChars: 2500 },
   "kling-video/v3.0-turbo/image-to-video": { promptChars: 2500 },
@@ -281,11 +283,17 @@ export function specFromWorkflow(
       }
       max = Math.min(documented ?? DEFAULT_REFERENCE_CAP, MAX_REFERENCES);
     }
+    if (limits.prepareReferences) {
+      notes.push(
+        `references are re-encoded (upright, at most ${limits.prepareReferences} px, sRGB JPEG) before sending, because the model fails on large phone photos as they are`,
+      );
+    }
     image = {
       field: reference.field,
       format: reference.format,
       max: Math.max(1, max),
       required: required.has(reference.field) || minItems > 0 || Boolean(limits.requiresReferences),
+      ...(limits.prepareReferences ? { prepare: { longEdge: limits.prepareReferences } } : {}),
     };
   }
 

@@ -12,9 +12,11 @@ import {
 import { parseCatalogueStyle } from "@/lib/domain/catalogue-style";
 import { higgsfieldMaxConcurrent } from "@/lib/env";
 import { AppError, toUserMessage } from "@/lib/errors";
+import { prepareReferences } from "@/lib/generations/reference-prep";
 import {
   MAX_WAIT_MS,
   pollIntervalMs,
+  preparedPathsOf,
   providerBodyFrom,
   WAIT_RETRY_MS,
   waitReasonOf,
@@ -86,13 +88,19 @@ export async function submitGeneration(
       "Mock models are only available while Higgsfield is not configured.",
     );
   }
-  const signed = await signPaths(supabase, input.referencePaths, {
-    expiresIn: PROVIDER_REFERENCE_TTL_S,
-  });
-  const referenceUrls = input.referencePaths
+  // Some models fail on the owner's phone photos as they are: they get re-encoded
+  // copies, while the row keeps the originals for the compare view and the checks.
+  const prepare = input.model.params.image?.prepare;
+  const wantsImages = input.mode === "image-to-image" || input.mode === "image-to-video";
+  const sendPaths =
+    prepare && wantsImages && input.referencePaths.length > 0
+      ? await prepareReferences(supabase, input.referencePaths, prepare.longEdge)
+      : input.referencePaths;
+  const signed = await signPaths(supabase, sendPaths, { expiresIn: PROVIDER_REFERENCE_TTL_S });
+  const referenceUrls = sendPaths
     .map((path) => signed.get(path))
     .filter((url): url is string => Boolean(url));
-  if (referenceUrls.length !== input.referencePaths.length) {
+  if (referenceUrls.length !== sendPaths.length) {
     throw new AppError("not_found", "A reference image could not be read from storage.");
   }
 
@@ -108,7 +116,7 @@ export async function submitGeneration(
 
   // Store the request with storage paths instead of short-lived signed URLs.
   const redactions = new Map(
-    input.referencePaths.map((path) => [signed.get(path)!, `storage:${path}`] as const),
+    sendPaths.map((path) => [signed.get(path)!, `storage:${path}`] as const),
   );
   const now = new Date().toISOString();
   const waitForRoom = providerMode === "higgsfield" && !(await hasProviderRoom(supabase));
@@ -119,6 +127,7 @@ export async function submitGeneration(
     ...redactBody(built.body, redactions),
     _applied: built.applied,
     _warnings: built.warnings,
+    ...(sendPaths !== input.referencePaths ? { _prepared: sendPaths } : {}),
     ...(input.meta ? { _meta: input.meta } : {}),
     ...(waiting ? { _waiting: waiting } : {}),
   };
@@ -324,9 +333,11 @@ async function submitWaiting(
 
   let body: Record<string, unknown>;
   try {
-    const signed = await signPaths(supabase, claimed.reference_paths, {
-      expiresIn: PROVIDER_REFERENCE_TTL_S,
-    });
+    const signed = await signPaths(
+      supabase,
+      [...claimed.reference_paths, ...preparedPathsOf(claimed.params)],
+      { expiresIn: PROVIDER_REFERENCE_TTL_S },
+    );
     body = providerBodyFrom(claimed.params, (path) => signed.get(path));
   } catch (error) {
     const failed = await updateRow(supabase, claimed.id, {

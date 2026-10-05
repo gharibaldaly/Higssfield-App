@@ -41,6 +41,9 @@ export const storagePaths = {
   /** A reference the owner uploaded for a free generation (not tied to a product). */
   freeReference: (ownerId: string, fileId: string, mimeType: string) =>
     `${ownerId}/free/references/${fileId}.${extensionFor(mimeType)}`,
+  /** A reference re-encoded for a model that needs it; keyed by its source, so it is made once. */
+  preparedReference: (ownerId: string, key: string, longEdge: number) =>
+    `${ownerId}/derived/refs/${key}-${longEdge}.jpg`,
   generation: (ownerId: string, generationId: string, mimeType: string) =>
     `${ownerId}/generations/${generationId}.${extensionFor(mimeType)}`,
   /** Temporary copies of brain images, deleted once the gateway has answered. */

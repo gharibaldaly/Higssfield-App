@@ -1089,7 +1089,10 @@
       "aspectFromReference": "This model frames the clip like its reference image. Turn on “preview frame first” on a shot to get an exact 9:16 start frame.",
       "resolution": "Resolution / quality",
       "fixedDuration": "This model sets the clip length itself; clips are trimmed in the montage.",
-      "cutsToMusic": "Cuts matched to music"
+      "cutsToMusic": "Cuts matched to music",
+      "clipLength": "A {shot} s shot is sent as a {clip} s clip: the shortest this model makes. The montage trims it.",
+      "estimate": "≈ {price} per shot ({seconds} s at {resolution}), by Higgsfield's estimate.",
+      "estimateUnavailable": "No price estimate is available for this model right now."
     },
     "shot": {
       "purpose": "Shot purpose",
@@ -1222,6 +1225,11 @@
       "unfavorite": "Remove from favourites",
       "download": "Download",
       "open": "Open the file"
+    },
+    "estimate": {
+      "one": "≈ {price} for this request, by Higgsfield's estimate.",
+      "total": "≈ {price} each × {count} = {total}, by Higgsfield's estimate.",
+      "unavailable": "No price estimate is available for this model right now."
     }
   },
   "home": {

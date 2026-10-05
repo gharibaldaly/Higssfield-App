@@ -1,6 +1,14 @@
 "use client";
 
-import { Clapperboard, Image as ImageIcon, Loader2, Sparkles, Undo2, Wand2 } from "lucide-react";
+import {
+  Clapperboard,
+  Coins,
+  Image as ImageIcon,
+  Loader2,
+  Sparkles,
+  Undo2,
+  Wand2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +19,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { FreeResultCard } from "@/components/free/free-result-card";
 import { ReferencePicker, type FreeReference } from "@/components/free/reference-picker";
 import { ModelPicker } from "@/components/generation/model-picker";
+import { formatPrice, useEstimate } from "@/components/generation/use-estimate";
 import { useGenerationPolling } from "@/components/generation/use-generation-polling";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +42,7 @@ import {
   freeModeFor,
   type FreeKind,
 } from "@/lib/generations/free-shared";
+import { preferredResolution } from "@/lib/providers/higgsfield/fit";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 import { storagePaths } from "@/lib/storage/paths";
 import type { PolishedPrompt } from "@/lib/providers/llm/types";
@@ -114,11 +124,12 @@ export function FreeStudio({
         : (caps.aspectRatios.find((value) => value === (kind === "image" ? "4:5" : "9:16")) ??
           caps.aspectRatios[0]!)
       : null;
+  // Images take the highest tier; video takes 1080p unless chosen otherwise (4k costs several times more).
   const resolution =
     caps && caps.resolutions.length > 0
       ? form.resolution && caps.resolutions.includes(form.resolution)
         ? form.resolution
-        : caps.resolutions[caps.resolutions.length - 1]!
+        : preferredResolution(kind, caps.resolutions)
       : null;
   const durationS =
     caps && caps.durations.length > 0
@@ -130,6 +141,26 @@ export function FreeStudio({
   function patch(update: Partial<FormState>) {
     setForms((current) => ({ ...current, [kind]: { ...current[kind], ...update } }));
   }
+
+  const { estimate } = useEstimate(
+    model && modeOk
+      ? {
+          modelId: model.id,
+          mode,
+          aspectRatio,
+          resolution,
+          durationS,
+          referenceCount: Math.min(references.length, caps?.maxReferenceImages ?? 0),
+        }
+      : null,
+  );
+  const price = formatPrice(estimate);
+  const total =
+    estimate?.usd !== null && estimate?.usd !== undefined
+      ? `$${(estimate.usd * form.count).toFixed(2)}`
+      : estimate?.credits !== null && estimate?.credits !== undefined
+        ? `${estimate.credits * form.count} cr`
+        : null;
 
   const canGenerate =
     Boolean(model) && !model?.disabledReason && modeOk && !needsReference && form.prompt.trim();
@@ -423,6 +454,18 @@ export function FreeStudio({
                   </label>
                 </div>
                 <p className="text-xs text-muted-foreground">{t("countHint")}</p>
+                {model && modeOk ? (
+                  <p className="flex items-center gap-2 rounded-(--radius-control) border border-dashed border-border-strong px-3 py-2 text-xs">
+                    <Coins className="size-3.5 shrink-0 text-accent-ink" aria-hidden />
+                    <span className="text-muted-foreground">
+                      {price && total
+                        ? form.count > 1
+                          ? t("estimate.total", { price, count: form.count, total })
+                          : t("estimate.one", { price })
+                        : t("estimate.unavailable")}
+                    </span>
+                  </p>
+                ) : null}
 
                 <Button
                   type="button"

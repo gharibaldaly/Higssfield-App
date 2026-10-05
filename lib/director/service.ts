@@ -20,7 +20,11 @@ import { ownerRegistry, promptBudget, resolveModel } from "@/lib/generations/mod
 import { getGeneration, recordFailedGeneration } from "@/lib/generations/queries";
 import { submitGeneration } from "@/lib/generations/service";
 import { activeProviderMode, requireHiggsfieldKey } from "@/lib/providers/higgsfield";
-import { capabilitiesOf, highestResolution } from "@/lib/providers/higgsfield/registry";
+import {
+  capabilitiesOf,
+  defaultResolution,
+  highestResolution,
+} from "@/lib/providers/higgsfield/registry";
 import type { ModelSpec } from "@/lib/providers/higgsfield/types";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import { getPieces, getProduct } from "@/lib/products/service";
@@ -632,8 +636,9 @@ export async function generateShot(
       negativePrompt: built.negativePrompt,
       referencePaths,
       aspectRatio,
+      // 1080p unless the owner chose otherwise: the top tier costs several times more per clip.
       resolution:
-        overrides.resolution || project.videoParsed.resolution || highestResolution(model),
+        overrides.resolution || project.videoParsed.resolution || defaultResolution(model),
       durationS: overrides.durationS ?? Number(shot.duration_s),
       links: {
         productId: project.product_id,

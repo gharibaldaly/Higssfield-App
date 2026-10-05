@@ -41,6 +41,9 @@ class FakeBrain implements DirectorBrain {
   reviewFidelity() {
     return this.answer();
   }
+  polishPrompt() {
+    return this.answer();
+  }
 }
 
 const PHOTOS = { photos: [] };

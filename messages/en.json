@@ -18,6 +18,7 @@
     "products": "Products",
     "ghost": "Ghost Studio",
     "ads": "Ads Director",
+    "generate": "Generate",
     "library": "Library",
     "settings": "Settings",
     "soonHeading": "Coming soon",
@@ -34,6 +35,7 @@
       "products": "Products",
       "ghost": "Ghost",
       "ads": "Ads",
+      "generate": "Generate",
       "library": "Library",
       "settings": "Settings"
     },
@@ -42,6 +44,7 @@
       "products": "Photos · Garment DNA · Colourways · Sheet",
       "ghost": "From photos · front & back · close-ups · colours",
       "ads": "Director board · Shots · Video",
+      "generate": "Your prompt · any model · size & quality",
       "library": "Every generation, with filters",
       "settings": "Director brain · Catalogue style · Keys"
     }
@@ -1150,6 +1153,74 @@
       "builtinNote": "Built-in presets can always be restored from the Ads page.",
       "saved": "Preset saved",
       "save": "Save preset"
+    }
+  },
+  "free": {
+    "eyebrow": "Free generation",
+    "title": "Generate",
+    "description": "Your own prompt, sent to Higgsfield exactly as you write it: upload references if you want, choose any image or video model, the size and the quality, and generate. Nothing from the catalogue system is added to the prompt.",
+    "tabs": {
+      "image": "Images",
+      "video": "Video"
+    },
+    "references": {
+      "title": "Reference images",
+      "add": "Add",
+      "uploading": "{count, plural, one {Uploading # file…} other {Uploading # files…}}",
+      "hint": "Optional. With references the request runs as image → image (or image → video); the first ones count when the model takes fewer.",
+      "overModel": "{count, plural, one {This model takes # reference image; the rest are not sent.} other {This model takes # reference images; the rest are not sent.}}",
+      "rejected": "Some files were skipped: only JPEG, PNG or WebP up to 25 MB.",
+      "max": "{count, plural, one {At most # reference per request.} other {At most # references per request.}}",
+      "uploadFailed": "Could not upload {name}",
+      "remove": "Remove {name}"
+    },
+    "prompt": "Prompt",
+    "promptPlaceholder": {
+      "image": "Describe the image you want, in any language…",
+      "video": "Describe the shot: what is in frame, how the camera moves, the light…"
+    },
+    "promptHint": "Sent word for word. “Polish” asks the director brain to rewrite it in a generation-ready form without changing what you asked for; you can still edit it.",
+    "polish": "Polish",
+    "polishing": "Polishing…",
+    "polished": "Polished by {model}",
+    "undoPolish": "Undo",
+    "negative": "Avoid (negative prompt)",
+    "negativePlaceholder": "What the result must not contain…",
+    "model": "Model",
+    "needsReference": "This model needs at least one reference image.",
+    "textOnlyModel": "This model works from text only: remove the references or choose an image → image model.",
+    "size": "Size",
+    "sizeFromModel": "This model sets the size itself (it follows the reference).",
+    "quality": "Quality",
+    "qualityFromModel": "This model has one quality level.",
+    "duration": "Duration",
+    "durationFromModel": "This model sets the duration itself.",
+    "seconds": "{seconds} s",
+    "count": "Outputs",
+    "outputs": "{count, plural, one {# output} other {# outputs}}",
+    "countHint": "Each output is a separate request with its own cost.",
+    "generate": "{count, plural, one {Generate} other {Generate # outputs}}",
+    "generating": "Sending…",
+    "submitted": "{count, plural, one {Request sent; the result appears below as it finishes.} other {# requests sent; the results appear below as they finish.}}",
+    "results": {
+      "title": "Results",
+      "empty": "Nothing generated yet",
+      "emptyHint": {
+        "image": "Write a prompt, pick a model, and the images land here as they finish. The last 48 free generations stay on this page.",
+        "video": "Write a prompt, pick a video model, and the clips land here as they finish. The last 48 free generations stay on this page."
+      }
+    },
+    "result": {
+      "togglePrompt": "Show the whole prompt",
+      "negative": "Avoid",
+      "references": "References sent",
+      "reference": "Reference {number}",
+      "reuse": "Reuse",
+      "useAsReference": "Use as reference",
+      "favorite": "Add to favourites",
+      "unfavorite": "Remove from favourites",
+      "download": "Download",
+      "open": "Open the file"
     }
   },
   "home": {

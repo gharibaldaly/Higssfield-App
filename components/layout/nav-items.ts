@@ -10,13 +10,14 @@ import {
   Palette,
   Settings,
   Shirt,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = {
   href: string;
   /** Key in messages `nav.*`. */
-  key: "studio" | "products" | "ghost" | "ads" | "library" | "settings";
+  key: "studio" | "products" | "ghost" | "ads" | "generate" | "library" | "settings";
   icon: LucideIcon;
 };
 
@@ -30,6 +31,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/products", key: "products", icon: Shirt },
   { href: "/ghost", key: "ghost", icon: Ghost },
   { href: "/ads", key: "ads", icon: Clapperboard },
+  { href: "/generate", key: "generate", icon: Sparkles },
   { href: "/library", key: "library", icon: Images },
   { href: "/settings", key: "settings", icon: Settings },
 ];

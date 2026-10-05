@@ -14,6 +14,8 @@ import type {
   GhostPromptInput,
   LlmProviderId,
   PlanAdInput,
+  PolishedPrompt,
+  PolishPromptInput,
   ReviewFidelityInput,
   SheetPlanInput,
   ShotPromptInput,
@@ -106,6 +108,10 @@ export class ChainBrain implements DirectorBrain {
 
   reviewFidelity(input: ReviewFidelityInput): Promise<FidelityReview> {
     return this.run((brain) => brain.reviewFidelity(input));
+  }
+
+  polishPrompt(input: PolishPromptInput): Promise<PolishedPrompt> {
+    return this.run((brain) => brain.polishPrompt(input));
   }
 
   private async run<T>(call: (brain: DirectorBrain) => Promise<T>): Promise<T> {

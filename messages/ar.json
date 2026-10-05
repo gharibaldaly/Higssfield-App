@@ -431,6 +431,7 @@
     "maxDuration": "حتى {seconds} ث",
     "aspectRatios": "الأبعاد",
     "unverified": "بعض الخيارات افتراضية ولم تُراجع بعد مع وثائق Higgsfield.",
+    "knownIssue": "مشكلة معروفة",
     "modes": {
       "text-to-image": "نص ← صورة",
       "image-to-image": "صورة ← صورة",

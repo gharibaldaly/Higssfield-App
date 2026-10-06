@@ -29,6 +29,7 @@ import {
 } from "@/lib/sheet/render";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
+import { ensureDerivatives } from "@/lib/storage/derivatives";
 import { downloadObject, removeObjects, uploadObject } from "@/lib/storage/objects";
 import { storagePaths } from "@/lib/storage/paths";
 import type { Json, ProductSheetRow, ReferenceCropRow } from "@/lib/supabase/database.types";
@@ -100,6 +101,7 @@ async function storeBoard(
   const board = await renderBoard(layout, { ...text, missingImage: MISSING_IMAGE }, sources);
   const path = storagePaths.sheetImage(ownerId, sheet.productId, sheet.id, randomUUID());
   await uploadObject(supabase, path, board.data, "image/jpeg");
+  await ensureDerivatives(supabase, path, board.data, ["thumb"]);
   return path;
 }
 
@@ -308,6 +310,7 @@ async function cropComposedSheet(
               "image/jpeg",
             );
             await uploadObject(supabase, path, image.data, "image/jpeg");
+            await ensureDerivatives(supabase, path, image.data, ["thumb"]);
             return { path, width: image.width, height: image.height };
           },
         },
@@ -349,6 +352,7 @@ async function cropDrawnSheet(
         const crop = crops[index]!;
         const path = storagePaths.crop(ownerId, sheet.product_id, sheet.id, cropId);
         await uploadObject(supabase, path, crop.data, "image/png");
+        await ensureDerivatives(supabase, path, crop.data, ["thumb"]);
         return { path, width: crop.width, height: crop.height };
       },
     })),

@@ -37,7 +37,7 @@ export function storageImageHost(supabase: TypedSupabaseClient, ownerId: string)
           ),
         ),
       );
-      const signed = await signPaths(supabase, paths, { expiresIn: LINK_TTL_S });
+      const signed = await signPaths(supabase, paths, { expiresIn: LINK_TTL_S, cache: false });
       const urls = paths.map((path) => signed.get(path));
       if (urls.some((url) => !url)) {
         throw new AppError("provider_unavailable", "Could not create links for the photos.", {

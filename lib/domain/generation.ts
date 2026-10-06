@@ -72,6 +72,8 @@ export type GenerationView = {
   provider: GenerationRow["provider"];
   slot: string | null;
   url: string | null;
+  /** The tile-sized copy of an image result when one exists, else `url`. */
+  thumbUrl: string | null;
   mimeType: string | null;
   error: string | null;
   note: string | null;
@@ -113,7 +115,11 @@ export function finishBackgroundOk(params: GenerationRow["params"]): boolean | n
   return typeof finish.backgroundOk === "boolean" ? finish.backgroundOk : null;
 }
 
-export function toGenerationView(row: GenerationRow, url: string | null): GenerationView {
+export function toGenerationView(
+  row: GenerationRow,
+  url: string | null,
+  thumbUrl: string | null = url,
+): GenerationView {
   return {
     id: row.id,
     status: row.status,
@@ -123,6 +129,7 @@ export function toGenerationView(row: GenerationRow, url: string | null): Genera
     provider: row.provider,
     slot: row.slot,
     url,
+    thumbUrl,
     mimeType: row.mime_type,
     error: row.error,
     note: row.note,

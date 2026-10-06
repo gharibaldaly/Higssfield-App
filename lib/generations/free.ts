@@ -18,7 +18,8 @@ import { getDirectorBrain } from "@/lib/providers/llm";
 import type { PolishedPrompt } from "@/lib/providers/llm/types";
 import type { OwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
-import { downloadObject, signPaths } from "@/lib/storage/objects";
+import { downloadForBrain, thumbUrls } from "@/lib/storage/derivatives";
+import { signPaths } from "@/lib/storage/objects";
 import { isOwnedPath } from "@/lib/storage/paths";
 import type { GenerationRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -132,13 +133,26 @@ export async function toFreeItems(
     signPaths(supabase, resultPaths),
     signPaths(supabase, resultPaths, { download: true }),
   ]);
+  // The small copies for the tiles; the originals open and download in full.
+  const [referenceThumbs, resultThumbs] = await Promise.all([
+    thumbUrls(supabase, referencePaths, references),
+    thumbUrls(
+      supabase,
+      rows.filter((row) => row.kind === "image").map((row) => row.storage_path),
+      results,
+    ),
+  ]);
   const labels = new Map(registry.map((spec) => [spec.id, spec.label]));
   return rows.map((row) => {
     const meta = freeMetaOf(row.params);
     const applied = appliedOf(row.params);
     const url = row.storage_path ? (results.get(row.storage_path) ?? null) : null;
     return {
-      view: toGenerationView(row, url),
+      view: toGenerationView(
+        row,
+        url,
+        row.storage_path ? (resultThumbs.get(row.storage_path) ?? url) : null,
+      ),
       prompt: row.prompt,
       negativePrompt: meta?.negativePrompt ?? null,
       modelLabel: labels.get(row.model_id) ?? row.model_id,
@@ -146,7 +160,7 @@ export async function toFreeItems(
       resolution: applied.resolution,
       durationS: applied.durationS ?? row.duration_s,
       referenceUrls: row.reference_paths
-        .map((path) => references.get(path))
+        .map((path) => referenceThumbs.get(path) ?? references.get(path))
         .filter((link): link is string => Boolean(link)),
       referencePaths: row.reference_paths,
       batch: meta?.batch ?? null,
@@ -178,7 +192,7 @@ export async function polishFreePrompt(
   requireOwnedPaths(input.referencePaths, ownerId);
   const references = await Promise.all(
     input.referencePaths.slice(0, POLISH_REFERENCE_LIMIT).map(async (path, index) =>
-      toLlmImage(await downloadObject(supabase, path), `Reference ${index + 1}`, {
+      toLlmImage(await downloadForBrain(supabase, path), `Reference ${index + 1}`, {
         longEdge: 1024,
       }),
     ),

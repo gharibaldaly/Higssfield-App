@@ -14,6 +14,7 @@ import {
   splitByBatch,
   type OutputRow,
 } from "@/lib/library/grouping";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import { signPaths } from "@/lib/storage/objects";
 import type { GenerationRow, GhostBatchRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -190,7 +191,7 @@ export async function listLibraryCollections(
     })
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
-  const signed = await signPaths(supabase, [
+  const signed = await thumbUrls(supabase, [
     ...batchCards.flatMap((card) => card.covers),
     ...productCards.flatMap((card) => card.covers),
   ]);

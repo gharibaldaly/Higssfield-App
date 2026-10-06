@@ -44,6 +44,8 @@ export const storagePaths = {
   /** A reference re-encoded for a model that needs it; keyed by its source, so it is made once. */
   preparedReference: (ownerId: string, key: string, longEdge: number) =>
     `${ownerId}/derived/refs/${key}-${longEdge}.jpg`,
+  /** The tile-sized copy of a stored image, keyed by its source path. */
+  thumbnail: (ownerId: string, key: string) => `${ownerId}/derived/thumbs/${key}.jpg`,
   generation: (ownerId: string, generationId: string, mimeType: string) =>
     `${ownerId}/generations/${generationId}.${extensionFor(mimeType)}`,
   /** Temporary copies of brain images, deleted once the gateway has answered. */

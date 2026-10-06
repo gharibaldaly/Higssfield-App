@@ -1,20 +1,21 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import { AppError } from "@/lib/errors";
 import { prepareReference } from "@/lib/images/process";
+import { ensureDerivatives, preparedPathFor } from "@/lib/storage/derivatives";
 import { downloadObject, signPaths, uploadObject } from "@/lib/storage/objects";
-import { storagePaths } from "@/lib/storage/paths";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
 /**
- * Re-encoded copies of reference images for models that fail on the owner's
- * phone photos as they are (Marketing Studio Image, 2026-10-05): upright, at
- * most `longEdge` pixels on the long side, sRGB JPEG without metadata. A copy
- * is keyed by its source path and size, so it is made once per photo and
- * reused by every later request; the generation row keeps the original paths
- * for the compare view and the fidelity checks.
+ * Re-encoded copies of reference images: upright, at most `longEdge` pixels
+ * on the long side, sRGB JPEG without metadata. First made for models that
+ * fail on the owner's phone photos as they are (Marketing Studio Image,
+ * 2026-10-05); since 2026-10-06 every image reference goes out as a copy at
+ * `REFERENCE_LONG_EDGE`, because Higgsfield resizes references anyway and the
+ * originals cost twenty times the egress. A copy is keyed by its source path
+ * and size, so it is made once per photo and reused by every later request;
+ * the generation row keeps the original paths for the compare view and the
+ * fidelity checks.
  */
 export async function prepareReferences(
   supabase: TypedSupabaseClient,
@@ -29,6 +30,7 @@ export async function prepareReferences(
   const existing = await signPaths(
     supabase,
     targets.map((target) => target.path),
+    { cache: false },
   );
   for (const target of targets) {
     if (existing.has(target.path)) continue;
@@ -40,20 +42,18 @@ export async function prepareReferences(
         cause: error,
       });
     }
-    await uploadObject(
-      supabase,
-      target.path,
-      await prepareReference(original, longEdge),
-      "image/jpeg",
-    );
+    let copy: Buffer;
+    try {
+      copy = await prepareReference(original, longEdge);
+    } catch (error) {
+      // A file sharp cannot decode goes out as it is; the model may still read it.
+      console.warn("Reference could not be re-encoded; sending the original", target.source, error);
+      target.path = target.source;
+      continue;
+    }
+    await uploadObject(supabase, target.path, copy, "image/jpeg");
+    // The photo's other copies (the tile, the standard reference), while its bytes are in hand.
+    await ensureDerivatives(supabase, target.source, original);
   }
   return targets.map((target) => target.path);
-}
-
-/** Every reference lives under its owner's folder (Storage RLS), which names the copy's folder too. */
-function preparedPathFor(sourcePath: string, longEdge: number): string {
-  const ownerId = sourcePath.split("/")[0];
-  if (!ownerId) throw new AppError("validation", "A reference path has no owner folder.");
-  const key = createHash("sha1").update(sourcePath).digest("hex").slice(0, 24);
-  return storagePaths.preparedReference(ownerId, key, longEdge);
 }

@@ -31,7 +31,7 @@ import type { GhostLayers, GhostView, ProductBrief } from "@/lib/providers/llm/t
 import { getPhotos, getPieces, getProduct } from "@/lib/products/service";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
-import { downloadObject } from "@/lib/storage/objects";
+import { downloadForBrain } from "@/lib/storage/derivatives";
 import type {
   CatalogueJobRow,
   ColorwayRow,
@@ -512,7 +512,7 @@ async function generateSlot(
     // even when the image model itself only receives text.
     const references = await Promise.all(
       plan.references.map(async (reference) =>
-        toLlmImage(await downloadObject(supabase, reference.path), reference.caption),
+        toLlmImage(await downloadForBrain(supabase, reference.path), reference.caption),
       ),
     );
     const built = await context.brain.buildGhostPrompt({

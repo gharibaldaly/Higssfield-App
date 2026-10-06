@@ -241,6 +241,29 @@ pnpm dev                     # http://localhost:3000
   owner read guests' generations and storage folders. Run it before the first guest signs in;
   until then the studio behaves as before (owner only).
 
+## Storage egress: small copies
+
+Supabase's free plan allows 5 GB of egress a month, and on 2026-10-06 the studio's project was
+restricted for exceeding it (`exceed_egress_quota`): every tile served the owner's 24-megapixel
+phone photos and the 4K results, with a new signed URL on every render. Since then:
+
+- **Small copies.** Every stored image gets a tile-sized copy (768 px JPEG) and a reference copy
+  (2560 px JPEG) under the owner's `derived/` folder of the `studio` bucket. Tiles, covers and
+  previews show the small copy; Higgsfield and the director brain receive the reference copy; the
+  originals leave Storage only for the compare view, the sheet editor, the eyedropper and the
+  downloads.
+- **Remembered links.** Signed URLs are remembered per server instance (signed for six hours more
+  than asked and reused while they still have the asked time left), so renders repeat the same URL
+  and the browser's cache answers instead of Supabase (objects carry a one-year `Cache-Control`).
+- **Existing files.** New files get their copies as they are stored. For the files stored before,
+  **Settings → Small copies → Make the copies** walks every photo, result, sheet board and crop and
+  makes the missing copies. Each original is read once, which is egress too, so run it once the
+  quota is free.
+- While the project is restricted, the API (Auth, Database, Storage) refuses every request and the
+  login page says so; the dashboard and the SQL editor still work. Upgrading the studio's own
+  organization to Pro (250 GB of egress) lifts the restriction at once; otherwise it lifts when the
+  billing cycle resets.
+
 ## Project layout
 
 ```
@@ -288,3 +311,8 @@ The `render_jobs` table is already in the schema.
    `moonshotai/kimi-k3`)، واعمل Redeploy، وبعدين من **الإعدادات → عقل المخرج** اختار البوابة. الاستخدام
    المجاني حسب شروط NVIDIA للتجربة والتقييم. في أول تجربة (28 سبتمبر) موديلات NVIDIA المجانية كانت
    أبطأ من إنها ترد على صور القطع، فالعقل المجاني المقترح هو Gemini.
+8. **استهلاك Supabase (egress)**: الخطة المجانية فيها 5 جيجا نقل بيانات في الشهر، ولما خلصت (6 أكتوبر)
+   المشروع اتقفل. من ساعتها الاستوديو بيعرض نسخ صغيرة من الصور في المربعات، وبيبعت لـ Higgsfield وعقل
+   المخرج نسخة 2560 بكسل، والأصول مبتتحمّلش غير في المقارنة والمحررات والتنزيل. للملفات القديمة:
+   **الإعدادات → نسخ مصغّرة → اصنع النسخ** مرة واحدة بعد ما الحصة تتحرر (أو بعد ترقية منظمة
+   الاستوديو بس لـ Pro).

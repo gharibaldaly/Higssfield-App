@@ -2,6 +2,7 @@ import "server-only";
 
 import { productStage, type ProductStage } from "@/lib/domain/product";
 import { AppError } from "@/lib/errors";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import { signPaths } from "@/lib/storage/objects";
 import type { ProductPieceRow, ProductRow, SourcePhotoRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -49,7 +50,7 @@ export async function listProductCards(supabase: TypedSupabaseClient): Promise<P
   for (const photo of photos.data ?? []) {
     if (!covers.has(photo.product_id)) covers.set(photo.product_id, photo.storage_path);
   }
-  const signed = await signPaths(supabase, [...covers.values()]);
+  const signed = await thumbUrls(supabase, [...covers.values()]);
   const dnaProducts = new Set((dna.data ?? []).map((row) => row.product_id));
   const colorwayCounts = new Map<string, number>();
   for (const row of colorways.data ?? []) {
@@ -87,7 +88,10 @@ export type PhotoView = {
   pieceId: string;
   kind: SourcePhotoRow["kind"];
   label: string | null;
+  /** The original, for the compare view, the eyedropper and the sheet editor. */
   url: string | null;
+  /** The small copy for tiles, else the original. */
+  thumbUrl: string | null;
   storagePath: string;
   width: number | null;
   height: number | null;
@@ -139,10 +143,9 @@ export async function loadProductIntake(
       .limit(1)
       .maybeSingle(),
   ]);
-  const signed = await signPaths(
-    supabase,
-    (photos.data ?? []).map((photo) => photo.storage_path),
-  );
+  const photoPaths = (photos.data ?? []).map((photo) => photo.storage_path);
+  const signed = await signPaths(supabase, photoPaths);
+  const thumbs = await thumbUrls(supabase, photoPaths, signed);
   return {
     product,
     pieces: pieces.data ?? [],
@@ -152,6 +155,7 @@ export async function loadProductIntake(
       kind: photo.kind,
       label: photo.label,
       url: signed.get(photo.storage_path) ?? null,
+      thumbUrl: thumbs.get(photo.storage_path) ?? null,
       storagePath: photo.storage_path,
       width: photo.width,
       height: photo.height,

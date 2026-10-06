@@ -12,7 +12,7 @@ import { pieceNoun } from "@/lib/prompts/house-style";
 import { getDirectorBrain } from "@/lib/providers/llm";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
-import { downloadObject } from "@/lib/storage/objects";
+import { downloadForBrain } from "@/lib/storage/derivatives";
 import type { GenerationRow, Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
@@ -102,11 +102,11 @@ export async function reviewGenerationFidelity(
     generation.reference_paths
       .slice(0, 3)
       .map(async (path, index) =>
-        toLlmImage(await downloadObject(supabase, path), `Original reference ${index + 1}`),
+        toLlmImage(await downloadForBrain(supabase, path), `Original reference ${index + 1}`),
       ),
   );
   const result = await toLlmImage(
-    await downloadObject(supabase, generation.storage_path),
+    await downloadForBrain(supabase, generation.storage_path),
     "Generated result",
   );
   const colorway =

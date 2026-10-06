@@ -39,7 +39,7 @@ export function PhotoRail({
                   >
                     {/* The button carries the name; the thumbnail and caption only repeat it. */}
                     <StorageImage
-                      src={photo.url}
+                      src={photo.thumbUrl ?? photo.url}
                       alt=""
                       fit="cover"
                       className="aspect-square w-full"

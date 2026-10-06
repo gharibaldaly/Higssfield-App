@@ -83,6 +83,7 @@ export function GenerationMedia({
   queuePosition,
   fit = "contain",
   controls = true,
+  size = "thumb",
 }: {
   view: GenerationView;
   alt: string;
@@ -90,6 +91,8 @@ export function GenerationMedia({
   queuePosition?: number | null;
   fit?: "contain" | "cover";
   controls?: boolean;
+  /** Tiles show the small copy; the compare view and lightboxes ask for the original. */
+  size?: "thumb" | "full";
 }) {
   const t = useTranslations("generation");
   const now = useNow({ updateInterval: 5_000 });
@@ -165,7 +168,12 @@ export function GenerationMedia({
                 preload="metadata"
               />
             ) : (
-              <StorageImage src={view.url} alt={alt} fit={fit} className="size-full" />
+              <StorageImage
+                src={size === "full" ? view.url : (view.thumbUrl ?? view.url)}
+                alt={alt}
+                fit={fit}
+                className="size-full"
+              />
             )}
           </motion.div>
         )}

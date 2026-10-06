@@ -142,6 +142,7 @@ function ReviewBody({
           <GenerationMedia
             view={generation}
             alt={title}
+            size="full"
             className="aspect-[4/5] max-h-[70dvh] w-full"
           />
         )}

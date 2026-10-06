@@ -52,7 +52,7 @@ export function PhotoTile({ photo, productId }: { photo: PhotoView; productId: s
   return (
     <figure className="group relative">
       <StorageImage
-        src={photo.url}
+        src={photo.thumbUrl ?? photo.url}
         alt={photo.label ?? t(`kinds.${photo.kind}`)}
         fit="cover"
         className="aspect-square w-full rounded-(--radius-control) stage"

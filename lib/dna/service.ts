@@ -15,7 +15,7 @@ import { getDirectorBrain } from "@/lib/providers/llm";
 import type { LlmImage } from "@/lib/providers/llm/types";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
-import { downloadObject } from "@/lib/storage/objects";
+import { downloadForBrain } from "@/lib/storage/derivatives";
 import type { GarmentDnaRow, Json } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
@@ -85,7 +85,7 @@ export async function analyzeProduct(
   const images: LlmImage[] = await Promise.all(
     selected.map(async (photo) =>
       toLlmImage(
-        await downloadObject(supabase, photo.storage_path),
+        await downloadForBrain(supabase, photo.storage_path),
         photoCaption(photo, pieceById.get(photo.piece_id)),
       ),
     ),

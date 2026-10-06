@@ -23,7 +23,7 @@ import { getDirectorBrain } from "@/lib/providers/llm";
 import type { LlmImage } from "@/lib/providers/llm/types";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { storageImageHost } from "@/lib/storage/brain-links";
-import { downloadObject } from "@/lib/storage/objects";
+import { downloadForBrain } from "@/lib/storage/derivatives";
 import type {
   GhostBatchItemRow,
   GhostBatchRow,
@@ -222,7 +222,7 @@ async function classifyItemPhotos(
   const images: LlmImage[] = await Promise.all(
     list.map(async (photo, index) =>
       toLlmImage(
-        await downloadObject(supabase, photo.storage_path),
+        await downloadForBrain(supabase, photo.storage_path),
         `Photo ${index + 1}${auto.has(photo.id) ? "" : ` (the owner tagged it "${photo.kind}")`}${ownerSays(photo)}`,
         { longEdge: 1024 },
       ),

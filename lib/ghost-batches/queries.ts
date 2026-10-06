@@ -5,7 +5,7 @@ import { parseCatalogueStyle, type CatalogueStyle } from "@/lib/domain/catalogue
 import type { ProductLine } from "@/lib/domain/product";
 import { toViews } from "@/lib/generations/queries";
 import { parseBatchOptions, parseItemMeta, type BatchOptions } from "@/lib/ghost-batches/schemas";
-import { signPaths } from "@/lib/storage/objects";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import type {
   CatalogueJobRow,
   GenerationRow,
@@ -172,10 +172,7 @@ async function loadBatchDetail(
   for (const photo of photoRows) {
     if (!thumbPath.has(photo.product_id)) thumbPath.set(photo.product_id, photo.storage_path);
   }
-  const urls = await signPaths(supabase, [
-    ...thumbPath.values(),
-    ...rows.map((row) => row.reference_paths[0] ?? null),
-  ]);
+  const urls = await thumbUrls(supabase, [...thumbPath.values()]);
 
   const productById = new Map((products.data ?? []).map((product) => [product.id, product]));
   const toJobView = (job: CatalogueJobRow): BatchJobView => ({

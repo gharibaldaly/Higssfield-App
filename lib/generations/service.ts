@@ -33,6 +33,7 @@ import type {
   ProviderState,
   SubmitTarget,
 } from "@/lib/providers/higgsfield/types";
+import { ensureDerivatives, REFERENCE_LONG_EDGE } from "@/lib/storage/derivatives";
 import { downloadObject, signPaths, uploadObject } from "@/lib/storage/objects";
 import { PROVIDER_REFERENCE_TTL_S, storagePaths } from "@/lib/storage/paths";
 import type { GenerationRow, Json } from "@/lib/supabase/database.types";
@@ -88,13 +89,19 @@ export async function submitGeneration(
       "Mock models are only available while Higgsfield is not configured.",
     );
   }
-  // Some models fail on the owner's phone photos as they are: they get re-encoded
-  // copies, while the row keeps the originals for the compare view and the checks.
+  // Every image reference goes out as a re-encoded copy (a model that needs a
+  // particular size names it); the row keeps the originals for the compare
+  // view and the checks. Higgsfield resizes references anyway, and the
+  // originals cost twenty times the egress.
   const prepare = input.model.params.image?.prepare;
   const wantsImages = input.mode === "image-to-image" || input.mode === "image-to-video";
   const sendPaths =
-    prepare && wantsImages && input.referencePaths.length > 0
-      ? await prepareReferences(supabase, input.referencePaths, prepare.longEdge)
+    wantsImages && input.referencePaths.length > 0
+      ? await prepareReferences(
+          supabase,
+          input.referencePaths,
+          prepare?.longEdge ?? REFERENCE_LONG_EDGE,
+        )
       : input.referencePaths;
   const signed = await signPaths(supabase, sendPaths, { expiresIn: PROVIDER_REFERENCE_TTL_S });
   const referenceUrls = sendPaths
@@ -489,6 +496,8 @@ async function finalizeCompleted(
 
   const path = storagePaths.generation(row.owner_id, row.id, mimeType);
   await uploadObject(supabase, path, data, mimeType);
+  // The tile-sized and reference-sized copies, from the bytes in hand (no download).
+  if (image) await ensureDerivatives(supabase, path, data);
   return updateRow(supabase, row.id, {
     status: "completed",
     storage_path: path,

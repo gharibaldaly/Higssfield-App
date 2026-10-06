@@ -50,7 +50,7 @@ export function JobCard({
   const [reviewing, setReviewing] = useState<GhostOutput | null>(null);
 
   function slotTitle(output: GhostOutput): string {
-    if (output.slot === "front") return job.innerFront ? t("slots.frontSet") : t("slots.front");
+    if (output.slot === "front") return job.fullSet ? t("slots.frontSet") : t("slots.front");
     // A robe set's second front, without its outer layer (the label names it).
     if (output.slot === "front_inner")
       return output.slotLabel

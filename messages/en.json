@@ -18,6 +18,7 @@
     "products": "Products",
     "ghost": "Ghost Studio",
     "ads": "Ads Director",
+    "generate": "Generate",
     "library": "Library",
     "settings": "Settings",
     "soonHeading": "Coming soon",
@@ -34,6 +35,7 @@
       "products": "Products",
       "ghost": "Ghost",
       "ads": "Ads",
+      "generate": "Generate",
       "library": "Library",
       "settings": "Settings"
     },
@@ -42,6 +44,7 @@
       "products": "Photos · Garment DNA · Colourways · Sheet",
       "ghost": "From photos · front & back · close-ups · colours",
       "ads": "Director board · Shots · Video",
+      "generate": "Your prompt · any model · size & quality",
       "library": "Every generation, with filters",
       "settings": "Director brain · Catalogue style · Keys"
     }
@@ -64,19 +67,24 @@
     "owner": "Owner",
     "signOut": "Sign out",
     "menu": "Menu",
-    "preferences": "Preferences"
+    "preferences": "Preferences",
+    "guest": "Guest",
+    "role": {
+      "owner": "Owner · the whole studio",
+      "guest": "Guest · Generate only"
+    }
   },
   "login": {
     "title": "Sign in",
     "heading": "Welcome back",
     "subheading": "Sign in to your private production studio.",
-    "privateNote": "Private studio — one owner account.",
+    "privateNote": "Private studio — the owner and invited guests.",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
     "errors": {
       "invalid": "Email or password is not correct.",
-      "not_owner": "This studio is private to its owner.",
+      "not_owner": "This account is not allowed into the studio.",
       "config": "Supabase is not configured yet — see the setup page.",
       "rate_limit": "Too many sign-in attempts. Wait ten minutes, then try again.",
       "unconfirmed": "Supabase Auth says this email is not confirmed yet.",
@@ -434,6 +442,7 @@
     "maxDuration": "up to {seconds}s",
     "aspectRatios": "Aspect ratios",
     "unverified": "Some options are defaults not yet confirmed against Higgsfield's docs.",
+    "knownIssue": "Known problem",
     "modes": {
       "text-to-image": "Text → image",
       "image-to-image": "Image → image",
@@ -566,7 +575,7 @@
       "front_back": {
         "short": "Front & back",
         "title": "Front & Back — exactly 2 images",
-        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos. A set with a robe can add a front without it."
+        "description": "A straight-on front and back ghost-mannequin image, identical framing, from the isolated front and back photos. A set with a robe can add a front without it. A pyjama photographed in parts composes the flat-photographed bottoms beneath the top."
       },
       "macro": {
         "short": "Macro",
@@ -597,6 +606,9 @@
       "outerPiece": "Second front without",
       "outerPieceHint": "For a set with a robe or another outer layer: an extra front image of the garment without this piece. The colourways always start from the front with it.",
       "outerNone": "None (one front)",
+      "bottomsPiece": "Bottoms photographed flat",
+      "bottomsPieceHint": "For a pyjama photographed in parts: the top on the form and this piece lying flat in one photo. Every front and back composes it beneath the top, so the image shows the complete pyjama.",
+      "bottomsNone": "None (photographed as worn)",
       "issues": {
         "needDna": "Approve the Garment DNA first",
         "needFront": "Approve a front image first",
@@ -681,7 +693,7 @@
       "drop": "Drop one model's photos here",
       "dropActive": "Release to add the photos",
       "reading": "Reading the folders…",
-      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest. For a model that comes with a robe, switch on “Robe set” on it: you get a front with the robe and one without.",
+      "hint": "All the photos of one model — front, back, close-ups and colour swatches — make one model: a front, a back and two close-ups, then its colours. Drop the next model's photos separately, or drop a folder with one sub-folder per model. Names like “front”, “back”, “detail” and “colour” (أمام، خلف، تفاصيل، لون) set a photo's role; the director brain sorts the rest. For a model that comes with a robe, switch on “Robe set” on it: you get a front with the robe and one without. For a pyjama photographed in parts (the top on the form, the shorts or trousers lying flat), switch on “Pyjama in parts”: every front and back shows the complete pyjama.",
       "chooseFolder": "Choose a folder",
       "choosePhotos": "Choose photos",
       "rejected": "{count, plural, one {# file was skipped} other {# files were skipped}}: only JPEG, PNG or WebP up to 25 MB. Export HEIC photos as JPEG.",
@@ -709,12 +721,23 @@
       "colourDefault": "Colour {number}",
       "robe": "Robe set",
       "robeHint": "The model comes with a robe: two fronts, with the robe and without it, and the colours come from the front with the robe. Mark which photos have the robe in them; the director brain sorts the rest after upload.",
+      "pyjama": "Pyjama in parts",
+      "pyjamaHint": "The top (and the robe, if any) is photographed on the form and the shorts or trousers lie flat in one photo. The studio composes the bottoms beneath the top, so every front and back shows the complete pyjama. Mark the photo of the bottoms; the director brain sorts the rest after upload.",
+      "bottomsKind": "Bottoms",
+      "bottoms": {
+        "shorts": "Shorts",
+        "trousers": "Trousers",
+        "bottoms": "Bottoms"
+      },
       "layers": {
         "outer": "With robe",
         "inner": "Without robe",
-        "auto": "Robe: auto"
+        "top": "Top",
+        "topInner": "Top · without robe",
+        "bottoms": "Bottoms · flat",
+        "auto": "Part: auto"
       },
-      "layerAutoHint": "The director brain decides after upload whether the robe is in this photo",
+      "layerAutoHint": "The director brain decides after upload which part of the set this photo shows",
       "photoMenu": "Photo options",
       "modelMenu": "Model options",
       "moveUp": "Move to the previous model",
@@ -832,6 +855,7 @@
         "front": "Front",
         "front_inner": "Front · without robe",
         "frontSet": "Front · with robe",
+        "frontFull": "Front · full pyjama",
         "back": "Back",
         "macro_1": "Close-up 1",
         "macro_2": "Close-up 2"
@@ -1091,7 +1115,10 @@
       "aspectFromReference": "This model frames the clip like its reference image. Turn on “preview frame first” on a shot to get an exact 9:16 start frame.",
       "resolution": "Resolution / quality",
       "fixedDuration": "This model sets the clip length itself; clips are trimmed in the montage.",
-      "cutsToMusic": "Cuts matched to music"
+      "cutsToMusic": "Cuts matched to music",
+      "clipLength": "A {shot} s shot is sent as a {clip} s clip: the shortest this model makes. The montage trims it.",
+      "estimate": "≈ {price} per shot ({seconds} s at {resolution}), by Higgsfield's estimate.",
+      "estimateUnavailable": "No price estimate is available for this model right now."
     },
     "shot": {
       "purpose": "Shot purpose",
@@ -1156,6 +1183,91 @@
       "builtinNote": "Built-in presets can always be restored from the Ads page.",
       "saved": "Preset saved",
       "save": "Save preset"
+    }
+  },
+  "free": {
+    "eyebrow": "Free generation",
+    "title": "Generate",
+    "description": "Your own prompt, sent to Higgsfield exactly as you write it: upload references if you want, choose any image or video model, the size and the quality, and generate. Nothing from the catalogue system is added to the prompt.",
+    "tabs": {
+      "image": "Images",
+      "video": "Video"
+    },
+    "references": {
+      "title": "Reference images",
+      "add": "Add",
+      "uploading": "{count, plural, one {Uploading # file…} other {Uploading # files…}}",
+      "hint": "Optional. With references the request runs as image → image (or image → video); the first ones count when the model takes fewer.",
+      "overModel": "{count, plural, one {This model takes # reference image; the rest are not sent.} other {This model takes # reference images; the rest are not sent.}}",
+      "rejected": "Some files were skipped: only JPEG, PNG or WebP up to 25 MB.",
+      "max": "{count, plural, one {At most # reference per request.} other {At most # references per request.}}",
+      "uploadFailed": "Could not upload {name}",
+      "remove": "Remove {name}"
+    },
+    "prompt": "Prompt",
+    "promptPlaceholder": {
+      "image": "Describe the image you want, in any language…",
+      "video": "Describe the shot: what is in frame, how the camera moves, the light…"
+    },
+    "promptHint": "Sent word for word. “Polish” asks the director brain to rewrite it in a generation-ready form without changing what you asked for; you can still edit it.",
+    "polish": "Polish",
+    "polishing": "Polishing…",
+    "polished": "Polished by {model}",
+    "undoPolish": "Undo",
+    "negative": "Avoid (negative prompt)",
+    "negativePlaceholder": "What the result must not contain…",
+    "model": "Model",
+    "needsReference": "This model needs at least one reference image.",
+    "textOnlyModel": "This model works from text only: remove the references or choose an image → image model.",
+    "size": "Size",
+    "sizeFromModel": "This model sets the size itself (it follows the reference).",
+    "quality": "Quality",
+    "qualityFromModel": "This model has one quality level.",
+    "duration": "Duration",
+    "durationFromModel": "This model sets the duration itself.",
+    "seconds": "{seconds} s",
+    "count": "Outputs",
+    "outputs": "{count, plural, one {# output} other {# outputs}}",
+    "countHint": "Each output is a separate request with its own cost.",
+    "generate": "{count, plural, one {Generate} other {Generate # outputs}}",
+    "generating": "Sending…",
+    "submitted": "{count, plural, one {Request sent; the result appears below as it finishes.} other {# requests sent; the results appear below as they finish.}}",
+    "results": {
+      "title": "Results",
+      "empty": "Nothing generated yet",
+      "emptyHint": {
+        "image": "Write a prompt, pick a model, and the images land here as they finish. The last 48 free generations stay on this page.",
+        "video": "Write a prompt, pick a video model, and the clips land here as they finish. The last 48 free generations stay on this page."
+      }
+    },
+    "result": {
+      "togglePrompt": "Show the whole prompt",
+      "negative": "Avoid",
+      "references": "References sent",
+      "reference": "Reference {number}",
+      "reuse": "Reuse",
+      "useAsReference": "Use as reference",
+      "favorite": "Add to favourites",
+      "unfavorite": "Remove from favourites",
+      "download": "Download",
+      "open": "Open the file"
+    },
+    "estimate": {
+      "one": "≈ {price} for this request, by Higgsfield's estimate.",
+      "total": "≈ {price} each × {count} = {total}, by Higgsfield's estimate.",
+      "unavailable": "No price estimate is available for this model right now."
+    },
+    "descriptionGuest": "Your own prompt, sent to Higgsfield exactly as you write it: upload references if you want, choose any image or video model, the size and the quality, and generate. Your results stay in your own history on this page.",
+    "history": {
+      "label": "History",
+      "mine": "Mine",
+      "eyebrow": "Guest history",
+      "title": "Generations",
+      "description": "What {email} generated, newest first: the prompt, the references, the model, the size and the cost of every result. Look and download only.",
+      "of": "History of {email}",
+      "readOnly": "{email}’s own history, read only: nothing here can be changed or reused from this account, and a request still running settles when they open their page.",
+      "empty": "{email} has not generated anything yet",
+      "emptyHint": "Their results appear here as soon as they generate."
     }
   },
   "home": {
@@ -1442,6 +1554,28 @@
         "reauth": "Sign out, sign in again, then retry.",
         "unknown": "Could not change the password. Try again."
       }
+    },
+    "guests": {
+      "title": "Guests",
+      "hint": "Other accounts that may sign in. A guest sees only Generate and their own history; you can open that history from here.",
+      "none": "No guests yet.",
+      "generateOnly": "Generate only",
+      "signedIn": "Signed in before",
+      "accountReady": "Account ready",
+      "noAccount": "No account yet",
+      "history": "History",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke {email}?",
+      "revokeBody": "They can no longer sign in. Their generations stay, and you can still open their history. To close the account itself, delete the user in Supabase.",
+      "revoked": "Guest revoked",
+      "add": "Add a guest",
+      "addButton": "Add",
+      "added": "Guest added",
+      "restored": "Guest restored",
+      "restore": "Restore",
+      "revokedHeading": "Revoked",
+      "accountHint": "Listing the email allows it in. The account itself is created in Supabase: Authentication → Users → Add user (tick Auto Confirm), with the password you hand to the guest.",
+      "failed": "Could not update the guests."
     }
   },
   "errors": {

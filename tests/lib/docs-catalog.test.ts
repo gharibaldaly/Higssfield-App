@@ -42,6 +42,20 @@ describe("models from the Higgsfield docs", () => {
     );
   });
 
+  it("prepares references for Marketing Studio Image, which fails on phone photos as they are", () => {
+    for (const endpoint of [
+      "marketing-studio/image",
+      "marketing-studio/image/flare",
+      "marketing-studio/image/sunburst",
+    ]) {
+      const spec = byEndpoint(endpoint);
+      expect(spec.params.image?.prepare).toEqual({ longEdge: 2048 });
+      expect(spec.sourceNote).toContain("re-encoded");
+      expect(spec.knownIssue).toBeUndefined();
+    }
+    expect(byEndpoint("xai/grok-imagine-image-2.0").params.image?.prepare).toBeUndefined();
+  });
+
   it("reads references, ratios, tiers and durations from each schema", () => {
     const grok = byEndpoint("xai/grok-imagine-image-2.0");
     expect(grok.modes).toEqual(["text-to-image", "image-to-image"]);

@@ -48,6 +48,8 @@ export type BatchItemView = {
   thumbUrl: string | null;
   /** A robe set: the position of the robe's piece; its stage adds a front without the robe. */
   outerPosition: number | null;
+  /** A pyjama set: the position of the bottoms' piece, composed beneath the top in every front and back. */
+  bottomsPosition: number | null;
   /** Front, back and the two close-ups (latest attempt per slot). */
   outputs: GhostOutput[];
   jobs: BatchJobView[];
@@ -211,6 +213,7 @@ async function loadBatchDetail(
         photoCount: photoRows.filter((photo) => photo.product_id === item.product_id).length,
         thumbUrl: thumb ? (urls.get(thumb) ?? null) : null,
         outerPosition: meta.outerPosition,
+        bottomsPosition: meta.bottomsPosition,
         outputs,
         jobs: stageJobs.map(toJobView),
         colours: (colorways.data ?? [])

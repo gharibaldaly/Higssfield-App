@@ -19,12 +19,16 @@ export const INTAKE_TAGS = ["front", "back", "detail", "colour"] as const;
 export type IntakeTag = (typeof INTAKE_TAGS)[number];
 
 /**
- * For a robe set: whether a photo shows the set with its outer layer on
- * ("outer": the robe, kimono or cardigan is in the photo) or the garment
- * without it ("inner").
+ * Which piece of a set a photo shows. For a robe set: the set with its outer
+ * layer on ("outer": the robe, kimono or cardigan is in the photo) or the
+ * garment without it ("inner"). For a pyjama set photographed in parts: the
+ * bottoms (shorts or trousers) on their own ("bottoms").
  */
-export const INTAKE_LAYERS = ["outer", "inner"] as const;
+export const INTAKE_LAYERS = ["outer", "inner", "bottoms"] as const;
 export type IntakeLayer = (typeof INTAKE_LAYERS)[number];
+
+/** What a pyjama set's bottoms are, as read from a file name. */
+export type IntakeBottoms = "shorts" | "trousers";
 
 /** Where a tag came from: a keyword, the photo order (re-sorted by the brain) or the owner. */
 export type TagSource = "name" | "order" | "manual";
@@ -42,7 +46,7 @@ export type IntakePhotoPlan = {
   tagSource: TagSource;
   /** Colour name read from a colour photo's file name, when there is one. */
   colourName: string | null;
-  /** Read from the file or folder name ("robe", "بدون روب"); null when nothing says. */
+  /** Read from the file or folder name ("robe", "بدون روب", "shorts"); null when nothing says. */
   layer: IntakeLayer | null;
 };
 
@@ -52,6 +56,10 @@ export type IntakeModelPlan = {
   photos: IntakePhotoPlan[];
   /** A file or folder name mentions the robe: the model is offered as a robe set. */
   robe: boolean;
+  /** A file or folder name mentions shorts or trousers: the model is offered as a pyjama set. */
+  pyjama: boolean;
+  /** What the names call the bottoms, when they say. */
+  bottoms: IntakeBottoms | null;
 };
 
 export type IntakeGrouping = "folders" | "names" | "sequence";
@@ -145,20 +153,55 @@ const INNER_WORDS = new Set(
 );
 /** A negation next to the outer word ("no robe", "من غير روب") also means without. */
 const NEGATION_WORDS = new Set(["no", "sans", "بلا", "غير", "من"].map(normalizeToken));
+/** Words that name a pyjama's bottoms, by kind, in English and Arabic. */
+const BOTTOMS_WORDS: Record<IntakeBottoms, string[]> = {
+  shorts: ["short", "shorts", "boxer", "boxers", "شورت", "الشورت", "شورط", "الشورط"],
+  trousers: [
+    "pant",
+    "pants",
+    "trouser",
+    "trousers",
+    "bottoms",
+    "bottom",
+    "slacks",
+    "joggers",
+    "بنطلون",
+    "البنطلون",
+    "بنطال",
+    "البنطال",
+    "بنطلونات",
+  ],
+};
+const BOTTOMS_KIND = new Map<string, IntakeBottoms>(
+  (Object.keys(BOTTOMS_WORDS) as IntakeBottoms[]).flatMap((kind) =>
+    BOTTOMS_WORDS[kind].map((word) => [normalizeToken(word), kind] as const),
+  ),
+);
 
 /**
  * Whether a file or folder name says that the robe is in the photo ("DS1024
- * robe front", "بالروب") or that the garment is shown without it ("no robe",
- * "inner", "بدون روب", "من غير روب"). Nothing said: null.
+ * robe front", "بالروب"), that the garment is shown without it ("no robe",
+ * "inner", "بدون روب", "من غير روب"), or that the photo shows a pyjama's
+ * bottoms on their own ("shorts", "بنطلون"). Nothing said: null.
  */
 export function layerOfName(name: string): IntakeLayer | null {
   const tokens = tokensOf(stemOf(name)).map(normalizeToken);
+  if (tokens.some((token) => BOTTOMS_KIND.has(token))) return "bottoms";
   const outer = tokens.some((token) => OUTER_WORDS.has(token));
   const inner =
     tokens.some((token) => INNER_WORDS.has(token)) ||
     (outer && tokens.some((token) => NEGATION_WORDS.has(token)));
   if (inner) return "inner";
   return outer ? "outer" : null;
+}
+
+/** What a file or folder name calls a pyjama's bottoms ("shorts", "بنطلون"); null when nothing says. */
+export function bottomsOfName(name: string): IntakeBottoms | null {
+  for (const token of tokensOf(stemOf(name))) {
+    const kind = BOTTOMS_KIND.get(normalizeToken(token));
+    if (kind) return kind;
+  }
+  return null;
 }
 
 /** Image extensions, repeated ones included ("IMG_5124.JPG.jpg", "IMG_5124.HEIC.jpeg"). */
@@ -260,6 +303,8 @@ type DraftFile = {
   roleTag: IntakeTag | null;
   /** The layer named by a folder the photo sits in ("DS-1024/بدون روب/…"). */
   layerTag?: IntakeLayer | null;
+  /** What a folder the photo sits in calls the bottoms ("DS-1024/شورت/…"). */
+  bottomsTag?: IntakeBottoms | null;
 };
 
 type Draft = {
@@ -306,7 +351,12 @@ function finish(drafts: Draft[]): IntakeModelPlan[] {
         key: draft.key,
         name: draft.name.slice(0, 200),
         photos,
-        robe: photos.some((photo) => photo.layer !== null),
+        robe: photos.some((photo) => photo.layer === "outer" || photo.layer === "inner"),
+        pyjama: photos.some((photo) => photo.layer === "bottoms"),
+        bottoms:
+          draft.files
+            .map(({ file, bottomsTag }) => bottomsOfName(file.name) ?? bottomsTag ?? null)
+            .find((kind) => kind !== null) ?? null,
       };
     });
 }
@@ -396,6 +446,11 @@ function layerOfFolders(folders: string[]): IntakeLayer | null {
   return folders.map((folder) => layerOfName(folder)).find((layer) => layer !== null) ?? null;
 }
 
+/** What the folders in a path call a pyjama's bottoms ("DS-1024/شورت/…" → shorts). */
+function bottomsOfFolders(folders: string[]): IntakeBottoms | null {
+  return folders.map((folder) => bottomsOfName(folder)).find((kind) => kind !== null) ?? null;
+}
+
 /**
  * A folder that only says which view or layer its photos show ("أمام", "Back",
  * "colours", "بدون روب"), never a model: no digits and more than one letter,
@@ -430,6 +485,7 @@ export function planIntake(
   const roleFolders = above.slice(0, nameIndex >= 0 ? nameIndex : above.length);
   const aboveRole = roleOfFolders(roleFolders);
   const aboveLayer = layerOfFolders(roleFolders);
+  const aboveBottoms = bottomsOfFolders(roleFolders);
   if (!inFolders) {
     const { drafts, grouping } = groupByNames(files, perModel);
     // One folder holding one model's photos: the folder names the model.
@@ -438,7 +494,12 @@ export function planIntake(
       drafts[0] = {
         key: nameFolder ? `folder-${nameFolder}` : draft.key,
         name: nameFolder ?? draft.name,
-        files: draft.files.map(({ file }) => ({ file, roleTag: aboveRole, layerTag: aboveLayer })),
+        files: draft.files.map(({ file }) => ({
+          file,
+          roleTag: aboveRole,
+          layerTag: aboveLayer,
+          bottomsTag: aboveBottoms,
+        })),
       };
       return { models: finish(drafts), grouping: "folders" };
     }
@@ -454,6 +515,7 @@ export function planIntake(
         file,
         roleTag: roleOfFolders(parts[index]!.slice(root, -1)) ?? aboveRole,
         layerTag: layerOfFolders(parts[index]!.slice(root, -1)) ?? aboveLayer,
+        bottomsTag: bottomsOfFolders(parts[index]!.slice(root, -1)) ?? aboveBottoms,
       })),
     };
     return { models: finish([draft]), grouping: "folders" };
@@ -470,12 +532,13 @@ export function planIntake(
     const modelFolder = segments[0]!;
     const roleTag = roleOfFolders(segments.slice(1, -1));
     const layerTag = layerOfFolders(segments.slice(1, -1));
+    const bottomsTag = bottomsOfFolders(segments.slice(1, -1));
     const draft = byFolder.get(modelFolder) ?? {
       key: `folder-${modelFolder}`,
       name: modelFolder,
       files: [],
     };
-    draft.files.push({ file, roleTag, layerTag });
+    draft.files.push({ file, roleTag, layerTag, bottomsTag });
     byFolder.set(modelFolder, draft);
   });
   const folders = [...byFolder.values()].sort((a, b) => naturalCompare(a.name, b.name));

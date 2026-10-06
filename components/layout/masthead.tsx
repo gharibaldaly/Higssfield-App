@@ -11,25 +11,28 @@ import { IndexOverlay, type ShellProps } from "@/components/layout/index-overlay
 import { isActive, NAV_ITEMS } from "@/components/layout/nav-items";
 import { EffectsToggle, LocaleToggle, ThemeToggle } from "@/components/layout/preference-toggles";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/overlays";
+import { homeFor, navItemsFor } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 
 /** The studio's top bar: wordmark, section links with a stitched underline, preferences, index. */
 export function Masthead(props: ShellProps) {
-  const { email, theme, effects, mockImages, mockBrain } = props;
+  const { role, theme, effects, mockImages, mockBrain } = props;
   const t = useTranslations("nav");
   const tb = useTranslations("topBar");
   const pathname = usePathname();
-  const mock = mockImages || mockBrain;
+  // Guests see only their sections, and nothing about how the studio is configured.
+  const items = navItemsFor(role, NAV_ITEMS);
+  const mock = role === "owner" && (mockImages || mockBrain);
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-[color-mix(in_srgb,var(--background)_74%,transparent)] backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-16 max-w-[1680px] items-center gap-3 px-4 sm:px-6 lg:px-10">
-        <Link href="/" className="shrink-0 rounded-full" aria-label={t("studio")}>
+        <Link href={homeFor(role)} className="shrink-0 rounded-full" aria-label={t("studio")}>
           <BrandMark className="[&_.hud]:hidden sm:[&_.hud]:block" />
         </Link>
 
         <nav aria-label={t("label")} className="mx-auto hidden lg:block">
           <ul className="flex items-center">
-            {NAV_ITEMS.map((item) => {
+            {items.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <li key={item.href}>
@@ -89,7 +92,7 @@ export function Masthead(props: ShellProps) {
             <EffectsToggle effects={effects} />
             <LocaleToggle />
             <ThemeToggle theme={theme} />
-            <AccountMenu email={email} />
+            <AccountMenu email={props.email} role={role} />
           </div>
           <IndexOverlay {...props} />
         </div>

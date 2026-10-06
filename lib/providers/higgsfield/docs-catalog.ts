@@ -94,6 +94,17 @@ const FAMILY_ORDER = [
   "cinema-studio-4",
 ];
 
+/**
+ * Problems seen on real requests that the docs do not explain, by family slug.
+ * Shown as a warning wherever the model is offered; the family also ranks
+ * last among its kind so it is never a default.
+ */
+const KNOWN_ISSUES: Record<string, string> = {
+  // Marketing Studio Image was listed here on 2026-10-05 (every request "failed" with no
+  // reason) until the cause was found: the owner's phone photos as references. Its
+  // references are now prepared (NOTED_LIMITS.prepareReferences) and it works.
+};
+
 /** Workflows listed first inside their family. */
 const WORKFLOW_FIRST = new Set(["kling-video/v3.0/pro/image-to-video"]);
 
@@ -122,8 +133,16 @@ const NOTED_LIMITS: Record<
     requiresReferences?: boolean;
     resolutions?: string[];
     dropAspectRatio?: boolean;
+    /** Re-encode references at this long edge before sending (ImageParam.prepare). */
+    prepareReferences?: number;
   }
 > = {
+  // Every request with the owner's phone photos (24 MP JPEGs exported from HEIC) as references
+  // ended "failed" with no reason, while the same photos as screenshots, the studio's own
+  // outputs and text-only requests succeeded (2026-10-05). The docs say oversized images are
+  // normalised, but evidently not these; so they are re-encoded first.
+  "marketing-studio/image": { prepareReferences: 2048 },
+  "marketing-studio/image/": { prepareReferences: 2048 },
   // "Keep it within 2,500 characters; longer prompts are truncated."
   "kling-video/v3.0/": { promptChars: 2500 },
   "kling-video/v3.0-turbo/image-to-video": { promptChars: 2500 },
@@ -264,11 +283,17 @@ export function specFromWorkflow(
       }
       max = Math.min(documented ?? DEFAULT_REFERENCE_CAP, MAX_REFERENCES);
     }
+    if (limits.prepareReferences) {
+      notes.push(
+        `references are re-encoded (upright, at most ${limits.prepareReferences} px, sRGB JPEG) before sending, because the model fails on large phone photos as they are`,
+      );
+    }
     image = {
       field: reference.field,
       format: reference.format,
       max: Math.max(1, max),
       required: required.has(reference.field) || minItems > 0 || Boolean(limits.requiresReferences),
+      ...(limits.prepareReferences ? { prepare: { longEdge: limits.prepareReferences } } : {}),
     };
   }
 
@@ -362,6 +387,7 @@ export function specFromWorkflow(
       `docs.higgsfield.ai/docs/models/${family.slug}/${workflow.slug} (snapshot ${fetchedAt})`,
       ...notes,
     ].join("; "),
+    ...(KNOWN_ISSUES[family.slug] ? { knownIssue: KNOWN_ISSUES[family.slug] } : {}),
   };
 }
 

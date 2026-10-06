@@ -53,13 +53,20 @@ export type GhostView = "front" | "back" | "macro" | "colorway";
 export type GhostPiece = { position: number; name: string };
 
 /**
- * A robe set: an outer layer (a robe, kimono or cardigan) worn over the
- * garment. `show` says what this image renders: the full set worn together,
- * or the inner pieces alone without the outer layer.
+ * How a set's pieces go together in a ghost image. A robe set has an outer
+ * layer (a robe, kimono or cardigan) worn over the rest; a pyjama set has
+ * bottoms (shorts or trousers) photographed on their own, lying flat, that
+ * the image composes beneath the top as the set is worn. `show` says what
+ * this image renders: the full set worn together, or the inner pieces alone
+ * without the outer layer.
  */
 export type GhostLayers = {
-  outerPiece: GhostPiece;
+  /** The piece worn over the rest; null for a set without an outer layer. */
+  outerPiece: GhostPiece | null;
+  /** Every piece that is not the outer layer (the bottoms included). */
   innerPieces: GhostPiece[];
+  /** A pyjama set's bottoms, photographed flat and rendered worn beneath the top. */
+  bottomsPiece: GhostPiece | null;
   show: "set" | "inner";
   /**
    * The inner image has no photo of its own: its references show the set with
@@ -92,6 +99,8 @@ export type ClassifyPhotosInput = {
   photos: LlmImage[];
   /** The name of the set's outer layer piece, when the model is a robe set. */
   outerLayer?: string | null;
+  /** The name of the bottoms piece, when the model is a pyjama set photographed in parts. */
+  bottoms?: string | null;
 };
 
 export type BuiltPrompt = {
@@ -150,6 +159,25 @@ export type ReviewFidelityInput = {
   result: LlmImage;
 };
 
+/** Free generation: the owner's own prompt, to be polished without changing its intent. */
+export type PolishPromptInput = {
+  kind: "image" | "video";
+  prompt: string;
+  modelLabel: string;
+  /** The references the image model will receive (at most a few, for the brain to see). */
+  references: LlmImage[];
+  /** The language for the brain's note to the owner. */
+  locale: "ar" | "en";
+};
+
+export const polishedPromptSchema = z.object({
+  prompt: z.string().min(1).describe("The polished generation prompt, in English"),
+  negativePrompt: z.string().describe("Comma-separated things to avoid; empty when none"),
+  notes: z.string().describe("One sentence on what was added or changed, in the owner's language"),
+});
+
+export type PolishedPrompt = z.infer<typeof polishedPromptSchema>;
+
 /** The director brain: one interface, several providers (Settings switch). */
 export interface DirectorBrain {
   readonly provider: LlmProviderId;
@@ -163,6 +191,8 @@ export interface DirectorBrain {
   planAd(input: PlanAdInput): Promise<AdPlan>;
   buildShotPrompt(input: ShotPromptInput): Promise<BuiltPrompt>;
   reviewFidelity(input: ReviewFidelityInput): Promise<FidelityReview>;
+  /** Polishes the owner's own prompt for free generation, keeping its intent. */
+  polishPrompt(input: PolishPromptInput): Promise<PolishedPrompt>;
 }
 
 /** LLM output for scene-style prompts (ghost images, shots). */

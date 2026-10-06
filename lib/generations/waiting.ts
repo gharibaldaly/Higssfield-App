@@ -32,7 +32,17 @@ export const LOCAL_PARAM_KEYS: ReadonlySet<string> = new Set([
   "_waiting",
   "_correlationId",
   "_estimate",
+  "_prepared",
 ]);
+
+/** The re-encoded copies a stored request points at (see lib/generations/reference-prep.ts). */
+export function preparedPathsOf(params: unknown): string[] {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return [];
+  const prepared = (params as Record<string, unknown>)._prepared;
+  return Array.isArray(prepared)
+    ? prepared.filter((path): path is string => typeof path === "string")
+    : [];
+}
 
 /** The waiting reason for a rejected submit, or null when it must fail. */
 export function waitReasonOf(error: unknown): WaitReason | null {

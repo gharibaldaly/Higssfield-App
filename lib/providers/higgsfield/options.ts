@@ -15,6 +15,8 @@ export type ModelOption = {
   description: string | null;
   source: ModelSpec["source"];
   sourceNote: string | null;
+  /** A problem seen on real requests, shown as a warning (see KNOWN_ISSUES in docs-catalog). */
+  knownIssue: string | null;
   capabilities: ModelCapabilities;
   unverifiedOptions: boolean;
   /** Null when usable for the current job; otherwise the reason it is disabled. */
@@ -36,6 +38,7 @@ export function toModelOptions(
       description: spec.description ?? null,
       source: spec.source,
       sourceNote: spec.sourceNote ?? null,
+      knownIssue: spec.knownIssue ?? null,
       capabilities: capabilitiesOf(spec),
       unverifiedOptions:
         spec.params.aspectRatio?.verified === false ||

@@ -40,6 +40,12 @@ export const imageParamSchema = z.object({
   format: z.enum(["input_images", "image_reference", "url", "url_array"]),
   max: z.number().int().min(1).max(16),
   required: z.boolean(),
+  /**
+   * Re-encode references before sending: EXIF-upright, at most `longEdge`
+   * pixels on the long side, sRGB JPEG without metadata. For models that fail
+   * on the owner's phone photos as they are (see lib/generations/reference-prep.ts).
+   */
+  prepare: z.object({ longEdge: z.number().int().min(256).max(8192) }).optional(),
 });
 
 export type ImageParam = z.infer<typeof imageParamSchema>;
@@ -82,6 +88,12 @@ export const modelSpecSchema = z.object({
    */
   source: z.enum(["docs", "sdk", "catalog", "custom", "mock"]),
   sourceNote: z.string().max(400).optional(),
+  /**
+   * A problem seen on real requests that the docs do not explain, shown as a
+   * warning wherever the model is offered, e.g. a workflow that fails every
+   * request from this account.
+   */
+  knownIssue: z.string().max(400).optional(),
 });
 
 export type ModelSpec = z.infer<typeof modelSpecSchema>;

@@ -61,6 +61,7 @@ export function settingsFromRow(row: SettingsRow | null): OwnerSettings {
 export async function ensureOwnerDefaults(
   supabase: TypedSupabaseClient,
   ownerId: string,
+  options: { presets?: boolean } = {},
 ): Promise<void> {
   const { data: existing } = await supabase
     .from("settings")
@@ -79,6 +80,8 @@ export async function ensureOwnerDefaults(
     { onConflict: "owner_id", ignoreDuplicates: true },
   );
   if (settingsError) console.error("Seeding settings failed", settingsError.message);
+  // A guest's row only carries defaults for Generate; the presets are the owner's.
+  if (options.presets === false) return;
 
   const { error: presetError } = await supabase.from("director_presets").upsert(
     BUILTIN_PRESETS.map((preset) => ({

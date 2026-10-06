@@ -4,7 +4,7 @@ import { colourwayBrief } from "@/lib/colorways/words";
 import { approvedDna } from "@/lib/dna/service";
 import type { GarmentDna } from "@/lib/domain/garment-dna";
 import type { FidelityReview } from "@/lib/domain/fidelity";
-import { slotLabelOf, type GenerationPurpose } from "@/lib/domain/generation";
+import { bottomsLabelOf, slotLabelOf, type GenerationPurpose } from "@/lib/domain/generation";
 import { AppError } from "@/lib/errors";
 import { getGeneration } from "@/lib/generations/queries";
 import { toLlmImage } from "@/lib/images/process";
@@ -31,17 +31,28 @@ const CONTEXT: Record<GenerationPurpose, string> = {
 /**
  * What an image is checked against. A robe set's second front (slot
  * "front_inner") shows the garment without its robe on purpose, so the robe's
- * absence is never an issue, while any trace of it is.
+ * absence is never an issue, while any trace of it is. A pyjama set's front
+ * and back compose the bottoms from their flat photo, so the flat pose is
+ * never an issue, while bottoms left out, shown flat or changed in fit are.
  */
 export function fidelityContext(
   generation: Pick<GenerationRow, "purpose" | "slot" | "params">,
 ): string {
-  if (generation.purpose === "ghost_front" && generation.slot === "front_inner") {
-    const name = slotLabelOf(generation.params) ?? "outer layer";
-    const outer = pieceNoun(name) || "outer layer";
-    return `Ghost-mannequin FRONT view of the inner garment ONLY, without its outer layer (the "${name}"), for the Shopify catalogue. The ${outer} is left out on purpose: its absence is never an issue, and any part of it in the result is a major issue. Compare the inner garment with the reference photos; where a reference shows the ${outer} worn over it, judge only the garment beneath.`;
-  }
-  return CONTEXT[generation.purpose];
+  const context =
+    generation.purpose === "ghost_front" && generation.slot === "front_inner"
+      ? innerFrontContext(generation.params)
+      : CONTEXT[generation.purpose];
+  const bottomsName = bottomsLabelOf(generation.params);
+  if (!bottomsName || (generation.purpose !== "ghost_front" && generation.purpose !== "ghost_back"))
+    return context;
+  const bottoms = pieceNoun(bottomsName) || "bottoms";
+  return `${context} This is a pyjama set photographed in parts: the top on the display form, and the ${bottoms} (the "${bottomsName}") lying flat on their own in one of the reference photos. The result must show the COMPLETE set worn together, the ${bottoms} beneath the top as they hang when worn. Compare the ${bottoms} with their flat photo for fit (wide or narrow), leg width, length, colour, waistband, hem, pockets and trims, and ignore the flat pose itself. The ${bottoms} left out, shown lying flat, folded or on their own, or changed in length, width or fit is a major issue.`;
+}
+
+function innerFrontContext(params: GenerationRow["params"]): string {
+  const name = slotLabelOf(params) ?? "outer layer";
+  const outer = pieceNoun(name) || "outer layer";
+  return `Ghost-mannequin FRONT view of the inner garment ONLY, without its outer layer (the "${name}"), for the Shopify catalogue. The ${outer} is left out on purpose: its absence is never an issue, and any part of it in the result is a major issue. Compare the inner garment with the reference photos; where a reference shows the ${outer} worn over it, judge only the garment beneath.`;
 }
 
 /**

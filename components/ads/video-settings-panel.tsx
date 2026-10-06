@@ -1,9 +1,10 @@
 "use client";
 
-import { Info, Music4 } from "lucide-react";
+import { Coins, Info, Music4 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ModelPicker } from "@/components/generation/model-picker";
+import { formatPrice, useEstimate } from "@/components/generation/use-estimate";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/controls";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { VideoSettings } from "@/lib/domain/director";
+import { matchDuration, preferredResolution } from "@/lib/providers/higgsfield/fit";
 import type { ModelOption } from "@/lib/providers/higgsfield/options";
 
 const FALLBACK_ASPECTS = ["9:16", "4:5", "1:1", "16:9"];
@@ -40,7 +42,30 @@ export function VideoSettingsPanel({
       ? model.capabilities.aspectRatios
       : FALLBACK_ASPECTS;
   const resolutions = model?.capabilities.resolutions ?? [];
+  // 1080p unless chosen otherwise: the top tier costs several times more per clip.
+  const resolution =
+    settings.resolution && resolutions.includes(settings.resolution)
+      ? settings.resolution
+      : preferredResolution("video", resolutions);
   const overLength = plannedDurationS > settings.totalDurationS + 0.5;
+  // What a shot of the maximum length really becomes on this model (its shortest clip may be longer).
+  const durations = model?.capabilities.durations ?? [];
+  const clipS = durations.length > 0 ? matchDuration(durations, settings.maxShotDurationS) : null;
+  const { estimate } = useEstimate(
+    model
+      ? {
+          modelId: model.id,
+          mode: model.capabilities.modes.includes("image-to-video")
+            ? "image-to-video"
+            : "text-to-video",
+          aspectRatio: settings.aspectRatio,
+          resolution,
+          durationS: settings.maxShotDurationS,
+          referenceCount: 1,
+        }
+      : null,
+  );
+  const price = formatPrice(estimate);
 
   return (
     <div className="flex flex-col gap-5">
@@ -119,8 +144,8 @@ export function VideoSettingsPanel({
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">{t("resolution")}</span>
           <Select
-            value={settings.resolution ?? resolutions[resolutions.length - 1]}
-            onValueChange={(resolution) => onChange({ ...settings, resolution })}
+            value={resolution ?? undefined}
+            onValueChange={(next) => onChange({ ...settings, resolution: next })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -139,6 +164,26 @@ export function VideoSettingsPanel({
         <p className="flex gap-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {t("fixedDuration")}
+        </p>
+      ) : null}
+      {clipS !== null && clipS > settings.maxShotDurationS + 0.001 ? (
+        <p className="flex gap-2 text-xs text-warning">
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          {t("clipLength", { shot: settings.maxShotDurationS, clip: clipS })}
+        </p>
+      ) : null}
+      {model ? (
+        <p className="flex items-center gap-2 rounded-(--radius-control) border border-dashed border-border-strong px-3 py-2 text-xs">
+          <Coins className="size-3.5 shrink-0 text-accent-ink" aria-hidden />
+          <span className="text-muted-foreground">
+            {price
+              ? t("estimate", {
+                  price,
+                  seconds: estimate?.durationS ?? clipS ?? settings.maxShotDurationS,
+                  resolution: estimate?.resolution ?? resolution ?? "",
+                })
+              : t("estimateUnavailable")}
+          </span>
         </p>
       ) : null}
       <label className="flex items-center justify-between gap-3 text-sm font-medium">

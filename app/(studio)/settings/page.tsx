@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/common/page-header";
 import { SettingsView } from "@/components/settings/settings-view";
+import { listGuests } from "@/lib/auth/guests";
 import { requireOwner } from "@/lib/auth/owner";
 import { higgsfieldKeyForm, keyStatus, llmGatewayConfig, llmGatewayConfigs } from "@/lib/env";
 import { ownerRegistry } from "@/lib/generations/models";
@@ -22,9 +23,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SettingsPage() {
   const { supabase, user } = await requireOwner();
   const t = await getTranslations("settings");
-  const [settings, costs] = await Promise.all([
+  const [settings, costs, guests] = await Promise.all([
     getOwnerSettings(supabase, user.id),
     loadCostSummary(supabase),
+    listGuests(supabase),
   ]);
   const registry = await ownerRegistry(settings);
   const brain = getDirectorBrain(settings);
@@ -75,6 +77,7 @@ export default async function SettingsPage() {
         imageModels={toModelOptions(registry, "image", ["image-to-image", "text-to-image"])}
         videoModels={toModelOptions(registry, "video", ["image-to-video"])}
         costs={costs}
+        guests={guests}
       />
     </>
   );

@@ -1,6 +1,7 @@
 import { analyzeGarmentV1 } from "@/lib/prompts/v1/analyze-garment";
 import { classifyPhotosV1 } from "@/lib/prompts/v1/classify-photos";
 import { planAdV1 } from "@/lib/prompts/v1/plan-ad";
+import { polishPromptV1 } from "@/lib/prompts/v1/polish-prompt";
 import { reviewFidelityV1 } from "@/lib/prompts/v1/review-fidelity";
 import { shotV1 } from "@/lib/prompts/v1/shot";
 import { productSheetV2 } from "@/lib/prompts/v2/product-sheet";
@@ -18,6 +19,7 @@ export const PROMPTS = {
   planAd: planAdV1,
   shot: shotV1,
   reviewFidelity: reviewFidelityV1,
+  polishPrompt: polishPromptV1,
 } as const;
 
 export { templateVersion } from "@/lib/prompts/types";

@@ -14,11 +14,14 @@ import { BrandMark } from "@/components/layout/brand-mark";
 import { isActive, NAV_ITEMS, SOON_ITEMS } from "@/components/layout/nav-items";
 import { EffectsToggle, LocaleToggle, ThemeToggle } from "@/components/layout/preference-toggles";
 import { Button } from "@/components/ui/button";
+import { navItemsFor, type StudioRole } from "@/lib/auth/roles";
 import type { Effects, Theme } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
 
 export type ShellProps = {
   email: string | null;
+  /** Guests see only the sections they may open (Generate) and none of the coming-soon modules. */
+  role: StudioRole;
   theme: Theme;
   effects: Effects;
   mockImages: boolean;
@@ -29,11 +32,12 @@ export type ShellProps = {
  * The index: a full-screen menu that floods the screen in the inverse colour, with every section
  * in display type, the coming-soon modules, and (on small screens) the preferences.
  */
-export function IndexOverlay({ email, theme, effects }: ShellProps) {
+export function IndexOverlay({ email, role, theme, effects }: ShellProps) {
   const t = useTranslations("nav");
   const tb = useTranslations("topBar");
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const items = navItemsFor(role, NAV_ITEMS);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger asChild>
@@ -62,7 +66,7 @@ export function IndexOverlay({ email, theme, effects }: ShellProps) {
           <div className="mx-auto grid w-full max-w-[1680px] flex-1 items-center gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:px-10">
             <nav aria-label={t("label")}>
               <ul className="fx-stagger flex flex-col [&:hover>li:not(:hover)]:opacity-45">
-                {NAV_ITEMS.map((item, index) => {
+                {items.map((item, index) => {
                   const active = isActive(pathname, item.href);
                   return (
                     <li
@@ -99,29 +103,33 @@ export function IndexOverlay({ email, theme, effects }: ShellProps) {
 
           <div className="mx-auto w-full max-w-[1680px] shrink-0 border-t border-current/15 px-4 py-5 sm:px-6 lg:px-10">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <p className="hud opacity-85">{t("soonHeading")}</p>
-              <ul className="flex flex-wrap gap-2">
-                {SOON_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.key}>
-                      <span
-                        aria-disabled="true"
-                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-dashed border-current/40 px-3 py-1.5 text-sm"
-                      >
-                        <Icon className="size-4 opacity-80" aria-hidden />
-                        {t(`soon.${item.key}`)}
-                        <span className="hud opacity-85">{t("soonBadge")}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              {role === "owner" ? (
+                <>
+                  <p className="hud opacity-85">{t("soonHeading")}</p>
+                  <ul className="flex flex-wrap gap-2">
+                    {SOON_ITEMS.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <li key={item.key}>
+                          <span
+                            aria-disabled="true"
+                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-dashed border-current/40 px-3 py-1.5 text-sm"
+                          >
+                            <Icon className="size-4 opacity-80" aria-hidden />
+                            {t(`soon.${item.key}`)}
+                            <span className="hud opacity-85">{t("soonBadge")}</span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : null}
               <div className={cn("ms-auto flex flex-wrap items-center gap-1.5 md:hidden")}>
                 <EffectsToggle effects={effects} />
                 <LocaleToggle />
                 <ThemeToggle theme={theme} />
-                <AccountMenu email={email} />
+                <AccountMenu email={email} role={role} />
               </div>
             </div>
           </div>

@@ -19,6 +19,12 @@ export const photoClassificationSchema = z.object({
         .describe(
           "For a robe set: true when the outer layer piece is in the photo, false when the photo shows the garment without it; null when the model has no outer layer",
         ),
+      showsBottoms: z
+        .boolean()
+        .nullable()
+        .describe(
+          "For a pyjama set photographed in parts: true when the photo shows the bottoms piece (shorts or trousers) on its own, false when it shows the top or the set; null when the model has no separate bottoms",
+        ),
     }),
   ),
 });

@@ -11,6 +11,8 @@ import type {
   GhostPromptInput,
   GhostScenePrompt,
   PlanAdInput,
+  PolishedPrompt,
+  PolishPromptInput,
   ReviewFidelityInput,
   ScenePrompt,
   SheetPlanInput,
@@ -144,9 +146,11 @@ export class MockBrain extends TemplateBrain {
 
   /**
    * Photos in upload order: first front, second back, the rest details. In a
-   * robe set, the first photo is the one with the robe on.
+   * robe set, the first photo is the one with the robe on; in a pyjama set,
+   * the last photo is the bottoms lying flat.
    */
   protected override async askPhotoViews(input: ClassifyPhotosInput): Promise<PhotoClassification> {
+    const last = input.photos.length - 1;
     return {
       photos: input.photos.map((photo, index) => ({
         index: index + 1,
@@ -154,6 +158,7 @@ export class MockBrain extends TemplateBrain {
         label: index === 0 ? "full front" : index === 1 ? "full back" : `detail ${index - 1}`,
         clarity: 3,
         showsOuterLayer: input.outerLayer ? index === 0 : null,
+        showsBottoms: input.bottoms ? index === last && last > 0 : null,
       })),
     };
   }
@@ -258,6 +263,19 @@ export class MockBrain extends TemplateBrain {
           : `First frame: ${input.shot.prompt} Composed for ${input.aspectRatio}.`,
       extraNegatives: [],
       rationale: MOCK_NOTE,
+    };
+  }
+
+  /** The owner's prompt with a finish line, so the flow works without a brain key. */
+  protected override async askPolishedPrompt(input: PolishPromptInput): Promise<PolishedPrompt> {
+    const finish =
+      input.kind === "video"
+        ? "one continuous shot, slow camera movement, natural fabric motion, cinematic daylight, photorealistic"
+        : "photorealistic, natural daylight, sharp fabric texture, high-end e-commerce finish";
+    return {
+      prompt: `${input.prompt.trim().replace(/[.\s]+$/, "")}, ${finish}.`,
+      negativePrompt: "blurry, low resolution, distorted, text, watermark",
+      notes: MOCK_NOTE,
     };
   }
 

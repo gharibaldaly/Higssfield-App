@@ -59,7 +59,7 @@ Every variable is documented in [`.env.example`](./.env.example).
 | Variable                                                                                             | Required          | Purpose                                                                  |
 | ---------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                          | yes               | Supabase project URL and publishable/anon key                            |
-| `APP_OWNER_EMAIL`                                                                                    | recommended       | Only this account can open the studio                                    |
+| `APP_OWNER_EMAIL`                                                                                    | recommended       | The owner's account; guests are listed under Settings → Guests           |
 | `APP_URL`                                                                                            | recommended       | Public URL of the deployment (webhook URLs)                              |
 | `HIGGSFIELD_API_KEY` (+ `HIGGSFIELD_API_SECRET`)                                                     | for real output   | Higgsfield credentials (`KEY_ID:KEY_SECRET`); mock provider without them |
 | `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`                                                               | for real analysis | Director brain; mock brain without them                                  |
@@ -190,12 +190,56 @@ pnpm dev                     # http://localhost:3000
   have the robe in them (or name them "robe" / "no robe", "بالروب" / "بدون روب"); the director
   brain sorts the rest. Under "From products", the Front & Back job offers the same for any
   multi-piece product.
+- **Pyjamas in parts**: switch on "Pyjama in parts" for a pyjama photographed the way the owner
+  shoots them: the top (and the robe, if any) on the display form, the shorts or trousers lying
+  flat in one photo. The model becomes "Top" + "Shorts" / "Trousers" (+ "Robe"), and every front
+  and back composes the bottoms beneath the top from that flat photo, so the catalogue shows the
+  complete pyjama. Mark the photo of the bottoms (or name it "shorts" / "بنطلون"); the director
+  brain sorts the rest. Under "From products", the Front & Back job offers "Bottoms photographed
+  flat" for any multi-piece product.
 - Each model becomes a one-piece product, so its DNA, colourways and images also appear under
   Products and can be used for sheets and ads.
 - The work runs **while a studio tab is open**: the browser calls
   `POST /api/ghost-batches/advance` in a loop and the server does one step per call (sort the
   photos, write and approve the DNA, write prompts and submit, settle results, render colours,
   check fidelity). Close the tab and it continues next time the studio is open.
+
+## Generate (free generation)
+
+- **Generate** (`/generate`) is the plain Higgsfield experience inside the studio: upload reference
+  images if you want, write a prompt, choose any image or video model, the size (aspect ratio),
+  the quality (resolution) and, for video, the duration, and generate 1 to 4 outputs per click.
+- The prompt is sent **word for word**: no Garment DNA, no PRODUCT LOCK, no house style. "Polish"
+  asks the director brain to rewrite it in a generation-ready form without changing what it asks
+  for; you review it in the box (and can undo) before generating.
+- With references the request runs as image → image (or image → video); without them as text →
+  image (or text → video). The form only offers the sizes and qualities the chosen model has, and
+  says when a model needs a reference or takes text only.
+- Results arrive on the page as they finish, with the prompt, model, size, quality and cost. Each
+  one can be downloaded, favourited, reused as a form or used as a reference for the next
+  request. The last 48 free generations stay on the page; they do not appear in the Library.
+
+### Guests (Generate only)
+
+- A **guest** is an account that may sign in but sees only Generate: no Studio home, Products,
+  Ghost, Ads, Library or Settings, and none of the studio's configuration. Guests keep a history
+  of their own on the Generate page; no guest can see anyone else's.
+- The **owner** lists guests under **Settings → Guests** (the first one, `dr@secret.com`, is
+  listed by the migration). Listing an email allows it in; the account itself is created in
+  Supabase, since sign-ups are closed: **Authentication → Users → Add user → Create new user**,
+  tick **Auto Confirm User**, and hand the guest the password (they cannot change it themselves).
+- The owner opens a guest's history from the Guests card or from the **History** switch on the
+  Generate page (`/generate?history=<user id>`): every result with its prompt, references, model,
+  size and cost, to look at and download. Guests' generations are billed to the same Higgsfield
+  account and count in Settings → Costs.
+- **Revoke** keeps the guest's rows and files (the owner can still open the history) and stops the
+  account signing in; to close the account itself, delete the user in Supabase. A revoked guest is
+  never treated as the owner, because everyone the guest list has ever named stays a guest at the
+  database level.
+- Database: migration `20261005120000_studio_guests.sql` adds `studio_guests`, the role
+  functions (`studio_role()`, `studio_guest_accounts()`) and two read-only policies that let the
+  owner read guests' generations and storage folders. Run it before the first guest signs in;
+  until then the studio behaves as before (owner only).
 
 ## Project layout
 
@@ -227,6 +271,10 @@ The `render_jobs` table is already in the schema.
 3. **المفاتيح**: من غير مفاتيح Higgsfield وClaude/Gemini التطبيق بيشتغل بنتائج تجريبية (Mock).
    لما تضيفها في Vercel وتعمل Redeploy، النتائج الحقيقية بتشتغل على طول.
 4. بعد أول دخول غيّر كلمة المرور من **الإعدادات → كلمة مرور الحساب**.
+   - **ضيوف (التوليد الحر بس)**: من **الإعدادات → الضيوف** ضيف إيميل الضيف (`dr@secret.com` متضاف
+     من الـ migration)، وبعدين اعمله حساب من Supabase → Authentication → Users → Add user (Auto
+     Confirm) وادّيله كلمة المرور. الضيف مش هيشوف غير صفحة التوليد الحر والهيستوري بتاعه، وإنت
+     تقدر تفتح الهيستوري ده من كارت الضيوف أو من زرار «الهيستوري» في صفحة التوليد.
 5. **صفحة الجوست من الصور**: ارفع كل صور الموديل مرة واحدة، فكل رفعة بتبقى موديل واحد: أمام وخلف
    و2 كلوز، وبعد ما توافق على الأمام يعمل الألوان. لموديلات كتير مرة واحدة، اسحب مجلد فيه مجلد لكل
    موديل (اسم المجلد = اسم الموديل)، وعينات الألوان في مجلد «ألوان». الشغل بيمشي طول ما فيه تبويب من

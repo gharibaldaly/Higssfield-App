@@ -85,7 +85,13 @@
     "errors": {
       "invalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
       "not_owner": "هذا الحساب غير مسموح له بدخول الاستوديو.",
-      "config": "لم يتم إعداد Supabase بعد — راجع صفحة الإعداد."
+      "config": "لم يتم إعداد Supabase بعد — راجع صفحة الإعداد.",
+      "rate_limit": "محاولات دخول كثيرة. انتظر عشر دقائق ثم حاول مرة أخرى.",
+      "unconfirmed": "يقول Supabase Auth إن هذا البريد غير مؤكد بعد.",
+      "captcha": "يطلب Supabase Auth كابتشا لا يرسلها الاستوديو. أوقفها من Authentication ← Attack Protection.",
+      "provider": "تسجيل الدخول بالبريد موقوف في Supabase Auth ‏(Authentication ← Providers ← Email).",
+      "unavailable": "لم يرد Supabase Auth. حاول بعد دقيقة.",
+      "unknown": "رفض Supabase Auth تسجيل الدخول: {detail}"
     }
   },
   "setup": {

@@ -53,7 +53,7 @@ export function LoginForm() {
           role="alert"
           className="rounded-(--radius-control) border border-[color-mix(in_srgb,var(--destructive)_35%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] px-3 py-2 text-sm text-destructive"
         >
-          {t(`errors.${state.error}`)}
+          {t(`errors.${state.error}`, { detail: state.detail ?? "" })}
         </p>
       ) : null}
       <Button type="submit" size="lg" disabled={pending} className="mt-2 w-full">

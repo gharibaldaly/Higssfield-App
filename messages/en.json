@@ -85,7 +85,13 @@
     "errors": {
       "invalid": "Email or password is not correct.",
       "not_owner": "This account is not allowed into the studio.",
-      "config": "Supabase is not configured yet — see the setup page."
+      "config": "Supabase is not configured yet — see the setup page.",
+      "rate_limit": "Too many sign-in attempts. Wait ten minutes, then try again.",
+      "unconfirmed": "Supabase Auth says this email is not confirmed yet.",
+      "captcha": "Supabase Auth expects a CAPTCHA, which the studio does not send. Turn it off under Authentication → Attack Protection.",
+      "provider": "Email sign-in is turned off in Supabase Auth (Authentication → Providers → Email).",
+      "unavailable": "Supabase Auth did not answer. Try again in a minute.",
+      "unknown": "Supabase Auth refused the sign-in: {detail}"
     }
   },
   "setup": {

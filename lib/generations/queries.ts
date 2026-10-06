@@ -2,6 +2,7 @@ import "server-only";
 
 import { toGenerationView, type GenerationView } from "@/lib/domain/generation";
 import { AppError } from "@/lib/errors";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import { signPaths } from "@/lib/storage/objects";
 import type { GenerationRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
@@ -51,9 +52,17 @@ export async function toViews(
     supabase,
     rows.map((row) => row.storage_path),
   );
-  return rows.map((row) =>
-    toGenerationView(row, row.storage_path ? (urls.get(row.storage_path) ?? null) : null),
+  // Tiles show the small copy of an image result (videos have none).
+  const thumbs = await thumbUrls(
+    supabase,
+    rows.filter((row) => row.kind === "image").map((row) => row.storage_path),
+    urls,
   );
+  return rows.map((row) => {
+    const url = row.storage_path ? (urls.get(row.storage_path) ?? null) : null;
+    const thumb = row.storage_path ? (thumbs.get(row.storage_path) ?? url) : null;
+    return toGenerationView(row, url, thumb);
+  });
 }
 
 /** Insert a failed generation row (e.g. missing reference) so the UI can show why. */

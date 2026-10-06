@@ -15,6 +15,7 @@ import { approvedCatalogueImage, toViews } from "@/lib/generations/queries";
 import { loadProductIntake } from "@/lib/products/queries";
 import { anySheetLayoutSchema } from "@/lib/sheet/layout";
 import { listCrops, listSheets } from "@/lib/sheet/service";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import { signPaths } from "@/lib/storage/objects";
 
 // Building a sheet sends the photos to the director brain, then cuts and renders them.
@@ -93,7 +94,7 @@ export default async function SheetPage({
   let crops: CropView[] = [];
   if (selected?.status === "approved") {
     const rows = await listCrops(supabase, selected.id);
-    const signedCrops = await signPaths(
+    const signedCrops = await thumbUrls(
       supabase,
       rows.map((row) => row.storage_path),
     );
@@ -118,7 +119,7 @@ export default async function SheetPage({
       crops={crops}
       references={intake.photos.map((photo) => ({
         id: photo.id,
-        url: photo.url,
+        url: photo.thumbUrl ?? photo.url,
         label: photoLabel(photo),
       }))}
       photos={[

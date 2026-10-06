@@ -12,6 +12,7 @@ function view(id: string, patch: Partial<GenerationView> = {}): GenerationView {
     provider: "higgsfield",
     slot: "front",
     url: `https://storage.test/${id}.png`,
+    thumbUrl: `https://storage.test/${id}-thumb.jpg`,
     mimeType: "image/png",
     error: null,
     note: null,

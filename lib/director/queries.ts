@@ -9,7 +9,7 @@ import { toViews } from "@/lib/generations/queries";
 import { toModelOptions, type ModelOption } from "@/lib/providers/higgsfield/options";
 import { getOwnerSettings } from "@/lib/settings/service";
 import { listCrops } from "@/lib/sheet/service";
-import { signPaths } from "@/lib/storage/objects";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import type { ShotRow } from "@/lib/supabase/database.types";
 import type { TypedSupabaseClient } from "@/lib/supabase/server";
 
@@ -82,7 +82,7 @@ export async function loadDirectorBoard(
   const views = new Map(
     (await toViews(supabase, generations ?? [])).map((view) => [view.id, view]),
   );
-  const signed = await signPaths(
+  const signed = await thumbUrls(
     supabase,
     crops.map((crop) => crop.storage_path),
   );

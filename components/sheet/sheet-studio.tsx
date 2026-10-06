@@ -203,6 +203,7 @@ export function SheetStudio({
                   <GenerationMedia
                     view={generation!}
                     alt={t("sheetAlt")}
+                    size="full"
                     className="aspect-video w-full"
                     controls={false}
                   />

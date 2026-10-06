@@ -1576,6 +1576,18 @@
       "revokedHeading": "Revoked",
       "accountHint": "Listing the email allows it in. The account itself is created in Supabase: Authentication → Users → Add user (tick Auto Confirm), with the password you hand to the guest.",
       "failed": "Could not update the guests."
+    },
+    "derivatives": {
+      "title": "Small copies",
+      "hint": "Tiles and previews show a small copy of every photo and result, and Higgsfield and the director brain receive a 2560-pixel copy. The originals leave Storage only for the compare view, the sheet editor and the downloads, which keeps Supabase's egress low. New files get their copies as they are stored; this makes them for the files stored before.",
+      "run": "Make the copies",
+      "running": "Working…",
+      "stop": "Stop",
+      "progress": "{processed} of {total} files · {made} made · {skipped} already had copies · {failed} failed.",
+      "progressNoTotal": "{processed} files · {made} made · {skipped} already had copies · {failed} failed.",
+      "done": "Every stored file was seen.",
+      "doneTitle": "The stored files have their copies.",
+      "egressNote": "Each original is read once from Storage to make its copies, which counts as egress too. Run this once the Supabase quota is free; files that already have copies are only checked, never read again."
     }
   },
   "errors": {

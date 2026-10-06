@@ -6,6 +6,7 @@ import { LibraryView } from "@/components/library/library-view";
 import { requireOwner } from "@/lib/auth/owner";
 import { listLibraryCollections } from "@/lib/library/collections";
 import { listProductCards } from "@/lib/products/queries";
+import { thumbUrls } from "@/lib/storage/derivatives";
 import { signPaths } from "@/lib/storage/objects";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -49,10 +50,15 @@ export default async function LibraryPage({
     ? await supabase.from("generations").select("id, storage_path").in("id", sheetGenerationIds)
     : { data: [] as { id: string; storage_path: string | null }[] };
   const sheetPaths = new Map((sheetGenerations ?? []).map((row) => [row.id, row.storage_path]));
-  const signed = await signPaths(supabase, [
-    ...(sheets.data ?? []).map((row) => row.image_path),
-    ...(sheetGenerations ?? []).map((row) => row.storage_path),
-    ...(colorways.data ?? []).map((row) => row.swatch_path),
+  const [sheetThumbs, signed] = await Promise.all([
+    thumbUrls(supabase, [
+      ...(sheets.data ?? []).map((row) => row.image_path),
+      ...(sheetGenerations ?? []).map((row) => row.storage_path),
+    ]),
+    signPaths(
+      supabase,
+      (colorways.data ?? []).map((row) => row.swatch_path),
+    ),
   ]);
   const productName = new Map(products.map((product) => [product.id, product.name]));
 
@@ -88,7 +94,7 @@ export default async function LibraryPage({
             productName: productName.get(row.product_id) ?? "",
             version: row.version,
             status: row.status,
-            url: path ? (signed.get(path) ?? null) : null,
+            url: path ? (sheetThumbs.get(path) ?? null) : null,
           };
         })}
         colorways={(colorways.data ?? []).map((row) => ({

@@ -200,7 +200,7 @@ describe("the Higgsfield waiting room", () => {
     expect(rowById(rows[2]!.id).params).not.toHaveProperty("_waiting");
     expect(rowById(rows[2]!.id).params).toMatchObject({
       _correlationId: "corr-1",
-      image_urls: ["storage:owner/photos/front.jpg"],
+      image_urls: [expect.stringMatching(/^storage:owner\/derived\/refs\/[0-9a-f]{24}-2560\.jpg$/)],
     });
 
     for (const row of rows) provider.finish(row.id);

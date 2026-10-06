@@ -20,6 +20,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { CustomModelsEditor } from "@/components/settings/custom-models-editor";
+import { DerivativesCard } from "@/components/settings/derivatives-card";
 import { GuestsCard } from "@/components/settings/guests-card";
 import { PasswordCard } from "@/components/settings/password-card";
 import { ModelCapabilitiesSummary, ModelSelectItems } from "@/components/generation/model-picker";
@@ -138,6 +139,7 @@ export function SettingsView({
         />
         <DriveCard drive={settings.drive} configured={keys.googleDrive} />
         <GuestsCard guests={guests} />
+        <DerivativesCard />
         <PasswordCard />
       </div>
       <CostCard costs={costs} />

@@ -263,6 +263,11 @@ phone photos and the 4K results, with a new signed URL on every render. Since th
   login page says so; the dashboard and the SQL editor still work. Upgrading the studio's own
   organization to Pro (250 GB of egress) lifts the restriction at once; otherwise it lifts when the
   billing cycle resets.
+- **Since 2026-10-07 the studio runs on a second free project, `higgsfield-studio2`** (its own
+  organization, Frankfurt), set up with every migration, the owner account and the storage bucket,
+  so work could go on at no cost while the first project waits for its cycle to reset. The first
+  project keeps the earlier photos and results until then; nothing was deleted. Point Vercel at a
+  project by setting `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` and redeploying.
 
 ## Project layout
 
@@ -316,3 +321,7 @@ The `render_jobs` table is already in the schema.
    المخرج نسخة 2560 بكسل، والأصول مبتتحمّلش غير في المقارنة والمحررات والتنزيل. للملفات القديمة:
    **الإعدادات → نسخ مصغّرة → اصنع النسخ** مرة واحدة بعد ما الحصة تتحرر (أو بعد ترقية منظمة
    الاستوديو بس لـ Pro).
+9. **المشروع التاني higgsfield-studio2** (من 7 أكتوبر): مشروع مجاني في منظمة مستقلة، اتجهّز بكل الـ
+   migrations وحساب المالك والـ bucket عشان الشغل يكمل من غير دفع لحد ما المشروع الأول يفتح. التبديل
+   بين المشروعين من Vercel: غيّر `NEXT_PUBLIC_SUPABASE_URL` و`NEXT_PUBLIC_SUPABASE_ANON_KEY` واعمل
+   Redeploy. الصور والنتائج القديمة فاضلة في المشروع الأول.
